@@ -31,9 +31,11 @@
 # Enjoy! ;)
 
 from __future__ import unicode_literals
+import functools as ft
+import itertools as itt
+import multiprocessing as mp
 import logging
 import os
-from os.path import join as pjoin
 import platform
 import struct
 import sys
@@ -42,7 +44,8 @@ import time
 from Crypto.Cipher import AES
 
 
-log = logging.getLogger('teslacrack')
+#log = logging.getLogger('teslacrack')
+log = mp.get_logger()
 
 # Add your (AES-key: priv-key) pairs here, like the examples below.
 known_keys = {
@@ -61,21 +64,22 @@ known_file_magics = [b'\xde\xad\xbe\xef\x04', b'\x00\x00\x00\x00\x04']
 delete = False      # --delete
 delete_old = False  # --delete-old
 overwrite = False   # --overwirte
+progress = 1    # --progress
 verbose = False     # -v
-dry_run = False     # -n
+dry_run = 1     # -n
 
 unknown_keys = {}
 unknown_btkeys = {}
 
 ## STATS
 #
-ndirs = -1
-visited_ndirs = 0
 visited_nfiles = encrypt_nfiles = decrypt_nfiles = overwrite_nfiles = 0
 deleted_nfiles = skip_nfiles = unknown_nfiles = failed_nfiles = 0
 
+bad_files = []
+
 PROGRESS_INTERVAL_SEC = 7 # Log stats every that many files processed.
-last_progress_time = time.time()
+last_progress_time = 0
 
 
 
@@ -160,44 +164,25 @@ def decrypt_file(path):
         log.error("Error decrypting %r due to %r!  Please try again.",
                 path, e, exc_info=verbose)
 
+
 def is_progess_time():
     global last_progress_time
     if time.time() - last_progress_time > PROGRESS_INTERVAL_SEC:
         last_progress_time = time.time()
         return True
 
+
 def upath(f):
     if platform.system() == 'Windows':
         f = r'\\?\%s' % os.path.abspath(f) # Handle long unicode files.
     return f
 
-def traverse_fpaths(fpaths):
-    global visited_ndirs
 
-    for fpath in fpaths:
-        fpath = upath(fpath)
-        if os.path.isfile(fpath):
-            decrypt_file(fpath)
-        else:
-            for dirpath, subdirs, files in os.walk(fpath):
-                visited_ndirs += 1
-                if is_progess_time():
-                    log_stats(dirpath)
-                    log_unknown_keys()
-                for f in files:
-                    decrypt_file(os.path.join(dirpath, f))
+def handle_bad_fpath(err):
+    global bad_files
+    log.error('%r', err) # err.filename
+    bad_files.append(err)
 
-
-def count_subdirs(fpaths):
-    n = 0
-    log.info("+++Counting dirs...")
-    for f in fpaths:
-        #f = upath(f) # Don't bother...
-        for _ in os.walk(f):
-            if is_progess_time():
-                log.info("+++Counting dirs: %i...", n)
-            n += 1
-    return n
 
 def log_unknown_keys():
     if unknown_keys:
@@ -212,30 +197,61 @@ def log_unknown_keys():
                 len(unknown_keys), '\n'.join(key_msgs))
 
 
-def log_stats(fpath=''):
+def log_stats(fpath='', nfiles=-1):
     if fpath:
         fpath = ': %r' % os.path.dirname(fpath)
     dir_progress = ''
-    if ndirs > 0:
-        prcnt = 100 * visited_ndirs / ndirs
-        dir_progress = ' of %i(%0.2f%%)' % (ndirs, prcnt)
-    log.info("+++Dir %5i%s%s"
-            "\n    visited: %7i"
-            "\n  encrypted:%7i"
-            "\n    decrypted:%7i"
-            "\n    overwritten:%7i"
-            "\n      deleted:%7i"
-            "\n      skipped:%7i"
-            "\n      unknown:%7i"
-            "\n       failed:%7i",
-        visited_ndirs, dir_progress, fpath, visited_nfiles, encrypt_nfiles,
-        decrypt_nfiles, overwrite_nfiles, deleted_nfiles, skip_nfiles,
-        unknown_nfiles, failed_nfiles)
+    if nfiles > 0:
+        prcnt = 100 * visited_nfiles / nfiles
+        dir_progress = ' of %i(%0.2f%%)' % (nfiles, prcnt)
+    log.info("+++Progress: "
+             "\n  Visited:%7i%s%s"
+             "\n      Bad:%7i"
+             "\n  Encrypted:%7i"
+             "\n    Decrypted:%7i"
+             "\n    Overwritten:%7i"
+             "\n      Deleted:%7i"
+             "\n      Skipped:%7i"
+             "\n      Unknown:%7i"
+             "\n       Failed:%7i",
+        visited_nfiles, dir_progress, fpath, len(bad_files), encrypt_nfiles, decrypt_nfiles,
+        overwrite_nfiles, deleted_nfiles, skip_nfiles, unknown_nfiles, failed_nfiles)
 
+def process_files(files_queue, nfiles):
+    for fpath in iter(lambda: files_queue.get(), None):
+        if progress and is_progess_time():
+            log_stats(fpath, nfiles.value)
+            log_unknown_keys()
+        decrypt_file(fpath)
+    log_stats('END', nfiles.value)
+    log_unknown_keys()
+    if bad_files:
+        log.error('Bad files: %s', '\n  '.join(err.filename for err in bad_files))
+
+
+def traverse_fpaths(fpaths, files_queue, nfiles):
+    def collect_file(fpath):
+        if os.path.splitext(fpath)[1] in tesla_extensions:
+            files_queue.put(fpath)
+            nfiles.value += 1
+
+
+    for fpath in fpaths:
+        fpath = upath(fpath)
+        if os.path.isfile(fpath):
+            collect_file(fpath)
+        else:
+            for dirpath, subdirs, files in os.walk(fpath, onerror=handle_bad_fpath):
+                for f in files:
+                    f = os.path.join(dirpath, f)
+                    if progress and is_progess_time():
+                        log.info("+++Collected %i infected files...", nfiles.value)
+                    collect_file(f)
+    files_queue.put(None)
+    log.info("+++Collected %i infected files.", nfiles.value)
 
 def main(args):
-    global verbose, delete, delete_old, overwrite, ndirs, dry_run
-    progress = False
+    global verbose, delete, delete_old, overwrite, dry_run, progress
     fpaths = []
 
     log_level = logging.INFO
@@ -258,16 +274,23 @@ def main(args):
 
     frmt = "%(asctime)-15s:%(levelname)3.3s: %(message)s"
     logging.basicConfig(level=log_level, format=frmt)
+    mp.log_to_stderr()
 
     if not fpaths:
         fpaths.append('.')
 
-    if progress:
-        ndirs = count_subdirs(fpaths)
-    traverse_fpaths(fpaths)
+    nfiles = mp.Value('L', lock=False)
+    queue = mp.Queue()
+    collector = mp.Process(name='Collector',
+            target=traverse_fpaths, args=(fpaths, queue, nfiles))
+    collector.daemon = True
+    decryptor = mp.Process(name='Decryptor',
+            target=process_files, args=(queue, nfiles))
+    decryptor.daemon = True
 
-    log_unknown_keys()
-    log_stats()
+    collector.start()
+    decryptor.start()
+    decryptor.join()
 
 if __name__=='__main__':
     main(sys.argv[1:])
