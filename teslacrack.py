@@ -1,6 +1,6 @@
 # TeslaCrypt cracker
 #
-# by Googulator
+# by Googulator, "piping" by ankostis.
 #
 # To use, factor the 2nd hex string found in the headers of affected files using msieve.
 # The AES-256 key will be one of the factors, typically not a prime - experiment to see which one works.
@@ -14,12 +14,12 @@
 # When invoked without any folder specified, working-dir('.') assumed.
 #
 ## OPTIONS
-#    --       # Delete encrypted-files after decrypting them.
-#    ---old   # Delete encrypted even if decrypted-file created during a previous run
-#    --    # Re-decrypt and overwirte existing decrypted-files.
+#    --delete       # Delete encrypted-files after decrypting them.
+#    ---delete-old  # Delete encrypted even if decrypted-file created during a previous run
+#    --overwrite    # Re-decrypt and overwirte existing decrypted-files.
 #    --progress     # Before start encrypting, pre-scan all dirs, to provide progress-indicator.
 #    -v             # Verbosely log(DEBUG) all files decrypted
-#    -n             # Dry-run: do not decrypt/, just report actions performed (logs and stats).
+#    -n             # Dry-run: Decrypt but dot Write/Delete files, just report actions performed.
 
 ## EXAMPLES:
 #
@@ -31,21 +31,17 @@
 # Enjoy! ;)
 
 from __future__ import unicode_literals
-import functools as ft
-import itertools as itt
-import multiprocessing as mp
-from multiprocessing import Process, Queue, JoinableQueue, Value  # @UnresolvedImport
-from queue import Empty, Full
-from ctypes import Structure, c_long, c_wchar_p
+
+from ctypes import Structure, c_long
 import logging
+from multiprocessing import Process, Queue, JoinableQueue, Value # @UnresolvedImport
 import os
 import platform
+from queue import Empty
 import struct
 import sys
-import time
 
 from Crypto.Cipher import AES
-from collections import namedtuple
 
 
 log = logging.getLogger('teslacrack')
@@ -70,7 +66,10 @@ MAX_REPORT_ITEMS = 15
 
 unknown_key_pairs = set() # Unknown key-pairs (AES, BTC) encountered while scanning.
 
-class Opts(object):pass
+class Opts(object):
+    def __init__(self, **kwargs):
+        for k, v in kwargs.items():
+            setattr(self, k, v)
 
 class Stats(Structure):
     _fields_ = [
@@ -84,18 +83,26 @@ class Stats(Structure):
         ('skip_nfiles', c_long),
     ]
 
-class QueueMachine(object):
+class _QRec(object):
+    __slots__ = ['q', 'pumped', 'name', 'title', 'desc']
+    def __init__(self, name, title, desc):
+        self.q, self.pumped = Queue(), []
+        self.name, self.title, self.desc = name, title, desc
+
+class QueueMachine(dict):
     """A map of {queue_name --> (queue, items-pumped, title, desc)}."""
     def __init__(self, queue_names):
-        self._qmap = qmap = {qn: [Queue(), [], title, desc]
+        qmap = {qn: _QRec(qn, title, desc)
                 for qn, title, desc in queue_names}
-        self.queues = {qn: rec[0] for qn, rec in qmap.items()}
-        self.dicts = {qn: rec[1] for qn, rec in qmap.items()}
-        self.titles = {qn: rec[2] for qn, rec in qmap.items()}
-        self.descs = {qn: rec[3] for qn, rec in qmap.items()}
+        self.update(qmap)
+        self.queues = {qn: rec.q for qn, rec in qmap.items()}
+        self.pumpeds = {qn: rec.pumped for qn, rec in qmap.items()}
+        self.titles = {qn: rec.title for qn, rec in qmap.items()}
+        self.descs = {qn: rec.desc for qn, rec in qmap.items()}
+
     def pump(self):
-        for qn, rec in self._qmap.items():
-            _queue_to_list(rec[0], rec[1])
+        for rec in self.values():
+            _queue_to_list(rec.q, rec.pumped)
 
 
 def _queue_to_list(q, l=None):
@@ -127,6 +134,7 @@ def _fix_key(key):
 def is_tesla_file(fname):
     return os.path.splitext(fname)[1] in tesla_extensions
 
+
 def _needs_decryption(fpath, exp_size, overwrite, badorigs_q):
     """Decides `True` if missing, size-corrupted, or forced-overwrite."""
     fexists = os.path.isfile(fpath)
@@ -137,21 +145,23 @@ def _needs_decryption(fpath, exp_size, overwrite, badorigs_q):
             badorigs_q.put(fpath)
     return fexists, overwrite
 
-def _get_decrypted_AES_key(fpath, header, unknowns_q, unknown_keys_q):
+
+def _get_decrypted_AES_key(fpath, header, undecrypts_q, unknown_keys_q):
     """Search if encrypted-AES-key is known, and maintains related indexes."""
     aes_encrypted_key = header[0x108:0x188].rstrip(b'\0')
     aes_key = known_AES_key_pairs.get(aes_encrypted_key)
     if not aes_key:
-        unknowns_q.put(fpath)
         btc_encrypted_key = header[0x45:0xc5].rstrip(b'\0')
+        undecrypts_q.put('%s --> \b  AES(%14.14s...), BTC(%14.14s...)' %
+                (fpath, aes_encrypted_key, btc_encrypted_key))
         keys_pair = aes_encrypted_key, btc_encrypted_key
         if keys_pair not in unknown_key_pairs:
-            unknown_keys_q.add(keys_pair)
-        unknown_key_pairs.add(keys_pair)
+            unknown_keys_q.put(keys_pair)
+            unknown_key_pairs.add(keys_pair)
 
     return aes_key
 
-def decrypt_tesla_file(opts, fpath, stats, invalids_q, badorigs_q, unknowns_q, fails_q,
+def decrypt_tesla_file(opts, fpath, stats, invalids_q, badorigs_q, undecrypts_q, fails_q,
                 unknown_keys_q, **report_qs):
     try:
         stats.visited_nfiles += 1
@@ -165,7 +175,7 @@ def decrypt_tesla_file(opts, fpath, stats, invalids_q, badorigs_q, unknowns_q, f
             stats.encrypt_nfiles += 1
 
             aes_key = _get_decrypted_AES_key(
-                    fpath, header, unknowns_q, unknown_keys_q)
+                    fpath, header, undecrypts_q, unknown_keys_q)
             if not aes_key:
                 return
 
@@ -205,27 +215,29 @@ def decrypt_tesla_file(opts, fpath, stats, invalids_q, badorigs_q, unknowns_q, f
         fails_q.put('%r: %s' % (e, fpath))
 
 
-def log_report_qs(queue_items, queue_titles):
-    for qn, items in sorted(queue_items.items()):
-        if items:
-            if len(items) > MAX_REPORT_ITEMS:
-                items = items[:MAX_REPORT_ITEMS] + ['...']
-            log.info("+++'%s' files: \n  %s",
-                    queue_titles[qn], '\n  '.join(items))
+def log_report_queues(qm, excludes=()):
+    for qn, pumped in sorted(qm.pumpeds.items()):
+        if pumped and qn not in excludes:
+            if len(pumped) > MAX_REPORT_ITEMS:
+                items = pumped[:MAX_REPORT_ITEMS] + ['...']
+            else:
+                items = pumped
+            log.info("+++%s: %i \n  %s\n", qm.titles[qn], len(pumped),
+                    '\n  '.join(items))
 
 
 def log_unknown_keys(unknown_keys):
     if unknown_keys:
         #assert len(aes_unknown_keys) == len(btc_unknown_keys, ( aes_unknown_keys, btc_unknown_keys)
-        log.info("+++Encountered %i unknown-key(s): \n%s"
-                "  To crack them, use `msieve` on AES-key(s) or `msieve`+`TeslaDecoder` on Bitcoin-key(s).",
+        log.info("+++UNKNOWN keys: %i \n%s"
+                "  To crack them, use `msieve` on AES-key(s) or `msieve`+`TeslaDecoder` on Bitcoin-key(s).\n",
                 len(unknown_keys),
                 '\n'.join("    AES: %r\n    BTC: %r\n" % (aes, btc)
                         for (aes, btc) in unknown_keys))
 
 
 
-def log_stats(fpath, stats, noaccess_q, invalids_q, unknowns_q, fails_q, badorigs_q,
+def log_stats(fpath, stats, noaccess_q, invalids_q, undecrypts_q, fails_q, badorigs_q,
         unknown_keys_q, **report_items):
     """Prints #-of-file without pumping queues (just their length), or from `stats`."""
     dir_progress = ('' if stats.tesla_nfiles <= 0 else
@@ -235,7 +247,7 @@ def log_stats(fpath, stats, noaccess_q, invalids_q, unknowns_q, fails_q, badorig
              "\n  NoAccess  :%7i"
              "\n  TeslaExt  :%7i"
              "\n    Visited   :%7i"
-             "\n      Invalid :%7i"
+             "\n      BadHeader :%7i"
              "\n      Encrypted :%7i"
              "\n        Decrypted :%7i"
              "\n          Overwritten:%7i"
@@ -249,7 +261,7 @@ def log_stats(fpath, stats, noaccess_q, invalids_q, unknowns_q, fails_q, badorig
         stats.scanned_nfiles, len(noaccess_q), stats.tesla_nfiles,
         stats.visited_nfiles, len(invalids_q), stats.encrypt_nfiles,
         stats.decrypt_nfiles, stats.overwrite_nfiles, len(badorigs_q),
-        stats.deleted_nfiles, stats.skip_nfiles, len(unknowns_q),
+        stats.deleted_nfiles, stats.skip_nfiles, len(undecrypts_q),
         len(fails_q),
         len(unknown_keys_q))
 
@@ -258,7 +270,7 @@ def collect_tesla_files(fpaths, fpaths_q, stats, noaccess_q):
     """Collects all files with TeslaCrypt ext containd in :data:`tesla_extensions` (`.vvv`). """
     try:
         def handle_bad_subdir(err):
-            pass#noaccess_q.put('%r: %s', err, err.filename)
+            noaccess_q.put('%r: %s' % (err, err.filename))
 
 
         _upath = (lambda f: r'\\?\%s' % os.path.abspath(f)
@@ -276,7 +288,7 @@ def collect_tesla_files(fpaths, fpaths_q, stats, noaccess_q):
                             if is_tesla_file(f)]
                     stats.tesla_nfiles += len(tesla_files)
                     for f in tesla_files:
-                        fpaths_q.put(fpath)
+                        fpaths_q.put(f)
     finally:
         # `None` signals Collector has finished.
         fpaths_q.put(None)
@@ -291,62 +303,33 @@ def process_tesla_files(opts, fpaths_q, stats, report_qs):
             fpaths_q.task_done()
 
 
-def main(args):
-    fpaths = []
-
-    opts = Opts()
-    stats = Value(Stats, lock=False)
-
-    log_level = logging.INFO
-    verbose = False
-    for arg in args:
-        if arg == "--delete":
-            opts.delete = True
-        elif arg == "--delete-old":
-            opts.delete_old = delete_old = True
-        elif arg == "--overwrite":
-            opts.overwrite = True
-        elif arg == "-n":
-            opts.dry_run = True
-        elif arg == "-v":
-            log_level = logging.DEBUG
-            verbose = True
-        else:
-            fpaths.append(arg)
-
-    frmt = "%(asctime)-15s:%(levelname)3.3s: %(message)s"
-    logging.basicConfig(level=log_level, format=frmt)
-    if verbose or 1:
-        mp.log_to_stderr()
-
-    if not fpaths:
-        fpaths.append('.')
-
+def run(opts, fpath_list):
     fpaths_q  = JoinableQueue()
     qm = QueueMachine([
         ('noaccess_q',
-                'no_access',
-                "Files (and errors) collector failed to access."),
+                'NOT ACCESSED files',
+                "Files (and errors) by Collector while scanning disk."),
         ('invalids_q',
-                'bad_tesla_header',
+                'Bad TESLA-HEADER files',
                 "Tesla-files with invalid content (wrong magic-number)."),
-        ('unknowns_q',
-                'undecrypted_yet',
+        ('undecrypts_q',
+                'NOT YET DECRYPTED files',
                 "Files with unknown AES/BTC keys."),
         ('badorigs_q',
-                'bad_originals',
-                "Corrupted original-files (size-mismatch) to be overwritten."),
+                'CORRUPTED ORIGINAL files',
+                "Size-mismatched for the original-files, and will be overwritten."),
         ('fails_q',
-                'failed_decryption',
-                "Files (and errors) decrypting failed (corrupted '.vvv' file)"),
+                'Decryption FAILED files',
+                "Files (and errors) that faled to decrypt (corrupted '.vvv' file?)"),
         ('unknown_keys_q',
                 'undecrypted_keys',
                 "Pairs of unknown (AES, BTC) keys encountered."),
     ])
+    stats = Value(Stats, lock=False)
 
     collector = Process(name='Collector',
             target=collect_tesla_files,
-            args=(fpaths, fpaths_q, stats, qm.queues['noaccess_q']))
+            args=(fpath_list, fpaths_q, stats, qm.queues['noaccess_q']))
     decryptor = Process(name='Decryptor',
             target=process_tesla_files,
             args=(opts, fpaths_q, stats, qm.queues))
@@ -357,26 +340,53 @@ def main(args):
 
     while decryptor.is_alive():
         qm.pump()
-        log_stats(_peek_queue(fpaths_q, '<IDLING>'), stats, **qm.dicts)
-        log_unknown_keys(qm.dicts['unknown_keys_q'])
+        log_stats(_peek_queue(fpaths_q, '<IDLING>'), stats, **qm.pumpeds)
+        log_unknown_keys(qm.pumpeds['unknown_keys_q'])
         decryptor.join(PROGRESS_INTERVAL_SEC)
 
     qm.pump()
-    log_stats('<FINSIHED>', stats, **qm.dicts)
-    log_report_qs(qm.dicts, qm.titles)
-    log_unknown_keys(qm.dicts['unknown_keys_q'])
+    log_stats('<FINSIHED>', stats, **qm.pumpeds)
+    log_report_queues(qm, 'unknown_keys_q')
+    log_unknown_keys(qm.pumpeds['unknown_keys_q'])
 
-    #collector.join() NO, must dies if decryptor dies.
+    #collector.join() NO, must die if decryptor dies.
     decryptor.join()
 
-    if collector.exitcode:
-        log.error("Collector crashed!")
-    if decryptor.exitcode:
-        log.error("Decryptor crashed!")
+    if collector.exitcode or decryptor.exitcode:
+        log.error("Exit codes: Collector: %i, Decryptor: %i",
+                collector.exitcode, decryptor.exitcode)
+        c = collector.exitcode is None or collector.exitcode != 0
+        d = decryptor.exitcode is None or decryptor.exitcode != 0
+        return 1 * c + 2 * d
 
-# log.info("File NOT TeslaCrypted: %s", path)
-# log.warn("UNKNOWN key in file: %s", path)
-# log.error("Decrypting %r FAILED due to %r!  Please try again.", path, e, exc_info=verbose)
+def main(args):
+    fpath_list = []
+
+    opts = Opts(verbose=False, delete=False, delete_old=False,
+            overwrite=False, dry_run=False)
+    log_level = logging.INFO
+    for arg in args:
+        if arg == "--delete":
+            opts.delete = True
+        elif arg == "--delete-old":
+            opts.delete_old = True
+        elif arg == "--overwrite":
+            opts.overwrite = True
+        elif arg == "-n":
+            opts.dry_run = True
+        elif arg == "-v":
+            log_level = logging.DEBUG
+            opts.verbose = True
+        else:
+            fpath_list.append(arg)
+
+    frmt = "%(asctime)-15s:%(levelname)3.3s: %(message)s"
+    logging.basicConfig(level=log_level, format=frmt)
+
+    if not fpath_list:
+        fpath_list.append('.')
+
+    return run(opts, fpath_list)
 
 if __name__=='__main__':
-    main(sys.argv[1:])
+    exit(main(sys.argv[1:]))
