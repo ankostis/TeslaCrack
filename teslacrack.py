@@ -34,8 +34,8 @@ from __future__ import unicode_literals
 import functools as ft
 import itertools as itt
 import multiprocessing as mp
-from multiprocessing import Process, Queue, Value  # @UnresolvedImport
-from queue import Empty
+from multiprocessing import Process, Queue, JoinableQueue, Value  # @UnresolvedImport
+from queue import Empty, Full
 from ctypes import Structure, c_long, c_wchar_p
 import logging
 import os
@@ -45,6 +45,7 @@ import sys
 import time
 
 from Crypto.Cipher import AES
+from collections import namedtuple
 
 
 log = logging.getLogger('teslacrack')
@@ -65,8 +66,11 @@ tesla_extensions = ['.vvv', '.ccc']  # Add more known extensions.
 known_file_magics = [b'\xde\xad\xbe\xef\x04', b'\x00\x00\x00\x00\x04']
 
 PROGRESS_INTERVAL_SEC = 1.7 # Log stats every that many files processed.
+MAX_REPORT_ITEMS = 15
 
 unknown_key_pairs = set() # Unknown key-pairs (AES, BTC) encountered while scanning.
+
+class Opts(object):pass
 
 class Stats(Structure):
     _fields_ = [
@@ -80,9 +84,23 @@ class Stats(Structure):
         ('skip_nfiles', c_long),
     ]
 
+class QueueMachine(object):
+    """A map of {queue_name --> (queue, items-pumped, title, desc)}."""
+    def __init__(self, queue_names):
+        self._qmap = qmap = {qn: [Queue(), [], title, desc]
+                for qn, title, desc in queue_names}
+        self.queues = {qn: rec[0] for qn, rec in qmap.items()}
+        self.dicts = {qn: rec[1] for qn, rec in qmap.items()}
+        self.titles = {qn: rec[2] for qn, rec in qmap.items()}
+        self.descs = {qn: rec[3] for qn, rec in qmap.items()}
+    def pump(self):
+        for qn, rec in self._qmap.items():
+            _queue_to_list(rec[0], rec[1])
 
-def queue_to_list(q):
-    l = []
+
+def _queue_to_list(q, l=None):
+    if l is None:
+        l = []
     try:
         for i in iter(lambda: q.get_nowait(), None):
             l.append(i)
@@ -90,23 +108,36 @@ def queue_to_list(q):
         pass
     return l
 
-def fix_key(key):
+
+def _peek_queue(q, not_found=None):
+    try:
+        v = q.get_nowait()
+        q.put(v)
+        return v
+    except Empty:
+        return not_found
+
+
+def _fix_key(key):
     while key[0] == b'\0':
         key = key[1:] + b'\0'
     return key
 
 
-def needs_decryption(fpath, exp_size, overwrite, corrupteds_q):
+def is_tesla_file(fname):
+    return os.path.splitext(fname)[1] in tesla_extensions
+
+def _needs_decryption(fpath, exp_size, overwrite, badorigs_q):
     """Decides `True` if missing, size-corrupted, or forced-overwrite."""
     fexists = os.path.isfile(fpath)
     if fexists and not overwrite:
         disk_size = os.stat(fpath).st_size
         if disk_size != exp_size:
             overwrite = True
-            corrupteds_q.put(fpath)
+            badorigs_q.put(fpath)
     return fexists, overwrite
 
-def get_decrypted_AES_key(fpath, header, unknowns_q, unknown_keys_q):
+def _get_decrypted_AES_key(fpath, header, unknowns_q, unknown_keys_q):
     """Search if encrypted-AES-key is known, and maintains related indexes."""
     aes_encrypted_key = header[0x108:0x188].rstrip(b'\0')
     aes_key = known_AES_key_pairs.get(aes_encrypted_key)
@@ -120,7 +151,7 @@ def get_decrypted_AES_key(fpath, header, unknowns_q, unknown_keys_q):
 
     return aes_key
 
-def decrypt_file(fpath, stats, opts, invalids_q, corrupteds_q, unknowns_q, fails_q,
+def decrypt_tesla_file(opts, fpath, stats, invalids_q, badorigs_q, unknowns_q, fails_q,
                 unknown_keys_q, **report_qs):
     try:
         stats.visited_nfiles += 1
@@ -133,21 +164,21 @@ def decrypt_file(fpath, stats, opts, invalids_q, corrupteds_q, unknowns_q, fails
                 return
             stats.encrypt_nfiles += 1
 
-            aes_key = get_decrypted_AES_key(
+            aes_key = _get_decrypted_AES_key(
                     fpath, header, unknowns_q, unknown_keys_q)
             if not aes_key:
                 return
 
             size = struct.unpack('<I', header[0x19a:0x19e])[0]
             orig_fname = os.path.splitext(fpath)[0]
-            decrypted_exists, should_decrypt = needs_decryption(
-                    orig_fname, size, opts.overwrite, corrupteds_q)
+            decrypted_exists, should_decrypt = _needs_decryption(
+                    orig_fname, size, opts.overwrite, badorigs_q)
             if should_decrypt:
                 log.debug("Decrypting%s%s: %s",
                         '(overwrite)' if decrypted_exists else '',
                         '(dry-run)' if opts.dry_run else '', fpath)
                 decryptor = AES.new(
-                        fix_key(aes_key),
+                        _fix_key(aes_key),
                         AES.MODE_CBC, header[0x18a:0x19a])
                 data = decryptor.decrypt(fin.read())[:size]
                 if not opts.dry_run:
@@ -171,18 +202,19 @@ def decrypt_file(fpath, stats, opts, invalids_q, corrupteds_q, unknowns_q, fails
                 os.unlink(fpath)
             stats.deleted_nfiles += 1
     except Exception as e:
-        fails_q.put('%r : %s' % (e, fpath))
+        fails_q.put('%r: %s' % (e, fpath))
 
 
-def log_report_queues(**report_queues):
-    report_lists = {k: '%r' % queue_to_list(q)
-            for k, q in sorted(report_queues.items())}
+def log_report_qs(queue_items, queue_titles):
+    for qn, items in sorted(queue_items.items()):
+        if items:
+            if len(items) > MAX_REPORT_ITEMS:
+                items = items[:MAX_REPORT_ITEMS] + ['...']
+            log.info("+++'%s' files: \n  %s",
+                    queue_titles[qn], '\n  '.join(items))
 
-    log.info('+++Results: \n%r', report_lists)
 
-
-def log_unknown_keys(unknown_keys, unknowns_q):
-    unknown_keys.update(queue_to_list(unknowns_q))
+def log_unknown_keys(unknown_keys):
     if unknown_keys:
         #assert len(aes_unknown_keys) == len(btc_unknown_keys, ( aes_unknown_keys, btc_unknown_keys)
         log.info("+++Encountered %i unknown-key(s): \n%s"
@@ -193,88 +225,80 @@ def log_unknown_keys(unknown_keys, unknowns_q):
 
 
 
-def log_stats(stats, bads_q, invalids_q, unknowns_q, fails_q, corrupteds_q,
-        **report_qs):
+def log_stats(fpath, stats, noaccess_q, invalids_q, unknowns_q, fails_q, badorigs_q,
+        unknown_keys_q, **report_items):
+    """Prints #-of-file without pumping queues (just their length), or from `stats`."""
     dir_progress = ('' if stats.tesla_nfiles <= 0 else
             '(%0.2f%%)' % (100 * stats.visited_nfiles / stats.tesla_nfiles))
     log.info("+++Process%s: %s"
              "\n  Scanned   :%7i"
-             "\n  Bad_IO    :%7i"
+             "\n  NoAccess  :%7i"
              "\n  TeslaExt  :%7i"
              "\n    Visited   :%7i"
              "\n      Invalid :%7i"
              "\n      Encrypted :%7i"
              "\n        Decrypted :%7i"
              "\n          Overwritten:%7i"
-             "\n          Corrupted  :%7i"
+             "\n          BadOrigs   :%7i"
              "\n          Deleted    :%7i"
              "\n        Skipped   :%7i"
-             "\n        UnknownKey:%7i"
+             "\n          Unknowns:%7i"
              "\n        Failed    :%7i"
-             #"\n\n          MissingKeys :%i"
-        , dir_progress, stats.current_fpath,
-        stats.scanned_nfiles, bads_q.qsize(), stats.tesla_nfiles,
-        stats.visited_nfiles, invalids_q.qsize(),
-        stats.encrypt_nfiles, stats.decrypt_nfiles, stats.overwrite_nfiles,
-        stats.skip_nfiles, unknowns_q.qsize(),
-        fails_q.qsize(), corrupteds_q.qsize(), stats.deleted_nfiles)
+             "\n\n  Missing-Keys:%i"
+        , dir_progress, fpath,
+        stats.scanned_nfiles, len(noaccess_q), stats.tesla_nfiles,
+        stats.visited_nfiles, len(invalids_q), stats.encrypt_nfiles,
+        stats.decrypt_nfiles, stats.overwrite_nfiles, len(badorigs_q),
+        stats.deleted_nfiles, stats.skip_nfiles, len(unknowns_q),
+        len(fails_q),
+        len(unknown_keys_q))
 
 
-def upath(f):
-    if platform.system() == 'Windows':
-        f = r'\\?\%s' % os.path.abspath(f) # Handle long unicode files.
-    return f
-
-
-def collect_tesla_files(fpaths, fpaths_q, stats, bads_q):
+def collect_tesla_files(fpaths, fpaths_q, stats, noaccess_q):
     """Collects all files with TeslaCrypt ext containd in :data:`tesla_extensions` (`.vvv`). """
     try:
         def handle_bad_subdir(err):
-            bads_q.put('%r: %s', err, err.filename)
+            pass#noaccess_q.put('%r: %s', err, err.filename)
 
 
-        def collect_file(fpath):
-            if os.path.splitext(fpath)[1] in tesla_extensions:
-                fpaths_q.put(fpath)
-                stats.tesla_nfiles += 1
-
-        upath = (lambda f: r'\\?\%s' % os.path.abspath(f)
+        _upath = (lambda f: r'\\?\%s' % os.path.abspath(f)
                 if platform.system() == 'Windows' else lambda f: f)
 
-        #raise Exception()
-
         for fpath in fpaths:
-            fpath = upath(fpath)
-            if os.path.isfile(fpath):
-                collect_file(fpath)
+            fpath = _upath(fpath)
+            if os.path.isfile(fpath) and is_tesla_file(fpath):
+                fpaths_q.put(fpath)
+                stats.tesla_nfiles += 1
             else:
-                for dirpath, subdirs, files in os.walk(fpath):#, onerror=handle_bad_subdir):
+                for dirpath, subdirs, files in os.walk(fpath, onerror=handle_bad_subdir):
                     stats.scanned_nfiles += len(files)
-                    stats.current_fpath = dirpath.encode('UTF8')
-                    for f in files:
-                        collect_file(os.path.join(dirpath, f))
+                    tesla_files = [os.path.join(dirpath, f) for f in files
+                            if is_tesla_file(f)]
+                    stats.tesla_nfiles += len(tesla_files)
+                    for f in tesla_files:
+                        fpaths_q.put(fpath)
     finally:
         # `None` signals Collector has finished.
         fpaths_q.put(None)
 
 
-def process_tesla_files(fpaths_q, stats, report_queues):
+def process_tesla_files(opts, fpaths_q, stats, report_qs):
     # `None` signals Collector has finished.
     for fpath in iter(lambda: fpaths_q.get(), None):
-        decrypt_file(fpath, stats, **report_queues)
+        try:
+            decrypt_tesla_file(opts, fpath, stats, **report_qs)
+        finally:
+            fpaths_q.task_done()
 
 
 def main(args):
     fpaths = []
 
-
-    class Opts(object):pass
     opts = Opts()
     stats = Value(Stats, lock=False)
 
     log_level = logging.INFO
     verbose = False
-    progress = 1 #TODO: False
     for arg in args:
         if arg == "--delete":
             opts.delete = True
@@ -282,8 +306,6 @@ def main(args):
             opts.delete_old = delete_old = True
         elif arg == "--overwrite":
             opts.overwrite = True
-        elif arg == "--progress":
-            progress = True
         elif arg == "-n":
             opts.dry_run = True
         elif arg == "-v":
@@ -300,40 +322,51 @@ def main(args):
     if not fpaths:
         fpaths.append('.')
 
-    fpaths_q  = Queue()
-    report_queues = {q: Queue() for q in (
-            'bads_q',           # Files (and errors) collector failed to access.
-            'invalids_q',       # Tesla-files with invalid content (wrong magic-number).
-            'unknowns_q',       # Files with unknown AES/BTC keys.
-            'fails_q',          # Files (and errors) decrypting failed (corrupted '.vvv' file))
-            'corrupteds_q',     # Corrupted original-files (size-mismatch).
-            'unknown_keys_q',   # Pairs of unknown (AES, BTC) keys encountered.
-    )}
+    fpaths_q  = JoinableQueue()
+    qm = QueueMachine([
+        ('noaccess_q',
+                'no_access',
+                "Files (and errors) collector failed to access."),
+        ('invalids_q',
+                'bad_tesla_header',
+                "Tesla-files with invalid content (wrong magic-number)."),
+        ('unknowns_q',
+                'undecrypted_yet',
+                "Files with unknown AES/BTC keys."),
+        ('badorigs_q',
+                'bad_originals',
+                "Corrupted original-files (size-mismatch) to be overwritten."),
+        ('fails_q',
+                'failed_decryption',
+                "Files (and errors) decrypting failed (corrupted '.vvv' file)"),
+        ('unknown_keys_q',
+                'undecrypted_keys',
+                "Pairs of unknown (AES, BTC) keys encountered."),
+    ])
 
     collector = Process(name='Collector',
             target=collect_tesla_files,
-            args=(fpaths, fpaths_q, stats, report_queues['bads_q']))
+            args=(fpaths, fpaths_q, stats, qm.queues['noaccess_q']))
     decryptor = Process(name='Decryptor',
             target=process_tesla_files,
-            args=(fpaths_q, stats, opts, report_queues))
+            args=(opts, fpaths_q, stats, qm.queues))
     collector.daemon = True
     decryptor.daemon = True
     collector.start()
     decryptor.start()
 
-    collected_unknown_keys = set()
-    unknown_keys_q = report_queues['unknown_keys_q']
-    if progress:
-        while collector.is_alive() or decryptor.is_alive():
-            log_stats(stats, **report_queues)
-            log_unknown_keys(collected_unknown_keys, unknown_keys_q)
-            decryptor.join(PROGRESS_INTERVAL_SEC)
+    while decryptor.is_alive():
+        qm.pump()
+        log_stats(_peek_queue(fpaths_q, '<IDLING>'), stats, **qm.dicts)
+        log_unknown_keys(qm.dicts['unknown_keys_q'])
+        decryptor.join(PROGRESS_INTERVAL_SEC)
 
-    log_stats(stats, **report_queues)
-    log_report_queues(**report_queues)
-    log_unknown_keys(collected_unknown_keys, unknown_keys_q)
+    qm.pump()
+    log_stats('<FINSIHED>', stats, **qm.dicts)
+    log_report_qs(qm.dicts, qm.titles)
+    log_unknown_keys(qm.dicts['unknown_keys_q'])
 
-    collector.join()
+    #collector.join() NO, must dies if decryptor dies.
     decryptor.join()
 
     if collector.exitcode:
