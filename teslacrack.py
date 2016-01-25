@@ -32,14 +32,15 @@
 
 from __future__ import unicode_literals
 
-from ctypes import Structure, c_long
+from ctypes import Structure, c_long, c_longlong
 import logging
-from multiprocessing import Process, Queue, JoinableQueue, Value # @UnresolvedImport
+from multiprocessing import Process, Queue, JoinableQueue, Value, log_to_stderr # @UnresolvedImport
 import os
 import platform
 from queue import Empty
 import struct
 import sys
+import time
 
 from Crypto.Cipher import AES
 
@@ -81,6 +82,7 @@ class Stats(Structure):
         ('overwrite_nfiles', c_long),
         ('deleted_nfiles', c_long),
         ('skip_nfiles', c_long),
+        ('decrypted_bytes', c_longlong),
     ]
 
 class _QRec(object):
@@ -199,6 +201,7 @@ def decrypt_tesla_file(opts, fpath, stats, invalids_q, badorigs_q, undecrypts_q,
                 if opts.delete and not decrypted_exists or opts.delete_old:
                     do_unlink = True
                 stats.decrypt_nfiles += 1
+                stats.decrypted_bytes += size
                 stats.overwrite_nfiles += decrypted_exists
             else:
                 log.debug("Skip %r, already decrypted.", fpath)
@@ -235,13 +238,14 @@ def log_unknown_keys(unknown_keys):
                 '\n'.join("    AES: %r\n    BTC: %r\n" % (aes, btc)
                         for (aes, btc) in unknown_keys))
 
-
-
 def log_stats(fpath, stats, noaccess_q, invalids_q, undecrypts_q, fails_q, badorigs_q,
         unknown_keys_q, **report_items):
     """Prints #-of-file without pumping queues (just their length), or from `stats`."""
+    elapsed_time = time.time() - _start_time
+    volMB = stats.decrypted_bytes / float(2**20,)
+    rateMB_sec = volMB / elapsed_time
     dir_progress = ('' if stats.tesla_nfiles <= 0 else
-            '(%0.2f%%)' % (100 * stats.visited_nfiles / stats.tesla_nfiles))
+            '(%.2f%%)' % (100 * stats.visited_nfiles / stats.tesla_nfiles))
     log.info("+++Process%s: %s"
              "\n  Scanned   :%7i"
              "\n  NoAccess  :%7i"
@@ -256,13 +260,14 @@ def log_stats(fpath, stats, noaccess_q, invalids_q, undecrypts_q, fails_q, bador
              "\n        Skipped   :%7i"
              "\n          Unknowns:%7i"
              "\n        Failed    :%7i"
-             "\n\n  Missing-Keys:%i"
+             "\n\n    Performance: %.2fMB in %isec (%.2fMBytes/sec)"
+             "\n  Missing-Keys:%i"
         , dir_progress, fpath,
         stats.scanned_nfiles, len(noaccess_q), stats.tesla_nfiles,
         stats.visited_nfiles, len(invalids_q), stats.encrypt_nfiles,
         stats.decrypt_nfiles, stats.overwrite_nfiles, len(badorigs_q),
         stats.deleted_nfiles, stats.skip_nfiles, len(undecrypts_q),
-        len(fails_q),
+        len(fails_q), volMB, elapsed_time, rateMB_sec,
         len(unknown_keys_q))
 
 
@@ -303,6 +308,7 @@ def process_tesla_files(opts, fpaths_q, stats, report_qs):
             fpaths_q.task_done()
 
 
+_start_time = time.time()
 def run(opts, fpath_list):
     fpaths_q  = JoinableQueue()
     qm = QueueMachine([
@@ -358,6 +364,8 @@ def run(opts, fpath_list):
         c = collector.exitcode is None or collector.exitcode != 0
         d = decryptor.exitcode is None or decryptor.exitcode != 0
         return 1 * c + 2 * d
+    else:
+        log.info("+++Time elapsed: %.1fsec", time.time() - _start_time)
 
 def main(args):
     fpath_list = []
@@ -382,6 +390,8 @@ def main(args):
 
     frmt = "%(asctime)-15s:%(levelname)3.3s: %(message)s"
     logging.basicConfig(level=log_level, format=frmt)
+    if opts.verbose:
+        log_to_stderr()
 
     if not fpath_list:
         fpath_list.append('.')
