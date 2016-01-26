@@ -37,12 +37,15 @@ import logging
 from multiprocessing import Process, Queue, JoinableQueue, Value, log_to_stderr # @UnresolvedImport
 import os
 import platform
-from queue import Empty
 import struct
 import sys
 import time
 
 from Crypto.Cipher import AES
+try:
+    from queue import Empty
+except ImportError:
+    from Queue import Empty
 
 
 log = logging.getLogger('teslacrack')
@@ -260,7 +263,7 @@ def log_stats(fpath, stats, noaccess_q, invalids_q, undecrypts_q, fails_q, bador
              "\n        Skipped   :%7i"
              "\n          Unknowns:%7i"
              "\n        Failed    :%7i"
-             "\n\n    Performance: %.2fMB in %isec (%.2fMBytes/sec)"
+             "\n\n   Performance: %.2fMB in %isec (%.2fMBytes/sec)"
              "\n  Missing-Keys:%i"
         , dir_progress, fpath,
         stats.scanned_nfiles, len(noaccess_q), stats.tesla_nfiles,
@@ -278,8 +281,8 @@ def collect_tesla_files(fpaths, fpaths_q, stats, noaccess_q):
             noaccess_q.put('%r: %s' % (err, err.filename))
 
 
-        _upath = (lambda f: r'\\?\%s' % os.path.abspath(f)
-                if platform.system() == 'Windows' else lambda f: f)
+        _upath = (lambda f: r'\\?\%s' % os.path.abspath(f)) \
+                if platform.system() == 'Windows' else lambda f: f
 
         for fpath in fpaths:
             fpath = _upath(fpath)
@@ -358,6 +361,7 @@ def run(opts, fpath_list):
     #collector.join() NO, must die if decryptor dies.
     decryptor.join()
 
+    time.sleep(1) #TODO: Prematurely considere children dead otherwise...
     if collector.exitcode or decryptor.exitcode:
         log.error("Exit codes: Collector: %i, Decryptor: %i",
                 collector.exitcode, decryptor.exitcode)
