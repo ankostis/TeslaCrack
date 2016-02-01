@@ -84,18 +84,32 @@ In *Windows*, the following 1 + 2 alternative have been tested:
 Install TeslaCrypt
 ------------------
 1. At a command-prompt with python enabled (and with admin-rights in the "official" distribution),
-   execute the following commands::
+   do one of the following:
 
-       pip install pycryptodome
-       pip install ecdsa                REM optional, needed only for unfactor_ecdsa.py
-       pip install pybitcoin            REM optional, needed only for unfactor_bitcoin.py
+   - Install it directly from the PyPi repository::
 
-   - If you get an error like ``'pip' is not recognized as an internal or external command ...``
+        pip install teslacrack
+
+   - Or install it directly the latest version from GitHub::
+
+        pip install git+https://github.com/Googulator/TeslaCrack.git
+
+   - Or install the sources in "develop" mode, assuming you have already
+     downloaded them in some folder::
+
+        pip install -e <sources-folder>
+
+   .. Tip::
+       If you get an error like ``'pip' is not recognized as an internal or external command ...``
      then you may execute the following Python-2 code and re-run the commands above::
 
          python -c "import urllib2; print urllib2.urlopen('https://bootstrap.pypa.io/ez_setup.py').read()" | python
          easy_install pip
 
+    In all cases, check that the command ``teslacrack`` has been installed
+    in your path::
+
+        teslacrack --version
 
 2. In addition, you need a program for factoring large numbers.
 
@@ -138,7 +152,7 @@ containing ``unfactor.py`` and ``teslacrack.py`` files.
 3. Enter this command in your working folder to process your crypted file
    (notice the ``.`` at the end,; you may use the name of your crypted file instead)::
 
-       python teslacrack.py -v .
+       teslacrack decrypt -v .
 
    It will print out two hex numbers.  **The first number is your encrypted-AES-key**.
 
@@ -170,7 +184,7 @@ containing ``unfactor.py`` and ``teslacrack.py`` files.
 
 6. To reconstruct the AES-key that has crypted your files, run::
 
-       python unfactor.py  <crypteded file>  <primes from previous step, separated by spaces>
+       teslacrack unfactor <crypteded file>  <primes from previous step, separated by spaces>
 
    It will reconstruct and print any decrypted AES-keys candidates (usually just one).
 
@@ -214,7 +228,7 @@ containing ``unfactor.py`` and ``teslacrack.py`` files.
 
 9. To decrypt all of your files run from an administrator command prompt::
 
-        python teslacrack.py --progress D:\\
+        teslacrack decrypt --progress D:\\
 
    - In some cases you may start receiving error-messages, saying
      ``"Unknown key in file: some/file"``.
@@ -250,7 +264,7 @@ containing ``unfactor.py`` and ``teslacrack.py`` files.
 
    - Read decriptions for available options with::
 
-        python teslacrack.py --help
+        teslacrack --help
 
 
 And now, for some controversy...
