@@ -1,5 +1,5 @@
 """
-TestCases for teslacrypt.
+TestCases for teslacrack.
 
 It needs a `bash` (cygwin or git-for-windows) because that was an easy way
 to make files/dirs inaccessible, needed for TCs.
@@ -7,7 +7,6 @@ to make files/dirs inaccessible, needed for TCs.
 from __future__ import print_function, unicode_literals
 
 import argparse
-import binascii
 import glob
 import os
 import sys
@@ -17,9 +16,7 @@ import unittest
 import ddt
 import yaml
 
-import teslacrack
-from unfactor import CrackException
-import unfactor
+from teslacrack import unfactor, decrypt, CrackException
 
 
 app_db_txt = r"""
@@ -137,7 +134,7 @@ class TTeslacrack(unittest.TestCase):
         chmod('775', glob.glob('unreadable*'))
 
 
-    min_scanned_files = 18
+    min_scanned_files = 16
 
     def setUp(self):
         """
@@ -158,7 +155,7 @@ class TTeslacrack(unittest.TestCase):
         opts = argparse.Namespace(delete=False, delete_old=False, dry_run=False,
                 fix=False, fpaths=['.'], overwrite=False, progress=False,
                 verbose=True)
-        stats = teslacrack.teslacrack(opts)
+        stats = decrypt.teslacrack(opts)
         self.assertGreater(stats.scanned_nfiles, self.min_scanned_files)
         stats.scanned_nfiles = -1 ## arbitrary
         #print(stats)
@@ -185,10 +182,10 @@ class TTeslacrack(unittest.TestCase):
         opts = argparse.Namespace(delete=False, delete_old=False, dry_run=False,
                 fix=False, fpaths=['.'], overwrite=False, progress=False,
                 verbose=True)
-        teslacrack.teslacrack(opts)
+        decrypt.teslacrack(opts)
         opts.dry_run=True
         opts.fix=True
-        stats = teslacrack.teslacrack(opts)
+        stats = decrypt.teslacrack(opts)
         self.assertGreater(stats.scanned_nfiles, self.min_scanned_files)
         stats.scanned_nfiles = -1 ## arbitrary
         #print(stats)
@@ -213,10 +210,10 @@ class TTeslacrack(unittest.TestCase):
         opts = argparse.Namespace(delete=False, delete_old=False, dry_run=False,
                 fix=False, fpaths=['.'], overwrite=False, progress=False,
                 verbose=True)
-        teslacrack.teslacrack(opts)
+        decrypt.teslacrack(opts)
         opts.dry_run=True
         opts.overwrite=True
-        stats = teslacrack.teslacrack(opts)
+        stats = decrypt.teslacrack(opts)
         self.assertGreater(stats.scanned_nfiles, self.min_scanned_files)
         stats.scanned_nfiles = -1 ## arbitrary
         #print(stats)
@@ -241,10 +238,10 @@ class TTeslacrack(unittest.TestCase):
         opts = argparse.Namespace(delete=False, delete_old=False, dry_run=False,
                 fix=False, fpaths=['.'], overwrite=False, progress=False,
                 verbose=True)
-        teslacrack.teslacrack(opts)
+        decrypt.teslacrack(opts)
         opts.dry_run=True
         opts.delete=True
-        stats = teslacrack.teslacrack(opts)
+        stats = decrypt.teslacrack(opts)
         self.assertGreater(stats.scanned_nfiles, self.min_scanned_files)
         self.assertGreater(stats.scanned_nfiles, self.min_scanned_files)
         stats.scanned_nfiles = -1 ## arbitrary
@@ -270,10 +267,10 @@ class TTeslacrack(unittest.TestCase):
         opts = argparse.Namespace(delete=False, delete_old=False, dry_run=False,
                 fix=False, fpaths=['.'], overwrite=False, progress=False,
                 verbose=True)
-        teslacrack.teslacrack(opts)
+        decrypt.teslacrack(opts)
         opts.dry_run=True
         opts.delete_old=True
-        stats = teslacrack.teslacrack(opts)
+        stats = decrypt.teslacrack(opts)
         self.assertGreater(stats.scanned_nfiles, self.min_scanned_files)
         stats.scanned_nfiles = -1 ## arbitrary
         #print(stats)

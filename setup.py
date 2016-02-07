@@ -89,10 +89,20 @@ setup(
         "Topic :: Utilities",
     ],
     packages=find_packages(exclude=["tests"]),
-    install_requires=['pycryptodome', 'ecdsa', 'pybitcoin'],
+    install_requires=[
+        'setuptools-git >= 0.3',
+        'pycryptodome',
+        'ecdsa',
+        'pybitcoin'
+    ],
     tests_require=['ddt'],
     #entry_points={'console_scripts': ['teslacrack = teslacrack.__main__:main']},
+    setup_requires=[
+        'setuptools',
+        'setuptools-git >= 0.3',
+    ],
     zip_safe=True,
     options={'bdist_wheel': {'universal': True}},
+    entry_points={'console_scripts': ['teslacrack = teslacrack:main']},
     platforms=['any'],
 )

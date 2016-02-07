@@ -67,10 +67,13 @@ import sys
 import time
 
 from Crypto.Cipher import AES
-import binascii
+
+from teslacrack import init_logging
+
+from . import fix_hex_key, tesla_magics
 
 
-log = logging.getLogger('teslacrack')
+log = logging.getLogger('decrypt')
 
 ## Add your (encrypted-AES-key: reconstructed-AES-key) pair(s) here,
 #  like the examples below:
@@ -87,7 +90,6 @@ known_AES_key_pairs = {
 #  Note that '.xxx', '.micro' and '.ttt' are crypted by a new variant
 #  of teslacrypt (3.0).
 tesla_extensions = ['.vvv', '.ccc',  '.zzz', '.aaa', '.abc']
-tesla_magics = [b'\xde\xad\xbe\xef\x04', b'\x00\x00\x00\x00\x04']
 
 ## If i18n-filenames are destroyed, experiment with this.
 #  e.g. 'UTF-8', 'iso-8859-9', 'CP437', 'CP1252'
@@ -103,14 +105,6 @@ _last_progress_time = 0#time.time()
 
 _PY2 = sys.version_info[0] == 2
 
-
-def lalign_key(key):
-    while key[0] == b'\0':
-        key = key[1:] + b'\0'
-    return key
-
-def fix_hex_key(hex_key):
-    return lalign_key(binascii.unhexlify(hex_key))
 
 def _decide_backup_ext(ext):
     """Strange logic here, see :func:`_argparse_ext_type()`."""
@@ -390,8 +384,7 @@ def main(*args):
     opts = _parse_args(args[1:])
 
     log_level = logging.DEBUG if opts.verbose else logging.INFO
-    frmt = "%(asctime)-15s:%(levelname)3.3s: %(message)s"
-    logging.basicConfig(level=log_level, format=frmt)
+    init_logging(log_level)
     log.debug('Options: %s', opts)
     teslacrack(opts)
 

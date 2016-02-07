@@ -1,10 +1,11 @@
 from __future__ import print_function, unicode_literals
 
-import binascii
 import logging
 import sys
 
 from Crypto.Cipher import AES
+
+from . import CrackException, fix_int_key, tesla_magics
 
 
 known_file_magics = {
@@ -20,7 +21,6 @@ known_file_magics = {
     '7z': b'7z\xBC\xAF\x27\x1C',
     'rar': b'Rar!\x1A\x07\x00',
 }
-tesla_magics = [b'\xde\xad\xbe\xef\x04', b'\x00\x00\x00\x00\x04']
 
 log = logging.getLogger('unfactor')
 
@@ -28,20 +28,6 @@ try:
     xrange  # @UndefinedVariable
 except NameError:
     xrange = range
-
-
-class CrackException(Exception):
-    pass
-
-
-def lalign_key(key):
-    while key[0] == b'\0':
-        key = key[1:] + b'\0'
-    return key
-
-
-def fix_int_key(int_key):
-    return lalign_key(binascii.unhexlify('%064x' % int_key))
 
 
 def is_known_file(fname, fbytes):
@@ -114,7 +100,7 @@ def unfactor_key_from_file(fpath, primes):
 
 
 def main(*args):
-    """Parse args, setup logging and delegate to :func:`teslacrack()`."""
+    """Parse args, setup logging and delegate to :func:`decrypt()`."""
     if not args:
         args = sys.argv
 
