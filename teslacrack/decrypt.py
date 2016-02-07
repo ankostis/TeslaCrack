@@ -70,7 +70,7 @@ from Crypto.Cipher import AES
 
 from teslacrack import init_logging
 
-from . import fix_hex_key, tesla_magics
+from . import (fix_hex_key, tesla_magics)
 
 
 log = logging.getLogger('decrypt')
@@ -359,7 +359,7 @@ def _parse_args(args):
     return ap.parse_args(args)
 
 
-def teslacrack(opts):
+def decrypt(opts):
     opts.fpaths = [_path_to_ulong(f) for f in opts.fpaths]
 
     stats = argparse.Namespace(ndirs = -1,
@@ -386,7 +386,7 @@ def main(*args):
     log_level = logging.DEBUG if opts.verbose else logging.INFO
     init_logging(log_level)
     log.debug('Options: %s', opts)
-    teslacrack(opts)
+    decrypt(opts)
 
 if __name__=='__main__':
     main()

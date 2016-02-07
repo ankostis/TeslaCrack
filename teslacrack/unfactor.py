@@ -24,12 +24,6 @@ known_file_magics = {
 
 log = logging.getLogger('unfactor')
 
-try:
-    xrange  # @UndefinedVariable
-except NameError:
-    xrange = range
-
-
 def is_known_file(fname, fbytes):
     for ext, magic_bytes in known_file_magics.items():
         if '.%s.' % ext in fname.lower() and fbytes.startswith(magic_bytes):
@@ -57,7 +51,7 @@ def unfactor_key(fpath, primes, aes_crypted_key, key_decryptor):
     i = 1
     while i < 1<<len(primes):
         x = 1
-        for j in xrange(len(primes)):
+        for j in range(len(primes)):
             if i & 1<<j:
                 x *= int(primes[j])
         if (x < 1<<256 and aes_crypted_key//x < 1<<256 and
@@ -69,7 +63,7 @@ def unfactor_key(fpath, primes, aes_crypted_key, key_decryptor):
         i = 1
         while i < 1<<len(primes):
             x = cofactor
-            for j in xrange(len(primes)):
+            for j in range(len(primes)):
                 if i & 1<<j:
                     x *= int(primes[j])
             if (x < 1<<256 and aes_crypted_key//x < 1<<256 and

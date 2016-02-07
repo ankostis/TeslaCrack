@@ -155,7 +155,7 @@ class TTeslacrack(unittest.TestCase):
         opts = argparse.Namespace(delete=False, delete_old=False, dry_run=False,
                 fix=False, fpaths=['.'], overwrite=False, progress=False,
                 verbose=True)
-        stats = decrypt.teslacrack(opts)
+        stats = decrypt.decrypt(opts)
         self.assertGreater(stats.scanned_nfiles, self.min_scanned_files)
         stats.scanned_nfiles = -1 ## arbitrary
         #print(stats)
@@ -182,10 +182,10 @@ class TTeslacrack(unittest.TestCase):
         opts = argparse.Namespace(delete=False, delete_old=False, dry_run=False,
                 fix=False, fpaths=['.'], overwrite=False, progress=False,
                 verbose=True)
-        decrypt.teslacrack(opts)
+        decrypt.decrypt(opts)
         opts.dry_run=True
         opts.fix=True
-        stats = decrypt.teslacrack(opts)
+        stats = decrypt.decrypt(opts)
         self.assertGreater(stats.scanned_nfiles, self.min_scanned_files)
         stats.scanned_nfiles = -1 ## arbitrary
         #print(stats)
@@ -210,10 +210,10 @@ class TTeslacrack(unittest.TestCase):
         opts = argparse.Namespace(delete=False, delete_old=False, dry_run=False,
                 fix=False, fpaths=['.'], overwrite=False, progress=False,
                 verbose=True)
-        decrypt.teslacrack(opts)
+        decrypt.decrypt(opts)
         opts.dry_run=True
         opts.overwrite=True
-        stats = decrypt.teslacrack(opts)
+        stats = decrypt.decrypt(opts)
         self.assertGreater(stats.scanned_nfiles, self.min_scanned_files)
         stats.scanned_nfiles = -1 ## arbitrary
         #print(stats)
@@ -238,10 +238,10 @@ class TTeslacrack(unittest.TestCase):
         opts = argparse.Namespace(delete=False, delete_old=False, dry_run=False,
                 fix=False, fpaths=['.'], overwrite=False, progress=False,
                 verbose=True)
-        decrypt.teslacrack(opts)
+        decrypt.decrypt(opts)
         opts.dry_run=True
         opts.delete=True
-        stats = decrypt.teslacrack(opts)
+        stats = decrypt.decrypt(opts)
         self.assertGreater(stats.scanned_nfiles, self.min_scanned_files)
         self.assertGreater(stats.scanned_nfiles, self.min_scanned_files)
         stats.scanned_nfiles = -1 ## arbitrary
@@ -267,10 +267,10 @@ class TTeslacrack(unittest.TestCase):
         opts = argparse.Namespace(delete=False, delete_old=False, dry_run=False,
                 fix=False, fpaths=['.'], overwrite=False, progress=False,
                 verbose=True)
-        decrypt.teslacrack(opts)
+        decrypt.decrypt(opts)
         opts.dry_run=True
         opts.delete_old=True
-        stats = decrypt.teslacrack(opts)
+        stats = decrypt.decrypt(opts)
         self.assertGreater(stats.scanned_nfiles, self.min_scanned_files)
         stats.scanned_nfiles = -1 ## arbitrary
         #print(stats)

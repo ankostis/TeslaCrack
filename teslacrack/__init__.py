@@ -5,14 +5,14 @@ import logging
 import re
 
 
-__version__ = '1.0.0'
+__version__ = '0.2.0'
 __updated__ = "2016-02-07"
 
 __title__ = "teslacrack"
 __summary__ = "Decrypt files crypted by TeslaCrypt ransomware"
 __uri__ = "https://github.com/Googulator/TeslaCrack"
+__license__ = 'GNU General Public License v3 (GPLv3)'
 
-tesla_magics = [b'\xde\xad\xbe\xef\x04', b'\x00\x00\x00\x00\x04']
 
 class CrackException(Exception):
     pass
@@ -20,9 +20,11 @@ class CrackException(Exception):
 
 log = logging.getLogger('teslacrypt')
 
+tesla_magics = [b'\xde\xad\xbe\xef\x04', b'\x00\x00\x00\x00\x04']
+
 
 def init_logging(level=logging.INFO,
-        frmt="%(asctime)-15s:%(levelname)3.3s: %(message)s"):
+                 frmt="%(asctime)-15s:%(levelname)3.3s: %(message)s"):
     logging.basicConfig(level=level, format=frmt)
 
 
@@ -45,9 +47,9 @@ def guess_binary(data):
     if isinstance(data, bytes):
         funcs = [binascii.unhexlify, base64.b64decode, lambda d: d]
     else:
-        funcs = [lambda d: binascii.unhexlify('%x'%int(d)),
-                binascii.unhexlify, base64.b64decode,
-                lambda d: codecs.raw_unicode_escape_encode(d)[0]]
+        funcs = [lambda d: binascii.unhexlify('%x' % int(d)),
+                 binascii.unhexlify, base64.b64decode,
+                 lambda d: codecs.raw_unicode_escape_encode(d)[0]]
     for f in funcs:
         try:
             res = f(data)
@@ -58,12 +60,3 @@ def guess_binary(data):
             pass
     raise ValueError('Cannot guess binary-data: %s' % data)
 
-
-def main(*args):
-    log_level = logging.DEBUG if 1 else logging.INFO
-    init_logging(log_level)
-    raise NotImplementedError()
-
-
-if __name__ == '__main__':
-    main()
