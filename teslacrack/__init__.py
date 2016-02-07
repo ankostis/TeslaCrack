@@ -6,6 +6,11 @@ import re
 
 
 __version__ = '1.0.0'
+__updated__ = "2016-02-07"
+
+__title__ = "teslacrack"
+__summary__ = "Decrypt files crypted by TeslaCrypt ransomware"
+__uri__ = "https://github.com/Googulator/TeslaCrack"
 
 tesla_magics = [b'\xde\xad\xbe\xef\x04', b'\x00\x00\x00\x00\x04']
 
