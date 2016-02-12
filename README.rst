@@ -1,7 +1,8 @@
 ##########################################################
 TeslaCrack - decrypt files crypted by TeslaCrypt ransomware
 ##########################################################
-|pypi-ver| |flattr-donate| |btc-donate|
+|python-ver| |proj-license| |pypi-ver| |downloads-count| \
+|flattr-donate| |btc-donate|
 
 :Release:     0.2.0
 :Date:        2016-02-07 23:51:27
@@ -289,6 +290,17 @@ The same day this happened, Kaspersky released this article: https://blog.kasper
 |flattr-donate| |btc-donate|
 
 
+.. |python-ver| image:: https://img.shields.io/badge/python-py27%2Cpy34%2B-blue.svg
+    :alt: Supported Python versions
+.. |proj-license| image:: https://img.shields.io/badge/license-GPLv3-blue.svg
+    :target: https://raw.githubusercontent.com/Googulator/teslacrack/master/LICENSE.txt
+    :alt: Project License
+.. |pypi-ver| image::  https://img.shields.io/pypi/v/teslacrack.svg
+    :target: https://pypi.python.org/pypi/teslacrack/
+    :alt: Latest Version in PyPI
+.. |downloads-count| image:: https://img.shields.io/pypi/dm/teslacrack.svg?period=week
+    :target: https://pypi.python.org/pypi/teslacrack/
+    :alt: Downloads
 .. |flattr-donate| image:: https://img.shields.io/badge/flattr-donate-yellow.svg
     :alt: Donate to this project using Flattr
     :target: https://flattr.com/profile/Googulator
@@ -297,4 +309,3 @@ The same day this happened, Kaspersky released this article: https://blog.kasper
     :alt: Donate once-off to this project using Bitcoin
     :target: bitcoin:1AdcYneBgky3yMP7d2snQ5wznbWKzULezj
     :class: badge-bitcoin
-.. |pypi-ver| image:: https://img.shields.io/badge/python-2.7%2B%2C%203.4%2B-blue.svg
