@@ -95,10 +95,12 @@ setup(
     install_requires=[
         'setuptools-git >= 0.3',
         'pycryptodome',
-        'ecdsa',
-        'pybitcoin',
         'docopt'
     ],
+    extras_require={
+        'btc': ['pybitcoin'],
+        'ecdsa': ['ecdsa'],
+    },
     tests_require=['ddt'],
     #entry_points={'console_scripts': ['teslacrack = teslacrack.__main__:main']},
     setup_requires=[

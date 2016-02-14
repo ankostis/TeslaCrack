@@ -61,7 +61,7 @@ def unfactor_key(fpath, primes, aes_crypted_key, key_decryptor):
     if cofactor * prod != aes_crypted_key:
         raise CrackException("Factors don't divide AES pubkey!")
     if cofactor != 1:
-        log.warning("Incomplete factorization, found cofactor: %d", cofactor)
+        log.warning("Incomplete factorization, found cofactor: %d" % cofactor)
 
     found = False
     i = 1
@@ -97,7 +97,7 @@ def unfactor_key_from_file(fpath, primes):
         header = f.read(414)
         if header[:5] not in tesla_magics:
             raise CrackException(
-                    "File %s doesn't appear to be TeslaCrypted!", fpath)
+                    "File %s doesn't appear to be TeslaCrypted!" % fpath)
         aes_crypted_key = int(header[0x108:0x188].rstrip(b'\0'), 16)
         init_vector = header[0x18a:0x19a]
 
@@ -121,7 +121,7 @@ def main(*args):
 
     file = sys.argv[1]
     primes = [int(p) for p in sys.argv[2:]]
-    log.info('Primes: \n  %s' % '\n  '.join(str(p) for p in primes))
+    log.info('Primes: \n  %s', '\n  '.join(str(p) for p in primes))
 
     candidate_keys = unfactor_key_from_file(file, primes)
     print("Candidate AES private key: \n  %s" % '\n  '.join(candidate_keys))
