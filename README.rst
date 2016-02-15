@@ -173,47 +173,58 @@ How to decrypt your files
 =========================
 
 
-1. Collect a "crypted" file from the attacked machine in your *working folder*.
-   Choose a file with known magic-bytes - ``unfactor.py`` has been pre-configured
-   with some common data-formats to choose from:
-
-   - *pdf* & *word-doc* files,
-   - images and sounds (*jpg, png, gif, mp3*), and
-   - archive formats: *gzip, bz2, 7z, rar* and of course *zip*, which includes
-     all LibreOffice and newer Microsoft *docs/xlsx* & *ODF* documents.
-
-   .. Tip::
-       To view or extend the supported formats, edit ``teslacrack/unfactor.py``
-       and append a new mapping into ``known_file_magics`` dictionary.  Note that
-       in *python-3*, bytes are given like that: ``b'\xff\xd8'``.
-
-2. If your crypted files do not have one of the known extensions
-   ``.vvv, .ccc, .zzz, .aaa, .abc``, edit ``teslacrack/decrypt.py`` to append it
-   into ``tesla_extensions`` string-list.
+1. Check that the extension of your crypted files are one of the known ones,
+   ``.vvv, .ccc, .zzz, .aaa, .abc``; if not, edit ``teslacrack/decrypt.py`` to
+   append it into ``tesla_extensions`` string-list.
 
    .. Note::
-        The extensions '.xxx', '.micro' and '.ttt' have been reported for a new
-        variant of TeslaCrypt (3.0), and this tool cannot decrypt them, anyway.
+        The extensions ``.ttt``, ``.xxx``, ``.micro`` and ``.mp3``(!) have been
+        reported for the new variant of TeslaCrypt (3.0+), and this tool cannot
+        decrypt them, anyway.
+
+2. Count the number of different AES keys that the ransomware has encrypted
+   your files with - the answer to this question will tell you which method
+   of attack to use against the ransomware.
+
+   To gather all encryption keys used, attempt to decrypt all your files and
+   check the output of this command::
+
+       teslacrack decrypt <path-to-your-crypted-files>
+
+   This command will fail to decrypt your files, but it will print out all
+   encountered encrypted AES and BTC keys.
+
+2. If the previous step returned a single AES/BTC key-pair only, you may opt for
+   attacking directly the AES key, using the plain ``unfactor`` sub-cmd,
+   which is usually faster.  In that case you have to choose a file with known
+   magic-bytes in its header:
+
+     - *pdf* & *word-doc* files,
+     - images and sounds (*jpg, png, gif, mp3*), and
+     - archive formats: *gzip, bz2, 7z, rar* and of course *zip*, which includes
+       all LibreOffice and newer Microsoft *docs/xlsx* & *ODF* documents.
+
+   .. Tip::
+        To view or extend the supported file-types, edit ``teslacrack/unfactor.py``
+        and append a new mapping into ``known_file_magics`` dictionary.
+        Note that in *python-3*, bytes are given like that: ``b'\xff\xd8'``.
 
 
-3. Enter this command in your working folder to process your crypted file
-   (notice the ``.`` at the end,; you may use the name of your crypted file instead)::
-
-       teslacrack decrypt -v <crypted-file>
-
-   It will print out two hex numbers.  **The first number is your encrypted-AES-key**.
-
-4. Convert your hexadecimal AES-key to decimal, e.g. in python use ``int('ae1b015a', 16)``,
-   and search `factordb.com <http://factordb.com/>`_ for this number. If you are lucky,
+4. Convert your hexadecimal AES or BTC key chosen in the previous step
+   to decimal, e.g. in python use ``int('ae1b015a', 16)``, and search
+   `factordb.com <http://factordb.com/>`_ for this number. If you are lucky,
    it may have been already factored, and you can skip the next step :-)
 
-5. Factor the AES key printed by ``teslacrack decrypt`` above:
+5. Factorize the AES or BTC key (this step might take considerable time):
 
    - Using *msieve*::
 
-         msieve -v -e 0x\<encrypted-AES key from teslacrack decrypt>
+         msieve -v -e <encrypted-key>
 
-     The ``-e`` switch is needed to do a "deep" elliptic curve search,
+   - If your key is in hexadecimal form (as printed by ``decrypt``), prepend it
+     with a ``0x`` prefix.
+
+   - The ``-e`` switch is needed to do a "deep" elliptic curve search,
      which speeds up *msieve* for numbers with many factors (by default,
      *msieve* is optimized for semiprimes such as RSA moduli)
 
@@ -236,23 +247,27 @@ How to decrypt your files
      irrelevant bytes have been prepended - this is allowed by their format.
      Repeate this step with another file or a different file-type alltogether.
 
-   - You may use ``teslacrack unfactorecdsa`` sub-cmd to recover your key
+   - For BTC or AES key you may use ``unfactorecdsa`` sub-cmd to recover them
      (see `Sub-commands`_ for an explaination). The syntax for the two scripts
      is the same.
 
-   - For old infections you may use the third key reconstructor, ``teslacrack unfactorbtc``,
-     along with the Bitcoin ransom address instead of a sample file.
-     Both the Bitcoin ransom address and the public key can be obtained from the
-     recovery file in the affected machine's *Documents* folder - the Bitcoin
-     address is the first line of the file, while the public key
-     (which needs to be factored) is the third line.
-     The syntax is like ``teslacrack unfactor``, but use the Bitcoin address
-     in place of a filename.
+   - For old infections you may reconstruct your AES-key by factorizing the
+     BTC-key reported by ``decrypt``, above, and feeding its primes into the
+     ``unfactorbtc`` sub-cmd.  This sub-cmd needs additionally the *Bitcoin
+     ransom address*. The sub-cmd syntax is like ``unfactor`` sub-cmd, but wth
+     the *btc-address* in place of the filename.  To obtain it, follow this:
+
+     - For very old v0.x.x TeslaCrypt versions, get it `from the recovery
+      '.dat. file <http://www.bleepingcomputer.com/virus-removal/teslacrypt-alphacrypt-ransomware-information#versions>`_,
+       found in the affected machine's ``%AppData%`` folder; the Bitcoin-address is
+       the first line.
+     - For v2 infections, get it `from the registry
+       <https://securelist.com/blog/research/71371/teslacrypt-2-0-disguised-as-cryptowall/#key-data-saved-in-the-system>`_.
 
      .. Note::
-        The ``teslacrack decrypt`` can't decode the file format used by
-        old TeslaCrypt, so you will need to perform the actual decryption
-        with *TeslaDecoder*.
+        The ``teslacrack decrypt`` can't decode the file format used by very old
+        TeslaCrypt, so you will need to perform the actual decryption with
+        *TeslaDecoder*.
 
    .. Tip:
         If you receive an ``ImportError``, make sure that you've installed any
