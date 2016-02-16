@@ -91,13 +91,11 @@ Notes:
 Enjoy! ;)
 """
 import logging
-import sys
-from teslacrack import CrackException
+from teslacrack import (__version__, init_logging, log, CrackException,
+                        decrypt, unfactor, unfactor_bitcoin, unfactor_ecdsa)
 
 import docopt
 
-from teslacrack import (__version__, init_logging, log,
-               decrypt, unfactor, unfactor_bitcoin, unfactor_ecdsa)
 
 def _attribufy_opts(opts):
     """

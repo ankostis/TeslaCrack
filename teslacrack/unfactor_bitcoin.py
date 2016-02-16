@@ -36,40 +36,47 @@ The generated key can then be used with TeslaDecoder.
 """
 
 from __future__ import print_function
-import sys
 
-def main(addr, primes):
+import sys
+from teslacrack import CrackException
+
+
+def main(addr, *primes):
     try:
         from pybitcoin.keypair import BitcoinKeypair
     except ImportError:
         from coinkit.keypair import BitcoinKeypair
 
+    primes = [int(p) for p in primes]
     addrs = {}
     prod = 1
     for p in primes:
-        if int(p) >= 1<<256:
-            return "Factor too large: %s" % p
-        prod *= int(p)
+        if p >= 1<<256:
+            raise CrackException("Factor too large: %s" % p)
+        prod *= p
     if prod >= 1<<512:
-        return "Superfluous factors or incorrect factorization detected!"
+        raise CrackException("Superfluous factors or incorrect factorization detected!")
 
     i = 1
     while i < 1<<len(primes):
         x = 1
-        for j in range(len(primes)):
+        for j, p in enumerate(primes):
             if i & 1<<j:
-                x *= int(primes[j])
+                x *= p
         if x < 1<<256 and prod/x < 1<<256:
             if x not in addrs:
                 addrs[x] = BitcoinKeypair(x).address()
-            if addr == addrs[x]:
-                return "Found Bitcoin private key: %064X" % x
+                if addr == addrs[x]:
+                    return "Found Bitcoin private key: %064X" % x
         i += 1
 
-    return "No keys found, check your factors!"
+    raise CrackException("No keys found, check your factors!")
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
         print("usage: unfactor-bitcoin.py <bitcoin address> <space-separated list of factors>")
         exit()
-    print(main(sys.argv[1], sys.argv[2:]))
+    try:
+        print(main(sys.argv[1], *sys.argv[2:]))
+    except CrackException as ex:
+        log.error("Reconstruction failed! %s", ex)

@@ -32,8 +32,10 @@ import unittest
 import ddt
 import yaml
 
-from teslacrack import unfactor, decrypt, CrackException
+from teslacrack import unfactor, decrypt, CrackException, unfactor_ecdsa,\
+    unfactor_bitcoin, __main__
 
+__main__.init_logging()
 
 app_db_txt = r"""
 keys:
@@ -73,6 +75,28 @@ keys:
         - tesla_key3.doc.vvv
         - tesla_key3.pdf.zzz
 
+    - name     : gh-14
+      type     : BTC
+      encrypted: 372AE820BBF2C3475E18F165F46772087EFFC7D378A3A4D10789AE7633EC09C74578993A2A7104EBA577D229F935AF77C647F18E113647C25EF19CC7E4EE3C4C
+      decrypted: 38F47CB4BB4B0E2DA4AF771D618E9575520781F17E5785480F51B7955216D71F
+      btc_addr : 1GSswEGHysnASUwNEKNjWXCW9vRCy57qA4
+      factors  :
+        - 2
+        - 2
+        - 3
+        - 7
+        - 11
+        - 17
+        - 19
+        - 139
+        - 2311
+        - 14278309
+        - 465056119273
+        - 250220277466967
+        - 373463829010805159059
+        - 1261349708817837740609
+        - 38505609642285116603442307097561327764453851349351841755789120180499
+
     - name     : unknown1
       type     : AES
       encrypted: 5942f9a9aff
@@ -107,7 +131,7 @@ class TUnfactor(unittest.TestCase):
                 continue
             factors = [int(fc) for fc in key_rec['factors']]
             aes_keys = unfactor.unfactor_key_from_file(f, factors)
-            #print(key_rec['name'], f, aes_keys, exp_aes_key)
+            print(key_rec['name'], f, aes_keys, exp_aes_key)
             self.assertIn(exp_aes_key, aes_keys,
                     (key_rec['name'], f, aes_keys, exp_aes_key))
 
@@ -123,6 +147,35 @@ class TUnfactor(unittest.TestCase):
                         lambda *args: b'')
             err_msg = cm.exception.args[0]
             self.assertIn(key_rec['error'], err_msg, key_rec)
+
+
+@ddt.ddt
+class TUnfactorBtc(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        os.chdir(os.path.dirname(__file__))
+
+    @ddt.data(*[k for k in app_db['keys'] if k['type'] == 'BTC'])
+    def test_unfactor_btc(self, key_rec):
+        dec_key = key_rec.get('decrypted')
+        btc_addr = key_rec.get('btc_addr')
+        if btc_addr:
+            factors = [int(fc) for fc in key_rec['factors']]
+            dec_key = unfactor_bitcoin.main(btc_addr, *factors)
+            #print(key_rec['name'], btc_addr, dec_key)
+            self.assertIn(dec_key, dec_key, key_rec)
+
+    @ddt.data(*[k for k in app_db['keys'] if k['type'] == 'AES'])
+    def test_unfactor_key_failures(self, key_rec):
+        name = key_rec['name']
+        factors = [int(fc) for fc in key_rec['factors']]
+        exp_aes_key = key_rec.get('decrypted')
+        if not exp_aes_key:
+            with self.assertRaises(CrackException, msg=key_rec) as cm:
+                crypted_aes_key = int(key_rec['encrypted'], 16)
+                unfactor_bitcoin.main(crypted_aes_key, *factors)
+            err_msg = cm.exception.args[0]
+            self.assertIn('No keys found', err_msg, key_rec)
 
 
 def chmod(mode, files):
