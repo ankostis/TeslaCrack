@@ -59,33 +59,33 @@ following to receive its usage description::
     teslacrack --help
     ...
 
-There are 4 sub-commands available:
+There are 3+1 sub-commands available:
 
-- ``decrypt``: parses the headers from the tesla-files,
-  extracts their encrypted-AES-keys, and if their corresponding decrypted-key
+- ``decrypt``: parses the headers from the tesla-files, extracts their
+  encrypted AES & BTC keys, and if their corresponding decrypted-AES-key
   has already been reconstructed earlier (by following the steps described below),
-  and decrypts files.
+  it decrypts those files.
 
-- ``unfactor``: reconstructs an AES-key from a factorized(externally)
-  encrypted-AES-key.  In order to check the validity of a key reconstructed,
-  it decrypts a files and examines the *magic-bytes* at its header - so you have
-  to work with specific file-types among those registered (see `How to decrypt your files`_,
-  below).  Therefore it may report false positive keys, or fail to find any key
-  at all, if the encrypted file selected had been corrupted before picked up by
+- ``unfactor``: reconstructs an AES-key from the factors of the encrypted-AES-key;
+  the factorizations must have happened externally. To check the validity of
+  a key reconstructed, it decrypts a file and examines the *magic-bytes* at
+  its header - so you have to work with file-types among those registered
+  (see `How to decrypt your files`_, below).
+  Therefore it may report false positive keys, or fail to find any key at all,
+  if the encrypted file selected had been corrupted before picked up by
   the ransomware.
 
-- ``unfactorecdsa``: a slower key reconstructor that requires the
-  *ecdsa* Python module to be installed (see `Install TeslaCrypt`_, below);
-  on the other side, unlike ``unfactor`` sub-cmd:
+- ``unfactorecdsa``: a slower key-reconstructor with the following advantages
+  compared to ``unfactor``:
 
-  - it can recover keys even from files without known magic numbers,
-  - it is guaranteed to always yield a single correct a key, and
-  - it can also reconstruct Bitcoin private-keys (not just AES ones) that can be
-    used with *TeslaDecoder*.
+  - it can recover keys from any file-type (no need for *magic-bytes*),
+  - it is guaranteed to always yield a single correct key, and
+  - it can also reconstruct Bitcoin private-keys (not just AES ones) that may be
+    used with *TeslaDecoder* (see `Break bitcoin-keys for TeslaDecoder`_ section).
 
-- ``unfactorbtc``: a third key-reconstructor for old TeslaCrypt infections,
-  which uses the Bitcoin ransom address instead of a sample file, and which
-  requires the python-2 only *pybitcoin* library.
+- ``unfactorbtc``: A key-reconstructor solely for the BTC-key to be used with
+  *TeslaDecoder* tool; it requires the *pybitcoin* py2-only library;
+  so if you intend to use it, install with ``pip install teslacrack[btc]`` cmd.
 
 
 
@@ -134,7 +134,7 @@ Install TeslaCrypt
         If you want to use the alternative *ECDSA* and/or *bitcoin* key-reconstructors
         (see `Sub-commands`_, above), install with this *pip* command::
 
-            pip install teslacrack[btc,ecdsa]
+            pip install teslacrack[btc]
 
         But notice that the ``btc`` extra library is not(!) available under
         python-3 platforms - you have to failback to python-2 for that.
@@ -194,7 +194,7 @@ How to decrypt your files
    This command will fail to decrypt your files, but it will print out all
    encountered encrypted AES and BTC keys.
 
-2. If the previous step returned a single AES/BTC key-pair only, you may opt for
+3. If the previous step returned a single AES/BTC key-pair only, you may opt for
    attacking directly the AES key, using the plain ``unfactor`` sub-cmd,
    which is usually faster.  In that case you have to choose a file with known
    magic-bytes in its header:
@@ -243,37 +243,11 @@ How to decrypt your files
 
    It will reconstruct and print any decrypted AES-keys candidates (usually just one).
 
-   - Archives, such as *zip* files may fail to produce a key, when
-     irrelevant bytes have been prepended - this is allowed by their format.
-     Repeate this step with another file or a different file-type alltogether.
-
-   - For BTC or AES key you may use ``unfactorecdsa`` sub-cmd to recover them
-     (see `Sub-commands`_ for an explaination). The syntax for the two scripts
-     is the same.
-
-   - For old infections you may reconstruct your AES-key by factorizing the
-     BTC-key reported by ``decrypt``, above, and feeding its primes into the
-     ``unfactorbtc`` sub-cmd.  This sub-cmd needs additionally the *Bitcoin
-     ransom address*. The sub-cmd syntax is like ``unfactor`` sub-cmd, but wth
-     the *btc-address* in place of the filename.  To obtain it, follow this:
-
-     - For very old v0.x.x TeslaCrypt versions, get it `from the recovery
-      '.dat. file <http://www.bleepingcomputer.com/virus-removal/teslacrypt-alphacrypt-ransomware-information#versions>`_,
-       found in the affected machine's ``%AppData%`` folder; the Bitcoin-address is
-       the first line.
-     - For v2 infections, get it `from the registry
-       <https://securelist.com/blog/research/71371/teslacrypt-2-0-disguised-as-cryptowall/#key-data-saved-in-the-system>`_.
-
-     .. Note::
-        The ``teslacrack decrypt`` can't decode the file format used by very old
-        TeslaCrypt, so you will need to perform the actual decryption with
-        *TeslaDecoder*.
-
-   .. Tip:
-        If you receive an ``ImportError``, make sure that you've installed any
-        *extras* required for the key-reconstructor you choose to work with
-        (see `Install TeslaCrypt`_, above).
-
+   - Alternatively you may use ``unfactorecdsa`` sub-cmd to break either AES or
+     BTC key for the *TeslaDecoder* tool (see section below).
+     Which key to break gets to be deduced from the factors you provide.
+     This sub-cmd has the same syntax as ``unfactor`.  See `Sub-commands`_ for
+     an explaination
 
 7. Edit ``teslacrack.py`` to add a new key-pair into the ``known_AES_key_pairs``
    dictionary, like that::
@@ -326,6 +300,39 @@ How to decrypt your files
    - Read decriptions for available options with::
 
         teslacrack --help
+
+Break bitcoin-keys for *TeslaDecoder*
+-------------------------------------
+
+The `TeslaDecoder <https://www.google.com/search?q=TeslaDecoder>`_ can decrypt
+files from all(?) versions, assuming you have the *private bitcoin key*.
+For very old TeslaCrypt versions (i.e. file-extensions ``ECC, .EXX, or .EZZ``)
+*TeslaDecoder* could also extract this private-btc-key.  For later versions, you
+have to manually factorize the BTC-key reported by ``decrypt`` in step 2, above,
+and feed its primes into the ``unfactorbtc`` or ``unfactorecdsa`` sub-cmds.
+
+This first sub-cmd, ``unfactorbtc`` requires the *Bitcoin ransom address*,
+as reported on the "ransom note", or obtained from:
+
+- For very old v0.x.x TeslaCrypt versions, get it `from the recovery
+ '.dat. file <http://www.bleepingcomputer.com/virus-removal/teslacrypt-alphacrypt-ransomware-information#versions>`_,
+  found in the affected machine's ``%AppData%`` folder; the Bitcoin-address is
+  the first line.
+- For v2 infections, get it `from the registry
+  <https://securelist.com/blog/research/71371/teslacrypt-2-0-disguised-as-cryptowall/#key-data-saved-in-the-system>`_.
+
+The ``unfactorbtc`` syntax is like ``unfactor`` sub-cmd, but wth the
+*btc-address* in place of the filename.
+
+.. Note::
+   The ``teslacrack decrypt`` can't decode the files encryoted withvery old
+   TeslaCrypt versions, so you must perform the actual decryption with
+   *TeslaDecoder*.
+
+.. Tip:
+   If you receive an ``ImportError``, make sure that you've installed any
+   *extras* required for the key-reconstructor you choose to work with
+   (see `Install TeslaCrypt`_, above).
 
 
 And now, for some controversy...
