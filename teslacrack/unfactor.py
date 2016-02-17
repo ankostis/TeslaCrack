@@ -109,18 +109,14 @@ def unfactor_key_from_file(fpath, primes):
 
 
 
-def main(*args):
+def main(file, *primes):
     """Parse args, setup logging and delegate to :func:`decrypt()`."""
-    if not args:
-        args = sys.argv
-
     log_level = logging.INFO
     frmt = "%(asctime)-15s:%(levelname)3.3s: %(message)s"
     logging.basicConfig(level=log_level, format=frmt)
-    log.debug('Args: %s', args)
+    log.debug('Args: %s, %s', file, primes)
 
-    file = sys.argv[1]
-    primes = [int(p) for p in sys.argv[2:]]
+    primes = [int(p) for p in primes]
     log.info('Primes: \n  %s', '\n  '.join(str(p) for p in primes))
 
     candidate_keys = unfactor_key_from_file(file, primes)
@@ -132,6 +128,6 @@ if __name__ == "__main__":
         print("usage: unfactor.py <sample file> <space-separated list of factors>")
         exit()
     try:
-        print(main())
+        print(main(sys.argv[1:]))
     except CrackException as ex:
         log.error("Reconstruction failed! %s", ex)

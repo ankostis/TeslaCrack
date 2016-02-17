@@ -17,7 +17,7 @@
 from __future__ import print_function
 import sys
 
-def main(file, primes):
+def main(file, *primes):
     import ecdsa
 
     pubkeys = {}
@@ -82,4 +82,4 @@ if __name__ == "__main__":
     if len(sys.argv) < 3:
         print("usage: unfactor_ecdsa.py <sample file> <space-separated list of factors>")
         exit()
-    print(main(sys.argv[1], sys.argv[2:]))
+    print(main(sys.argv[1:]))
