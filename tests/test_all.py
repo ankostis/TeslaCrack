@@ -165,19 +165,6 @@ class TUnfactorBtc(unittest.TestCase):
             #print(key_rec['name'], btc_addr, dec_key)
             self.assertIn(dec_key, dec_key, key_rec)
 
-    @ddt.data(*[k for k in app_db['keys'] if k['type'] == 'AES'])
-    def test_unfactor_key_failures(self, key_rec):
-        name = key_rec['name']
-        factors = [int(fc) for fc in key_rec['factors']]
-        exp_aes_key = key_rec.get('decrypted')
-        if not exp_aes_key:
-            with self.assertRaises(CrackException, msg=key_rec) as cm:
-                crypted_aes_key = int(key_rec['encrypted'], 16)
-                unfactor_bitcoin.main(crypted_aes_key, *factors)
-            err_msg = cm.exception.args[0]
-            self.assertIn('No keys found', err_msg, key_rec)
-
-
 def chmod(mode, files):
     files = ' '.join("'%s'" % f for f in files)
     cmd = 'bash -c "chmod %s %s"' % (mode, files)

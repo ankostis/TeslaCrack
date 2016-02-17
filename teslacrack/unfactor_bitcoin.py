@@ -37,8 +37,18 @@ The generated key can then be used with TeslaDecoder.
 
 from __future__ import print_function
 
+import logging
 import sys
+
+import functools as ft
+import operator as op
 from teslacrack import CrackException
+
+
+def product(factors):
+    return ft.reduce(op.mul, factors)
+
+log = logging.getLogger('unfactor_btc')
 
 
 def main(addr, *primes):
@@ -48,34 +58,27 @@ def main(addr, *primes):
         from coinkit.keypair import BitcoinKeypair
 
     primes = [int(p) for p in primes]
-    addrs = {}
-    prod = 1
     for p in primes:
         if p >= 1<<256:
             raise CrackException("Factor too large: %s" % p)
-        prod *= p
-    if prod >= 1<<512:
+    primes_prod = product(primes)
+    if primes_prod >= 1<<512:
         raise CrackException("Superfluous factors or incorrect factorization detected!")
 
-    i = 1
-    while i < 1<<len(primes):
-        x = 1
-        for j, p in enumerate(primes):
-            if i & 1<<j:
-                x *= p
-        if x < 1<<256 and prod/x < 1<<256:
-            if x not in addrs:
-                addrs[x] = BitcoinKeypair(x).address()
-                if addr == addrs[x]:
-                    return "Found Bitcoin private key: %064X" % x
-        i += 1
+    addrs = {}
+    for i in range((1<<len(primes))-1, 1, -1):
+        prod = product(p for j, p in enumerate(primes) if i & 1<<j)
+        if prod < 1<<256 and primes_prod/prod < 1<<256 and prod not in addrs:
+            addrs[prod] = gen_addr = BitcoinKeypair(prod).address()
+            #print(bin(i), prod, gen_addr)
+            if addr == gen_addr:
+                return "Found Bitcoin private key: %064X" % prod
 
     raise CrackException("No keys found, check your factors!")
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
-        print("usage: unfactor-bitcoin.py <bitcoin address> <space-separated list of factors>")
-        exit()
+        exit("usage: unfactor-bitcoin.py <bitcoin address> <space-separated list of factors>")
     try:
         print(main(sys.argv[1], *sys.argv[2:]))
     except CrackException as ex:
