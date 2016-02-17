@@ -14,24 +14,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software Foundation,
 # Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
-from __future__ import unicode_literals
 
-from teslacrack import (CrackException, validate_factors_product,
-                        gen_product_combinations)
+#: Authoritative project's PEP 440 version.
+__version__ = '0.3.0'  # Also update README.rst & CHANGES.rst.
 
-
-try:
-    from pybitcoin.keypair import BitcoinKeypair
-except ImportError:
-    from coinkit.keypair import BitcoinKeypair
-
-
-def unfactor_btc_key(btc_address, primes, public_btc=None):
-    primes = validate_factors_product(primes, public_btc, allow_cofactor=False)
-
-    for key in gen_product_combinations(primes):
-        test_addr = BitcoinKeypair(key).address()
-        if test_addr == btc_address:
-            return key
-    raise CrackException("Failed reconstructing BTC-key! "
-            "\n  Re-validate your your prime-factors.")
+# Please UPDATE TIMESTAMP WHEN BUMPING VERSIONS AND BEFORE RELEASE.
+#: Release date.
+__updated__ = '2016-02-18 04:15:11'

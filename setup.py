@@ -33,6 +33,10 @@ py_ver = sys.version_info
 if py_ver < (2, 7) or py_ver >= (3,) and py_ver < (3, 3):
     exit("Sorry, Python-2.7+ or Python-3.3+ is supported! Not %s" % py_ver)
 
+tests_deps = ['ddt']
+if py_ver[0] == 2:
+    tests_deps.append('mock')
+
 mydir = os.path.dirname(__file__)
 
 
@@ -42,7 +46,7 @@ mydir = os.path.dirname(__file__)
 def read_project_version():
     fglobals = {}
     with io.open(os.path.join(
-            mydir, 'teslacrack', '__init__.py'), encoding='UTF-8') as fd:
+            mydir, 'teslacrack', '_version.py'), encoding='UTF-8') as fd:
         exec(fd.read(), fglobals)  # To read __version__
     return fglobals['__version__']
 
@@ -94,14 +98,14 @@ setup(
     packages=find_packages(exclude=["tests"]),
     install_requires=[
         'setuptools-git >= 0.3',
+        'docopt',
         'pycryptodome',
-        'docopt'
+        'ecdsa',
     ],
     extras_require={
         'btc': ['pybitcoin'],
-        'ecdsa': ['ecdsa'],
     },
-    tests_require=['ddt'],
+    tests_require=tests_deps,
     #entry_points={'console_scripts': ['teslacrack = teslacrack.__main__:main']},
     setup_requires=[
         'setuptools',
