@@ -1,4 +1,4 @@
-# This is part of TeslaCrack - decrypt files encrypted by TeslaCrypt ransomware.
+# This is part of TeslaCrack..
 #
 # Copyright (C) 2016 Googulator
 #
@@ -32,17 +32,18 @@ import unittest
 import ddt
 import yaml
 
-from teslacrack import unfactor, decrypt, CrackException, unfactor_ecdsa,\
-    unfactor_bitcoin, __main__
+import teslacrack as tc
+from teslacrack import (decrypt, unfactor, unfactor_bitcoin, unfactor_ecdsa)
 
-__main__.init_logging()
+
+tc.init_logging()
 
 app_db_txt = r"""
 keys:
     - name     : ankostis
       type     : AES
       encrypted: 7097DDB2E5DD08950D18C263A41FF5700E7F2A01874B20F402680752268E43F4C5B7B26AF2642AE37BD64AB65B6426711A9DC44EA47FC220814E88009C90EA
-      decrypted: 017b1647d4242bc67ce8a6aaec4d8b493f35519bd82775623d86182167148dd9
+      decrypted: 017B1647D4242BC67CE8A6AAEC4D8B493F35519BD82775623D86182167148DD9
       factors  :
         - 2
         - 7
@@ -123,6 +124,7 @@ app_db = read_app_db()
 class TUnfactor(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        cls.longMessage = True ## Print also original assertion msg.
         os.chdir(os.path.dirname(__file__))
 
     @ddt.data(*[k for k in app_db['keys'] if k['type'] == 'AES'])
@@ -132,23 +134,22 @@ class TUnfactor(unittest.TestCase):
             if not exp_aes_key:
                 continue
             factors = [int(fc) for fc in key_rec['factors']]
-            aes_keys = unfactor.unfactor_key_from_file(f, factors)
-            print(key_rec['name'], f, aes_keys, exp_aes_key)
-            self.assertIn(exp_aes_key, aes_keys,
-                    (key_rec['name'], f, aes_keys, exp_aes_key))
+            aes_keys = unfactor.unfactor_aes_key_from_file(f, factors)
+            #print(key_rec['name'], f, aes_keys, exp_aes_key)
+            self.assertIn(exp_aes_key.upper(),
+                    ['%0.64X' % k for k in aes_keys], msg=key_rec)
 
     @ddt.data(*[k for k in app_db['keys'] if k['type'] == 'AES'])
     def test_unfactor_key_failures(self, key_rec):
-        name = key_rec['name']
         factors = [int(fc) for fc in key_rec['factors']]
         exp_aes_key = key_rec.get('decrypted')
         if not exp_aes_key:
-            with self.assertRaises(CrackException, msg=key_rec) as cm:
+            with self.assertRaises(tc.CrackException, msg=key_rec) as cm:
                 crypted_aes_key = int(key_rec['encrypted'], 16)
-                unfactor.unfactor_key('<fpath>', factors, crypted_aes_key,
+                unfactor.unfactor_aes_key('<fpath>', factors, crypted_aes_key,
                         lambda *args: b'')
             err_msg = cm.exception.args[0]
-            self.assertIn(key_rec['error'], err_msg, key_rec)
+            self.assertIn(key_rec['error'], err_msg, msg=key_rec)
 
     @ddt.data(*[k for k in app_db['keys'] if k['type'] == 'BTC'])
     def test_unfactor_ecdsa_btc_from_file(self, key_rec):
@@ -157,10 +158,10 @@ class TUnfactor(unittest.TestCase):
             if not exp_aes_key:
                 continue
             factors = [int(fc) for fc in key_rec['factors']]
-            aes_keys = unfactor_ecdsa.main(f, *factors)
+            key_name, key = unfactor_ecdsa.unfactor_key_from_file(f, factors)
             #print(key_rec['name'], f, aes_keys, exp_aes_key)
-            self.assertIn(exp_aes_key, aes_keys,
-                    (key_rec['name'], f, aes_keys, exp_aes_key))
+            self.assertEqual('BTC', key_name, msg=key_rec)
+            self.assertIn(exp_aes_key.upper(), '0x%0.64X'%key, msg=key_rec)
 
 
     @ddt.data(*[k for k in app_db['keys'] if k['type'] == 'BTC'])
@@ -169,9 +170,9 @@ class TUnfactor(unittest.TestCase):
         btc_addr = key_rec.get('btc_addr')
         if btc_addr:
             factors = [int(fc) for fc in key_rec['factors']]
-            dec_key = unfactor_bitcoin.main(btc_addr, *factors)
+            btc_key = unfactor_bitcoin.unfactor_btc_key(btc_addr, factors)
             #print(key_rec['name'], btc_addr, dec_key)
-            self.assertIn(dec_key, dec_key, key_rec)
+            self.assertIn(dec_key.upper(), '0x%0.64X' % btc_key, msg=key_rec)
 
 
 def chmod(mode, files):
@@ -188,6 +189,7 @@ def chmod(mode, files):
 class TTeslacrack(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        cls.longMessage = True ## Print also original assertion msg.
         os.chdir(os.path.dirname(__file__))
         ## Mark unreadable-files.
         chmod('115', glob.glob('unreadable*'))

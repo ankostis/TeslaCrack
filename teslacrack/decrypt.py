@@ -1,4 +1,4 @@
-# This is part of TeslaCrack - decrypt files encrypted by TeslaCrypt ransomware.
+# This is part of TeslaCrack..
 #
 # Copyright (C) 2016 Googulator
 #
@@ -21,21 +21,16 @@ Decrypts TeslaCrypt-ed files.
 from __future__ import unicode_literals
 
 import argparse
-import logging
 import os
 import shutil
 import struct
 import sys
 import time
 
-from Crypto.Cipher import AES
+from Crypto.Cipher import AES  # @UnresolvedImport
 
-from teslacrack import init_logging
+from . import (CrackException, log, fix_hex_key, check_tesla_file)
 
-from . import (fix_hex_key, tesla_magics)
-
-
-log = logging.getLogger('decrypt')
 
 ## Add your (encrypted-AES-key: reconstructed-AES-key) pair(s) here,
 #  like the examples below:
@@ -101,8 +96,9 @@ def decrypt_file(opts, stats, crypted_fname):
         with open(crypted_fname, "rb") as fin:
             header = fin.read(414)
 
-            if header[:5] not in tesla_magics:
-                log.info("File %r doesn't appear to be TeslaCrypted.", crypted_fname)
+            try:
+                check_tesla_file(crypted_fname, header[:5])
+            except CrackException:
                 stats.badheader_nfiles += 1
                 return
             stats.crypted_nfiles += 1
@@ -253,6 +249,7 @@ def log_stats(stats, fpath=''):
         stats.crypted_nfiles, stats.decrypted_nfiles, stats.skip_nfiles,
         stats.unknown_nfiles, stats.failed_nfiles, stats.overwrite_nfiles,
         stats.badexisting_nfiles, stats.deleted_nfiles)
+
 
 def _path_to_ulong(path):
     """Support Long Unicode paths and handle `C: --> C:\<current-dir>` on *Windows*."""

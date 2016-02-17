@@ -1,4 +1,4 @@
-# This is part of TeslaCrack - decrypt files encrypted by TeslaCrypt ransomware.
+# This is part of TeslaCrack..
 #
 # Copyright (C) 2016 Googulator
 #
@@ -67,11 +67,29 @@ Sub-commands:
   decrypt             Scan all <file-path> provided for tesla-files to decrypt,
                       if their AES-key have been factorized, or report any unknown
                       encrypted-AES-key(s).
+                      To use it, factor the AES key reported using msieve.
+                      The AES-256 key will be a combination of the factors,
+                      multiplied (product), and use on of `unfactor` to find it.
+                      Insert the hex string & ubnfactored-AES key into the
+                      `known_AES_key_pairs` and re-run it on affected directory.
+                      If an unknown key is reported, crack that one using msieve, then add to known_AES_key_pairs and re-run.
   unfactor            Read encrypted-AES-key from <file-path> and decrypted
                       based on the provided <prime-factor> integers.
-  unfactorbtc         Like the previous sub-cmd, but works with bitcoin addresses.
   unfactorecdsa       Read encrypted-AES-key from <file-path> and decrypted
                       based on the provided <prime-factor> integers.
+  unfactorbtc         Bitcoin address-based TeslaCrypt key reconstructor which
+                      should also work with ancient versions of TeslaCrypt.
+                      To use it, you need the Bitcoin address where ransom was expected to be paid,
+                      as well as the 512-bit Bitcoin shared secret. This is typically found in the recovery
+                      file, which is a text file named "RECOVERY_KEY.TXT", "recover_file.txt", or similar
+                      dropped in the Documents folder by TeslaCrypt.
+                      The first line of the recovery file is the Bitcoin address, while the 3rd line is
+                      the shared secret. These values can also be obtained from key.dat, storage.bin
+                      TeslaCrypt's registry entry, or (in case of TeslaCrypt 2.x) from the encrypted files
+                      or from network packet dumps, in case the recovery file is lost.
+                      Once you have these values, factor the shared secrets, then run this cmd with the
+                      factors.
+                      The generated key can then be used with TeslaDecoder to decrypt your files.
 
 Examples:
 
@@ -83,18 +101,17 @@ Examples:
    teslacrack decrypt --progress -n -v  C:\\  ## Just to check what actions will perform.
 
 Notes:
-  To use, factor the 2nd hex string found in the headers of affected files using msieve.
-  The AES-256 key will be one of the factors, typically not a prime - experiment to see which one works.
-  Insert the hex string & AES key below, under known_AES_key_pairs, then run on affected directory.
-  If an unknown key is reported, crack that one using msieve, then add to known_AES_key_pairs and re-run.
 
 Enjoy! ;)
 """
+
+from __future__ import print_function
+
 import logging
-from teslacrack import (__version__, init_logging, log, CrackException,
-                        decrypt, unfactor, unfactor_bitcoin, unfactor_ecdsa)
 
 import docopt
+
+import teslacrack as tc
 
 
 def _attribufy_opts(opts):
@@ -111,33 +128,39 @@ def _attribufy_opts(opts):
 
 
 def main(*args):
-    opts = docopt.docopt(__doc__, argv=args or None, version=__version__)
+    opts = docopt.docopt(__doc__, argv=args or None, version=tc.__version__)
 
     _attribufy_opts(opts)
     log_level = logging.DEBUG if opts.verbose else logging.INFO
-    log.debug('Options: %s', opts)
-    init_logging(log_level)
+    tc.init_logging(log_level)
+    tc.log.debug('Options: %s', opts)
 
-    if opts['decrypt']:
-        opts.fpaths = opts['<path>']
-        decrypt.decrypt(opts)
-    elif opts['unfactor']:
-        primes = [int(p) for p in opts['<prime-factor>']]
-        try:
-            candidate_keys = unfactor.unfactor_key_from_file(
+    try:
+        if opts['decrypt']:
+            opts.fpaths = opts['<path>']
+            tc.decrypt.decrypt(opts)
+        elif opts['unfactor']:
+            primes = tc.validate_primes(opts['<prime-factor>'])
+            candidate_keys = tc.unfactor.unfactor_aes_key_from_file(
                     opts['<file-path>'], primes)
-            print("Candidate decrypted AES key(s): \n  %s" % '\n  '.join(candidate_keys))
-        except CrackException as ex:
-            log.error("Reconstruction failed! %s", ex)
-    elif opts['unfactorbtc']:
-        candidate_keys = unfactor_bitcoin.main(opts['<btc-key>'],
-                opts['<prime-factor>'])
-    elif opts['unfactorecdsa']:
-        candidate_keys = unfactor_ecdsa.main(opts['<file-path>'],
-                opts['<prime-factor>'])
-    else:
-        msg = 'Program-logic miss-matches *docopt* sub-commands! \n  %s'
-        raise AssertionError(msg % opts)
+            return "Candidate AES-key(s): \n  %s" % '\n  '.join(
+                    '0x%0.64X' % key for key in candidate_keys)
+        elif opts['unfactorecdsa']:
+            primes = tc.validate_primes(opts['<prime-factor>'])
+            key_name, key = tc.unfactor_ecdsa.unfactor_key_from_file(
+                    opts['<file-path>'], primes)
+            return "Found %s-key: 0x%0.64X" % (key_name, key)
+        elif opts['unfactorbtc']:
+            primes = tc.validate_primes(opts['<prime-factor>'])
+            key = tc.unfactor_bitcoin.unfactor_btc_key(
+                    opts['<btc-key>'], primes)
+            return "Found BTC-key: 0x%0.64X" % key
+        else:
+            msg = 'Program-logic miss-matches *docopt* sub-commands! \n  %s'
+            raise AssertionError(msg % opts)
+    except tc.CrackException as ex:
+        tc.log.error("%r", ex)
+        exit(-2)
 
 if __name__ == '__main__':
-    main()
+    print(main())
