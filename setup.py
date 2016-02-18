@@ -98,6 +98,7 @@ setup(
     packages=find_packages(exclude=["tests"]),
     install_requires=[
         'setuptools-git >= 0.3',
+        'future',
         'docopt',
         'pycryptodome',
         'ecdsa',

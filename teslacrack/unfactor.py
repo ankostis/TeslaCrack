@@ -22,7 +22,23 @@ from __future__ import unicode_literals
 from Crypto.Cipher import AES  # @UnresolvedImport
 import ecdsa
 
-from . import (CrackException, log, product, fix_int_key, check_tesla_file)
+import functools as ft
+import operator as op
+
+from . import (CrackException, log, fix_int_key, check_tesla_file)
+
+
+def validate_primes(str_factors, expected_product=None):
+    factors = [int(p) for p in str_factors]
+    for i, f in enumerate(factors):
+        if f >= 1<<256:
+            raise CrackException("Factor no%i too large(%i bits): %s" %
+                    (i, f.bit_length(), f))
+    return factors
+
+
+def product(factors):
+    return ft.reduce(op.mul, factors)
 
 
 def _validate_factors_product(factors, expected_product=None, allow_cofactor=False):

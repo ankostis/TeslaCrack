@@ -27,7 +27,7 @@ mydir = os.path.dirname(__file__)
 readme_path = os.path.join(mydir, '..', 'README.rst')
 
 
-class Doctest(unittest.TestCase):
+class TDoctest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
@@ -38,7 +38,7 @@ class Doctest(unittest.TestCase):
         ver = teslacrack.__version__
         header_len = 20
         mydir = os.path.dirname(__file__)
-        with open(readme_path) as fd:
+        with io.open(readme_path, 'rt', encoding='utf-8') as fd:
             for i, l in enumerate(fd):
                 if ver in l:
                     break
@@ -49,8 +49,8 @@ class Doctest(unittest.TestCase):
 
     def test_README_version_from_cmdline(self):
         mydir = os.path.dirname(__file__)
-        with open(readme_path) as fd:
-            ftext = fd.read().decode('utf-8')
+        with io.open(readme_path, 'rt', encoding='utf-8') as fd:
+            ftext = fd.read()
             with patch('sys.stdout', new=io.StringIO()) as stdout:
                 try:
                     tcm.main(b'--version')
@@ -71,8 +71,8 @@ class Doctest(unittest.TestCase):
     def test_README_relDate(self):
         reldate = teslacrack.__updated__
         mydir = os.path.dirname(__file__)
-        with open(readme_path, 'rt') as fd:
-            ftext = fd.read().decode('utf-8')
+        with io.open(readme_path, 'rt', encoding='utf-8') as fd:
+            ftext = fd.read()
             self.assertIn(reldate, ftext,
                           "Reldate(%s) not found in README!" % reldate)
 
@@ -80,8 +80,8 @@ class Doctest(unittest.TestCase):
     def test_README_contains_main_help_msg(self):
         help_msg = tcm.__doc__  # @UndefinedVariable
         mydir = os.path.dirname(__file__)
-        with open(readme_path) as fd:
-            ftext = fd.read().decode('utf-8')
+        with io.open(readme_path, 'rt', encoding='utf-8') as fd:
+            ftext = fd.read()
             msg = "Main help-line[%s] missing from README: \n  %s"
             for i, l in enumerate(help_msg.split('\n')):
                 l = l.strip()

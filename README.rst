@@ -37,10 +37,6 @@ it just extracts the numbers to be factored, and you have to feed them into
 Quickstart
 ----------
 
-.. Tip::
-    To open a ``cmd.exe`` console, press ``[WinKey + R]`` and type ``cmd + [Enter]``
-    When issuing commands describe here, skip the ``>`` char or the ``##`` lines
-
 The main entry-point of the tool is the ``teslacrack`` console-command::
 
     ## Gather the public-AES keys that have encrypted your files:
@@ -56,6 +52,10 @@ The main entry-point of the tool is the ``teslacrack`` console-command::
     ## Now decrypt all your hard-drive:
     > teslacrack decrypt --progress D:\
 
+.. Tip::
+    To open a ``cmd.exe`` console, press ``[WinKey + R]`` and type ``cmd + [Enter]``
+    When issuing commands describe here, skip the ``>`` char or the ``##`` lines
+
 
 There are more sub-commands available - to receive usage description, type::
 
@@ -68,6 +68,7 @@ There are more sub-commands available - to receive usage description, type::
                                     [<path>]...
       teslacrack guess-fkey     [-v] [--progress] [--ecdsa | --btc <btc-addr>]  <file>  <prime-factor>...
       teslacrack guess-key      [-v] [--progress] (--ecdsa <ecdsa-secret> | --btc <btc-addr>)  <pub-key>  <prime-factor>...
+      teslacrack file           [-v] [ -I <hconv>] <file>
       teslacrack -h | --help
       teslacrack -V | --version
 
@@ -76,15 +77,16 @@ There are more sub-commands available - to receive usage description, type::
           Decrypt tesla-file(s) in <path> file(s)/folder(s) if their AES private-key
           already guessed, while reporting any unknown AES & BTC public-key(s) encountered.
 
-          The (rough) pattern of usasge is this:
+          The (rough) pattern of usage is this:
             1. Run this cmd on some tesla-files to gather your public-AES keys,
             2. factorize the public-key(s) reported by *msieve* external program
                or found in http://factordb.com/.
             3. use `guess-XXX` sub-cmds to reconstruct private-keys from public ones,
             4. add public/private key pairs into `known_AES_key_pairs`, and then
             5. re-run `decrypt` on all infected file/directories.
+          If no <path> given, current-directory assumed.
 
-      guess-fkey
+      guess-fkey:
           Read public-key(s) from <file> and use the <prime-factor> integers produced by
           external factorization program (i.e. *msieve*) or found in http://factordb.com/
           to reconstruct their private-key(s), optionally according to *ECDSA* or *btc* methods
@@ -95,52 +97,63 @@ There are more sub-commands available - to receive usage description, type::
           Like the `guess-fkey`, above, but the <pub-key> is explicitly given and the method
           must be one of *ECDSA* or *btc*.  Use the public-keys reported by `decrypt`.
 
+      file:
+          Print tesla-file's header fields (keys, addresses, etc), converted by -I <hconv> option.
+
     Options:
-      --ecdsa             a slower key-reconstructor based on Elliptic-Curve-Cryptography
-                          which:
-                          - can recover both AES or BTC private-keys;
+      --ecdsa           A slower key-reconstructor based on Elliptic-Curve-Cryptography which:
+                          - can recover both AES or BTC[1] private-keys;
                           - can recover keys from any file-type (no need for *magic-bytes*);
                           - yields always a single correct key.
-                          Given <prime-factors> select which public-key to use from file (AES or BTC).
-                          The private BTC-key may be used with *TeslaDecoder* external program.
-      --btc <btc-addr>    Guess BTC private-keys based on the bitcoin-address and BTC public-key.
-                          Private BTC-key may be used with *TeslaDecoder* external program,
-                          which should decrypt also ancient versions of TeslaCrypt.
+                        The <prime-factors> select which public-key to use from file (AES or BTC).
+      --btc <btc-addr>  Guess BTC private-keys based on the bitcoin-address and BTC public-key.
                           - The <btc-addr> is typically found in the ransom-note or recovery file
-                            ("RECOVERY_KEY.TXT", "recover_file.txt"), dropped in the Documents folder:
-                            http://www.bleepingcomputer.com/virus-removal/teslacrypt-alphacrypt-ransomware-information#versions,
-                            or located in the registry:
-                            https://securelist.com/blog/research/71371/teslacrypt-2-0-disguised-as-cryptowall/#key-data-saved-in-the-system
                           - The <pub-key> is the BTC key reported by `decrypt` sub-cmd.
-      --delete            Delete crypted-files after decrypting them.
-      --delete-old        Delete crypted even if decrypted-file created during a
-                          previous run [default: False].
-      -n, --dry-run       Decrypt but don't Write/Delete files, just report
-                          actions performed [default: False].
-      --progress          Before start decrypting files, pre-scan all dirs, to
-                          provide progress-indicator [default: False].
-      --fix               Re-decrypt tesla-files and overwrite crypted-
-                          counterparts if they have unexpected size. If ou enable it,
-                          by default it backs-up existing files with '.BAK' extension
-                          (see `--backup`). Specify empty extension '' for no backups
-                          (e.g. `--backup=`)
-                          WARNING: You may LOOSE FILES that have changed due to
-                          regular use, such as, configuration-files and mailboxes!
-                          [default: False].
-      --overwrite         Re-decrypt ALL tesla-files, overwritting all crypted-
-                          counterparts. Optionally creates backups with the
-                          given extension (see `--backup`).
-                          WARNING: You may LOOSE FILES that have changed due to
-                          regular use, such as, configuration-files and mailboxes!
-                          [default: False].
-      --backup=<.ext>     Sets file-extension (with dot(`.`) included for backup-files
-                          created by `--fix` and `--overwrite` options.
-    Other options:
-      -h, --help          Show this help message and exit.
-      -V, --version       Print program's version number and exit.
-      -v, --verbose       Verbosely log(DEBUG) all actions performed.
+      -I <hconv>        Specify print-out format for tesla-header fields (keys, addresses, etc),
+                        where <hconv> is any non-ambiguous case-insensitive *prefix* from:
 
-    Positional arguments:
+                          - raw: all bytes, but size:int, no conversion (i.e. hex private-keys unfixed);
+                          - fix: (default) all bytes, but size:int, and fix priv-keys (strip & l-rotate);
+                          - bin: all bytes;
+                          - hex: all prefixed '0x' hex-strings, size:hexed;
+                          - xhex: hex-bytes, size:int's bytes hexified(!), may fail on corrupted headers;
+                          - int: all integers;
+                          - asc: all base64, size(int, thousands grouped) - most concise;
+                        [default: fix]
+      --delete          Delete crypted-files after decrypting them.
+      --delete-old      Delete crypted even if decrypted-file created during a
+                        previous run [default: False].
+      -n, --dry-run     Decrypt but don't Write/Delete files, just report
+                        actions performed [default: False].
+      --progress        Before start decrypting files, pre-scan all dirs, to
+                        provide progress-indicator [default: False].
+      --fix             Re-decrypt tesla-files and overwrite crypted-
+                        counterparts if they have unexpected size. If ou enable it,
+                        by default it backs-up existing files with '.BAK' extension
+                        (see `--backup`). Specify empty extension '' for no backups
+                        (e.g. `--backup=`)
+                        WARNING: You may LOOSE FILES that have changed due to
+                        regular use, such as, configuration-files and mailboxes!
+                        [default: False].
+      --overwrite       Re-decrypt ALL tesla-files, overwritting all crypted-
+                        counterparts. Optionally creates backups with the
+                        given extension (see `--backup`).
+                        WARNING: You may LOOSE FILES that have changed due to
+                        regular use, such as, configuration-files and mailboxes!
+                        [default: False].
+      --backup=<.ext>   Sets file-extension (with dot(`.`) included for backup-files
+                        created by `--fix` and `--overwrite` options.
+    Other options:
+      -h, --help        Show this help message and exit.
+      -V, --version     Print program's version number and exit.
+      -v, --verbose     Verbosely log(DEBUG) all actions performed.
+
+    Notes:
+      [1] Private BTC-key may be used with *TeslaDecoder* external program,
+          which should decrypt also ancient versions of TeslaCrypt.
+          Check the following for gathering required keys and addresses:
+          - http://www.bleepingcomputer.com/virus-removal/teslacrypt-alphacrypt-ransomware-information
+          - https://securelist.com/blog/research/71371/teslacrypt-2-0-disguised-as-cryptowall
 
     Examples:
 
@@ -164,6 +177,9 @@ You need a working Python 2.7 or Python-3.4+ environment,
 **preferably 64-bit** (if supported by your OS).
 A 32-bit Python can also work, but it will be significantly slower
 
+  .. Note::
+    The ``--btc`` option DOES NOT RUN on Python 3 - use a Python-2.7.
+
 Install Python
 --------------
 In *Windows*, the following 1 + 2 alternative have been tested:
@@ -183,9 +199,6 @@ In *Windows*, the following 1 + 2 alternative have been tested:
   And although  they **do not require admin-rights to install**,
   you most probably **need admin-rights** when running ``teslacrack decrypt``,
   if the files to decrypt originate from a different user.
-
-  .. Note::
-    The ``--btc`` option DOES NOT RUN on WinPython 3.4 - use a python-2.7.
 
 
 Install TeslaCrypt
@@ -238,7 +251,6 @@ Install TeslaCrypt
 
 How to decrypt your files
 =========================
-
 
 1. Check that the extension of your crypted files are one of the known ones,
    ``.vvv, .ccc, .zzz, .aaa, .abc``; if not, edit ``teslacrack/decrypt.py`` to

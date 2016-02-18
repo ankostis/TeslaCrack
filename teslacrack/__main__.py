@@ -26,6 +26,7 @@ Usage:
                                 [<path>]...
   teslacrack guess-fkey     [-v] [--progress] [--ecdsa | --btc <btc-addr>]  <file>  <prime-factor>...
   teslacrack guess-key      [-v] [--progress] (--ecdsa <ecdsa-secret> | --btc <btc-addr>)  <pub-key>  <prime-factor>...
+  teslacrack file           [-v] [ -I <hconv>] <file>
   teslacrack -h | --help
   teslacrack -V | --version
 
@@ -34,15 +35,16 @@ Sub-commands:
       Decrypt tesla-file(s) in <path> file(s)/folder(s) if their AES private-key
       already guessed, while reporting any unknown AES & BTC public-key(s) encountered.
 
-      The (rough) pattern of usasge is this:
+      The (rough) pattern of usage is this:
         1. Run this cmd on some tesla-files to gather your public-AES keys,
         2. factorize the public-key(s) reported by *msieve* external program
            or found in http://factordb.com/.
         3. use `guess-XXX` sub-cmds to reconstruct private-keys from public ones,
         4. add public/private key pairs into `known_AES_key_pairs`, and then
         5. re-run `decrypt` on all infected file/directories.
+      If no <path> given, current-directory assumed.
 
-  guess-fkey
+  guess-fkey:
       Read public-key(s) from <file> and use the <prime-factor> integers produced by
       external factorization program (i.e. *msieve*) or found in http://factordb.com/
       to reconstruct their private-key(s), optionally according to *ECDSA* or *btc* methods
@@ -53,52 +55,63 @@ Sub-commands:
       Like the `guess-fkey`, above, but the <pub-key> is explicitly given and the method
       must be one of *ECDSA* or *btc*.  Use the public-keys reported by `decrypt`.
 
+  file:
+      Print tesla-file's header fields (keys, addresses, etc), converted by -I <hconv> option.
+
 Options:
-  --ecdsa             a slower key-reconstructor based on Elliptic-Curve-Cryptography
-                      which:
-                      - can recover both AES or BTC private-keys;
+  --ecdsa           A slower key-reconstructor based on Elliptic-Curve-Cryptography which:
+                      - can recover both AES or BTC[1] private-keys;
                       - can recover keys from any file-type (no need for *magic-bytes*);
                       - yields always a single correct key.
-                      Given <prime-factors> select which public-key to use from file (AES or BTC).
-                      The private BTC-key may be used with *TeslaDecoder* external program.
-  --btc <btc-addr>    Guess BTC private-keys based on the bitcoin-address and BTC public-key.
-                      Private BTC-key may be used with *TeslaDecoder* external program,
-                      which should decrypt also ancient versions of TeslaCrypt.
+                    The <prime-factors> select which public-key to use from file (AES or BTC).
+  --btc <btc-addr>  Guess BTC private-keys based on the bitcoin-address and BTC public-key.
                       - The <btc-addr> is typically found in the ransom-note or recovery file
-                        ("RECOVERY_KEY.TXT", "recover_file.txt"), dropped in the Documents folder:
-                        http://www.bleepingcomputer.com/virus-removal/teslacrypt-alphacrypt-ransomware-information#versions,
-                        or located in the registry:
-                        https://securelist.com/blog/research/71371/teslacrypt-2-0-disguised-as-cryptowall/#key-data-saved-in-the-system
                       - The <pub-key> is the BTC key reported by `decrypt` sub-cmd.
-  --delete            Delete crypted-files after decrypting them.
-  --delete-old        Delete crypted even if decrypted-file created during a
-                      previous run [default: False].
-  -n, --dry-run       Decrypt but don't Write/Delete files, just report
-                      actions performed [default: False].
-  --progress          Before start decrypting files, pre-scan all dirs, to
-                      provide progress-indicator [default: False].
-  --fix               Re-decrypt tesla-files and overwrite crypted-
-                      counterparts if they have unexpected size. If ou enable it,
-                      by default it backs-up existing files with '.BAK' extension
-                      (see `--backup`). Specify empty extension '' for no backups
-                      (e.g. `--backup=`)
-                      WARNING: You may LOOSE FILES that have changed due to
-                      regular use, such as, configuration-files and mailboxes!
-                      [default: False].
-  --overwrite         Re-decrypt ALL tesla-files, overwritting all crypted-
-                      counterparts. Optionally creates backups with the
-                      given extension (see `--backup`).
-                      WARNING: You may LOOSE FILES that have changed due to
-                      regular use, such as, configuration-files and mailboxes!
-                      [default: False].
-  --backup=<.ext>     Sets file-extension (with dot(`.`) included for backup-files
-                      created by `--fix` and `--overwrite` options.
-Other options:
-  -h, --help          Show this help message and exit.
-  -V, --version       Print program's version number and exit.
-  -v, --verbose       Verbosely log(DEBUG) all actions performed.
+  -I <hconv>        Specify print-out format for tesla-header fields (keys, addresses, etc),
+                    where <hconv> is any non-ambiguous case-insensitive *prefix* from:
 
-Positional arguments:
+                      - raw: all bytes, but size:int, no conversion (i.e. hex private-keys unfixed);
+                      - fix: (default) all bytes, but size:int, and fix priv-keys (strip & l-rotate);
+                      - bin: all bytes;
+                      - hex: all prefixed '0x' hex-strings, size:hexed;
+                      - xhex: hex-bytes, size:int's bytes hexified(!), may fail on corrupted headers;
+                      - int: all integers;
+                      - asc: all base64, size(int, thousands grouped) - most concise;
+                    [default: fix]
+  --delete          Delete crypted-files after decrypting them.
+  --delete-old      Delete crypted even if decrypted-file created during a
+                    previous run [default: False].
+  -n, --dry-run     Decrypt but don't Write/Delete files, just report
+                    actions performed [default: False].
+  --progress        Before start decrypting files, pre-scan all dirs, to
+                    provide progress-indicator [default: False].
+  --fix             Re-decrypt tesla-files and overwrite crypted-
+                    counterparts if they have unexpected size. If ou enable it,
+                    by default it backs-up existing files with '.BAK' extension
+                    (see `--backup`). Specify empty extension '' for no backups
+                    (e.g. `--backup=`)
+                    WARNING: You may LOOSE FILES that have changed due to
+                    regular use, such as, configuration-files and mailboxes!
+                    [default: False].
+  --overwrite       Re-decrypt ALL tesla-files, overwritting all crypted-
+                    counterparts. Optionally creates backups with the
+                    given extension (see `--backup`).
+                    WARNING: You may LOOSE FILES that have changed due to
+                    regular use, such as, configuration-files and mailboxes!
+                    [default: False].
+  --backup=<.ext>   Sets file-extension (with dot(`.`) included for backup-files
+                    created by `--fix` and `--overwrite` options.
+Other options:
+  -h, --help        Show this help message and exit.
+  -V, --version     Print program's version number and exit.
+  -v, --verbose     Verbosely log(DEBUG) all actions performed.
+
+Notes:
+  [1] Private BTC-key may be used with *TeslaDecoder* external program,
+      which should decrypt also ancient versions of TeslaCrypt.
+      Check the following for gathering required keys and addresses:
+      - http://www.bleepingcomputer.com/virus-removal/teslacrypt-alphacrypt-ransomware-information
+      - https://securelist.com/blog/research/71371/teslacrypt-2-0-disguised-as-cryptowall
 
 Examples:
 
@@ -111,15 +124,18 @@ Examples:
 
 Enjoy! ;)
 """
-
 from __future__ import print_function
 
+import io
 import logging
+from teslacrack import decrypt
 
 import docopt
 
 import teslacrack as tc
 
+
+log = tc.log
 
 def _attribufy_opts(opts):
     """
@@ -128,10 +144,71 @@ def _attribufy_opts(opts):
     OF course they must not class.
     """
     for k, v in opts.items():
-        if k.startswith('-'):
-            setattr(opts, k.lstrip('-'), v)
+        k = k.replace('-', '_')
+        if k.startswith('_'):
+            setattr(opts, k.lstrip('__'), v)
         elif k.startswith('<'):
-            setattr(opts, k[1:-1].replace('-', '_'), v)
+            setattr(opts, k[1:-1], v)
+
+
+def _guess_from_file(opts):
+    advice_msg = "\n  Re-validate prime-factors."
+    primes = tc.validate_primes(opts['<prime-factor>'])
+    file = opts['<file>']
+    log.info('Guessing keys from tesla-file: %s', file)
+
+    if opts['--btc']:
+        key_name = 'BTC'
+        key = tc.unfactor.guess_btc_key_from_btc_address(opts['--btc'], primes)
+        msg = key and "Found BTC-key: 0x%0.64X" % key
+    elif opts['--ecdsa']:
+        key_name, key = tc.unfactor.guess_ecdsa_key_from_file(file, primes)
+        msg = key and "Found %s-key: 0x%0.64X" % (key_name, key)
+    else:
+        key_name = 'AES'
+        keys = tc.unfactor.guess_aes_keys_from_file(file, primes)
+        msg = keys and "Candidate AES-key(s): \n  %s" % '\n  '.join(
+                    '0x%0.64X' % key for key in keys)
+        advice_msg = "\n  Re-validate prime-factors and/or try another file-type."
+
+    if not msg:
+        raise tc.CrackException("Failed reconstructing %s-key! %s" % (key_name, advice_msg))
+    return msg
+
+
+def _guess_key(opts):
+    primes = tc.validate_primes(opts['<prime-factor>'])
+    pubkey = opts['<pub-key>']
+
+    if opts['--btc']:
+        key_name = 'BTC'
+        key = tc.unfactor.guess_btc_key_from_btc_address(
+                opts['--btc'], primes, pubkey)
+        msg = key and "Found BTC-key: 0x%0.64X" % key
+    elif opts['--ecdsa']:
+        key_name = '<AES_or_BTC>'
+        ecdsa_secret = tc.guess_binary(opts['--ecdsa'])
+        key = tc.unfactor.guess_ecdsa_key(ecdsa_secret, pubkey, primes)
+        msg = key and "Found ECDSA-key: 0x%0.64X" % key
+    else:
+        msg = "main() miss-matched *docopt* mutual-exclusive opts (--ecdsa|--btc)! \n  %s"
+        raise AssertionError(msg % opts)
+
+    if not msg:
+        raise tc.CrackException("Failed reconstructing %s-key! %s"
+                "\n  Re-validate prime-factors."% key_name)
+    return msg
+
+
+def _show_file_headers(opts):
+    file = opts['<file>']
+
+    log.info('Reading tesla-file: %s', file)
+    with io.open(file, 'rb') as fd:
+        h = tc.parse_tesla_header(fd)
+    h = tc.hconv(h, opts['-I'].lower())
+
+    return ('\n'.join('%10.10s: %s' % (k,v) for k, v in h._asdict().items()))
 
 
 def main(*args):
@@ -141,59 +218,23 @@ def main(*args):
     _attribufy_opts(opts)
     log_level = logging.DEBUG if opts.verbose else logging.INFO
     tc.init_logging(log_level)
-    tc.log.debug('Options: %s', opts)
+    log.debug('Options: %s', opts)
 
     try:
-        advice_msg = "\n  Re-validate prime-factors."
-        key_name = 'AES'
         if opts['decrypt']:
             opts.fpaths = opts['<path>']
-            tc.decrypt.decrypt(opts)
+            decrypt.decrypt(opts)
         elif opts['guess-fkey']:
-            primes = tc.validate_primes(opts['<prime-factor>'])
-            file = opts['<file>']
-
-            if opts['--btc']:
-                key_name = 'BTC'
-                key = tc.unfactor.guess_btc_key_from_btc_address(opts['--btc'], primes)
-                if key:
-                    return "Found BTC-key: 0x%0.64X" % key
-            elif opts['--ecdsa']:
-                key_name, key = tc.unfactor.guess_ecdsa_key_from_file(file, primes)
-                if key:
-                    return "Found %s-key: 0x%0.64X" % (key_name, key)
-            else:
-                candidate_keys = tc.unfactor.guess_aes_keys_from_file(file, primes)
-                if candidate_keys:
-                    return "Candidate AES-key(s): \n  %s" % '\n  '.join(
-                            '0x%0.64X' % key for key in candidate_keys)
-                advice_msg = "\n  Re-validate prime-factors and/or try another file-type."
-
-            raise tc.CrackException("Failed reconstructing %s-key! %s" %
-                    (key_name, advice_msg))
+            return _guess_from_file(opts)
         elif opts['guess-key']:
-            primes = tc.validate_primes(opts['<prime-factor>'])
-            pubkey = opts['<pub-key>']
-
-            if opts['--btc']:
-                key_name = 'BTC'
-                key = tc.unfactor.guess_btc_key_from_btc_address(
-                        opts['--btc'], primes, pubkey)
-                if key:
-                    return "Found BTC-key: 0x%0.64X" % key
-            elif opts['--ecdsa']:
-                key = tc.unfactor.guess_ecdsa_key(opts['--ecdsa'], pubkey, primes)
-                if key:
-                    return "Found ECDSA-key: 0x%0.64X" % key
-            else:
-                msg = "main() miss-matched *docopt* mutual-exclusive opts (--ecdsa|--btc)! \n  %s"
-                raise AssertionError(msg % opts)
-            return "Found BTC-key: 0x%0.64X" % key
+            return _guess_key(opts)
+        elif opts['file']:
+            return _show_file_headers(opts)
         else:
             msg = "main() miss-matched *docopt* sub-commands! \n  %s"
             raise AssertionError(msg % opts)
     except tc.CrackException as ex:
-        tc.log.error("%r", ex)
+        tc.log.error("%s", ex)
         exit(-2)
 
 if __name__ == '__main__':
