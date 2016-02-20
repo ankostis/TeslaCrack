@@ -16,17 +16,17 @@
 # Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
 from __future__ import unicode_literals
 
+from base64 import b64decode as b64dec, b64encode as b64enc
 from binascii import hexlify, unhexlify
 import codecs
 from collections import defaultdict
 from collections import namedtuple
 import logging
+import re
 import struct
 
 from future import utils as futils
 from future.builtins import str, int, bytes
-
-import base64 as b64
 
 from ._version import __version__, __updated__
 
@@ -60,24 +60,35 @@ def fix_hex_key(hex_bkey):
     # XXX: rstrip byte-or-str depends on type(aes-decrypted-key) in decrypt.known_AES_keys.
     return _lrotate_byte_key(unhexlify(hex_bkey.rstrip(b'\0')))
 
+_unquote_str_regex = re.compile('^(?:[bu]?(?P<quote>[\'"]))(.*)(?P=quote)$')
 
-def guess_binary(data):
-    """Returns bytes after trying various transforms on the data."""
-    if isinstance(data, bytes):
-        funcs = [unhexlify, b64.b64decode, lambda d: d]
-    else:
-        funcs = [lambda d: unhexlify('%x' % int(d)),
-                 unhexlify, b64.b64decode,
-                 lambda d: codecs.raw_unicode_escape_encode(d)[0]]
-    for f in funcs:
-        try:
-            res = f(data)
-            log.debug("Guessed bin-data(%s) --> %s(%s)", data, f, res)
-            if len(res) >= 8:
+def autoconvert_key_to_binary(d):
+    """Returns bytes after trying various transforms on the v."""
+    res = None
+    try:
+        if isinstance(d, int):
+            res = ('int', lambda v: unhexlify('%x' % v))
+        else:
+            if len(res) >= 30: # Less probable all-number hexs assumed as ints.
                 return res
-        except:
-            pass
-    raise ValueError('Cannot guess binary-data: %s' % data)
+            if isinstance(d, bytes):
+                funcs = [('int', lambda v: unhexlify('%x' % int(v))),
+                         ('hex', lambda v: unhexlify('%x' % int(v, 16))), #0x prefixed
+                         ('xhex', unhexlify),
+                         ('asc', b64dec),
+                         ('bin', lambda v: codecs.raw_unicode_escape_encode(v)[0]), ]
+            for conv, f in funcs:
+                try:
+                    res = conv, f(d)
+                    break
+                except:
+                    pass
+        log.info("Assumed %s-data(%r) --> %r", res[0], d, b64enc(res[1]))
+        return res
+    except Exception as ex:
+        log.warning('While guessing key-data: %r', ex)
+    if not res:
+        raise CrackException('Cannot autoconvert binary-v: %s' % d)
 
 
 def check_tesla_file(fpath, tesla_bytes): #TODO: Delete
@@ -140,9 +151,9 @@ _b2i = lambda v: struct.unpack('<I', v)[0]
 _b2n = lambda v: int(hexlify(v), 16)
 _b2s = lambda v: str#v.decode('ascii')
 _b2x = lambda v: hexlify(v).decode('ascii')
+_upp = lambda v: v.upper()
 _0x = lambda v: '0x%s' % v
 _i2h = lambda v: '0x%x'%v
-_b2b64 = lambda v: b64.b64encode(v)
 _b2esc = lambda v: repr(bytes(v))
 
 #: See :func:`_hconvs_to_htrans()` for explanation.
@@ -153,16 +164,16 @@ _htrans_map = {name: _hconvs_to_htrans(hconv) for name, hconv in {
                 (['size'],              [_b2i]), ],
         'bin': [(_hex_fields,           [_x2b_fix_priv_key, _b2esc]),
                 (_bin_fields+['size'],  [_b2esc]), ],
-        'xhex': [(_hex_fields,          [_x2b_fix_priv_key, _b2x]),
-                 (_bin_fields+['size'], [_b2x]), ],
+        'xhex': [(_hex_fields,          [_x2b_fix_priv_key, _b2x, _upp]),
+                 (_bin_fields+['size'], [_b2x, _upp]), ],
         'hex': [(_hex_fields,           [_x2b_fix_priv_key, _b2x, _0x]),
                 (_bin_fields,           [_b2x, _0x]),
                 (['size'],              [_b2i, _i2h]), ],
         'num': [(_hex_fields,           [_x2b_fix_priv_key, _b2n]),
                 (_bin_fields,           [_b2n]),
                 (['size'],              [_b2i]), ],
-        'asc': [(_hex_fields,           [_x2b_fix_priv_key, _b2b64, _b2s]),
-                (_bin_fields,           [_b2b64, _b2s]),
+        '64':  [(_hex_fields,           [_x2b_fix_priv_key, b64enc, _b2s]),
+                (_bin_fields,           [b64enc, _b2s]),
                 (['size'],              [_b2i]), ],
     }.items()}
 
@@ -182,10 +193,10 @@ def _convert_header(h, hconv):
           - raw: all bytes as-is - no conversion (i.e. hex private-keys NOT strip & l-rotate).
           - fix: like 'raw', but priv-keys fixed and size:int.
           - bin: all bytes (even private-keys), priv-keys: fixed.
-          - xhex: all string-hex, size:bytes-hexed.
+          - xhex: all string-HEX, size:bytes-hexed.
           - hex: all string-hex prefixed with '0x', size: int-hexed.
           - num: all natural numbers, size: int.
-          - asc: all base64, size(int) - most concise.
+          - 64: all base64, size(int) - most concise.
     """
     hconv = hconv.lower()
     hconvs_matched = _matched_hconvs(hconv)
@@ -196,7 +207,7 @@ def _convert_header(h, hconv):
     return _apply_htrans_map(h, _htrans_map[hconvs_matched[0]])
 
 
-def parse_tesla_header(fd, hconv='fix'):
+def parse_tesla_header(fd, hconv='64'):
     hbytes = fd.read(_header_len)
     if len(hbytes) < _header_len or not any(hbytes.startswith(tmg) for tmg in tesla_magics):
         raise CrackException("File(%r) doesn't appear to be TeslaCrypted! "

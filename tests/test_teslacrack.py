@@ -49,7 +49,7 @@ class TTeslacrack(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.longMessage = True ## Print also original assertion msg.
+        cls.longMessage = True ## Print also original assertion msg on PY2.
 
 
     @ddt.data(*_all_iconv_names)
@@ -63,12 +63,12 @@ class TTeslacrack(unittest.TestCase):
         if not (fld == 'size' and hconv == 'fix'):
             assertRegex(self, getattr(h, fld), '^b(\'.*\')|(b".*")$', fld)
 
-    @ddt.data(*itt.product(['xhex', 'hex', 'num', 'asc'], tc.Header._fields))
+    @ddt.data(*itt.product(['xhex', 'hex', 'num', '64'], tc.Header._fields))
     def test_hconv_non_bytes(self, case):
         hconv, fld = case
         h = tc._convert_header(_sample_header, hconv)
         v = getattr(h, fld)
-        if not (fld == 'size' and hconv in 'num', 'asc'):
+        if not (fld == 'size' and hconv in 'num', '64'):
             self.assertNotRegex(v, '^b(\'.*\')|(b".*")$', fld)
 
     @ddt.data(*itt.product(['hex', 'xhex'], tc.Header._fields))
@@ -80,14 +80,14 @@ class TTeslacrack(unittest.TestCase):
     @ddt.data(*tc.Header._fields)
     def test_hconv_xhex_digits(self, fld):
         h = tc._convert_header(_sample_header, 'xhex')
-        assertRegex(self, getattr(h, fld), '^[0-9a-f]*$', fld)
+        assertRegex(self, getattr(h, fld), '(?i)^[0-9a-f]*$', fld)
 
     @ddt.data(*tc.Header._fields)
     def test_hconv_hex_digits(self, fld):
         h = tc._convert_header(_sample_header, 'hex')
-        assertRegex(self, getattr(h, fld), '^0x[0-9a-f]*$', fld)
+        assertRegex(self, getattr(h, fld), '(?i)^0x[0-9a-f]*$', fld)
 
-    @ddt.data('fix', 'num', 'asc')
+    @ddt.data('fix', 'num', '64')
     def test_hconv_int_size(self, hconv):
         h = tc._convert_header(_sample_header, hconv)
         self.assertEqual(h.size, _sample_size, hconv)
@@ -96,3 +96,32 @@ class TTeslacrack(unittest.TestCase):
         h = tc._convert_header(_sample_header, 'hex')
         self.assertEqual(int(h.size, 16), _sample_size)
 
+
+@ddt.ddt
+class TAutonvertKey(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.longMessage = True ## Print also original assertion msg on PY2.
+
+    @ddt.data(*itt.product(
+            ["b'%s'", 'b"%s"', "u'%s'", 'u"%s"', '"%s"', "'%s'"],
+                          ['', 'ABCDE123', 'ABCDE\'123', 'ABCDE"123',
+                              "'ABCDE123'", '"ABCDE123"',
+                              '"ABCDE\'123"', '\'ABCDE\'123\'',
+                              '"ABCDE"123"', "'ABCDE\"123'"]))
+    def test_unquote_str_regex(self, case):
+        quoted, unquoted = case
+        quoted %= unquoted
+        m = tc._unquote_str_regex.match(quoted)
+        self.assertIsNotNone(m, quoted)
+        self.assertEqual(m.group(2), unquoted)
+
+    @ddt.data(*itt.product(["b%s'", 'b%s"', "u%s'", 'u%s"',
+                            "b'%s", 'b"%s', "u'%s", 'u"%s',
+                            'u%s', 'b%s', '%s', '%s"', '"%s', "'%s", "%s'"],
+                          ['ABCDE123', 'ABCDE\'123', 'ABCDE"123', '']))
+    def test_unquote_str_regex2(self, case):
+        quoted, unquoted = case
+        quoted %= unquoted
+        m = tc._unquote_str_regex.match(quoted)
+        self.assertIsNone(m, quoted)

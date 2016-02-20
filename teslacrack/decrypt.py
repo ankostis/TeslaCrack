@@ -32,7 +32,7 @@ import time
 
 from Crypto.Cipher import AES  # @UnresolvedImport
 
-from . import (CrackException, log, fix_hex_key, check_tesla_file)
+from . import (CrackException, log, fix_hex_key, check_tesla_file, autoconvert_key_to_binary)
 
 
 ## Add your (encrypted-AES-key: reconstructed-AES-key) pair(s) here,
@@ -107,8 +107,9 @@ def decrypt_file(opts, stats, crypted_fname):
             stats.crypted_nfiles += 1
 
             aes_crypted_key = header[0x108:0x188].rstrip(b'\0')
-            aes_key = known_AES_key_pairs.get(aes_crypted_key)
-            if not aes_key:
+            try:
+                aes_key = known_AES_key_pairs[aes_crypted_key]
+            except KeyError:
                 if aes_crypted_key not in unknown_keys:
                     unknown_keys[aes_crypted_key] = crypted_fname
                 btc_key = header[0x45:0xc5].rstrip(b'\0')

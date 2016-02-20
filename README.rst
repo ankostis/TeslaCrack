@@ -115,11 +115,11 @@ There are more sub-commands available - to receive usage description, type::
                           - raw: all bytes as-is - no conversion (i.e. hex private-keys NOT strip & l-rotate).
                           - fix: like 'raw', but priv-keys fixed and size:int.
                           - bin: all bytes (even private-keys), priv-keys: fixed.
-                          - xhex: all string-hex, size:bytes-hexed.
+                          - xhex: all string-HEX, size:bytes-hexed.
                           - hex: all string-hex prefixed with '0x', size: int-hexed.
                           - num: all natural numbers, size: int.
-                          - asc: all base64, size(int) - most concise.
-                        [default: fix]
+                          - 64: all base64, size(int) - most concise.
+                        [default: 64]
       --delete          Delete crypted-files after decrypting them.
       --delete-old      Delete crypted even if decrypted-file created during a
                         previous run [default: False].

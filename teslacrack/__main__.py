@@ -73,11 +73,11 @@ Options:
                       - raw: all bytes as-is - no conversion (i.e. hex private-keys NOT strip & l-rotate).
                       - fix: like 'raw', but priv-keys fixed and size:int.
                       - bin: all bytes (even private-keys), priv-keys: fixed.
-                      - xhex: all string-hex, size:bytes-hexed.
+                      - xhex: all string-HEX, size:bytes-hexed.
                       - hex: all string-hex prefixed with '0x', size: int-hexed.
                       - num: all natural numbers, size: int.
-                      - asc: all base64, size(int) - most concise.
-                    [default: fix]
+                      - 64: all base64, size(int) - most concise.
+                    [default: 64]
   --delete          Delete crypted-files after decrypting them.
   --delete-old      Delete crypted even if decrypted-file created during a
                     previous run [default: False].
@@ -188,7 +188,7 @@ def _guess_key(opts):
         msg = key and "Found BTC-key: 0x%0.64X" % key
     elif opts['--ecdsa']:
         key_name = '<AES_or_BTC>'
-        ecdsa_secret = tc.guess_binary(opts['--ecdsa'])
+        ecdsa_secret = tc.autoconvert_key_to_binary(opts['--ecdsa'])
         key = tc.unfactor.guess_ecdsa_key(ecdsa_secret, pubkey, primes)
         msg = key and "Found ECDSA-key: 0x%0.64X" % key
     else:
