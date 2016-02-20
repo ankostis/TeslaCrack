@@ -23,7 +23,8 @@ from collections import namedtuple
 import logging
 import struct
 
-from future.builtins import str, int
+from future import utils as futils
+from future.builtins import str, int, bytes
 
 import base64 as b64
 
@@ -52,10 +53,11 @@ def init_logging(level=logging.INFO,
 
 
 def fix_int_key(int_key):
-    return _lrotate_byte_key(unhexlify(b'%064x' % int_key))
+    return _lrotate_byte_key(unhexlify('%064x' % int_key))
 
 
 def fix_hex_key(hex_bkey):
+    # XXX: rstrip byte-or-str depends on type(aes-decrypted-key) in decrypt.known_AES_keys.
     return _lrotate_byte_key(unhexlify(hex_bkey.rstrip(b'\0')))
 
 
@@ -84,31 +86,15 @@ def check_tesla_file(fpath, tesla_bytes): #TODO: Delete
                 "File %s doesn't appear to be TeslaCrypted!" % fpath)
 
 
-Header = namedtuple('Header', 'pub_btc priv_btc pub_aes priv_aes iv size')
-_header_fmt = b'<4x 65s 130s 65s 130s 16s I'
-_header_len = struct.calcsize(_header_fmt)
-assert _header_len == 414, _header_len
-
-
-def parse_tesla_header(fd):
-    hbytes = fd.read(_header_len)
-    if hbytes < _header_len or not any(hbytes.startswith(tmg) for tmg in tesla_magics):
-        raise CrackException("File %s doesn't appear to be TeslaCrypted! \n  %s" %
-                ("File-size less-than tesla-header size."
-                if hbytes < _header_len
-                else 'Bad tesla magic-bytes.', getattr(fd, 'name', '<unknown>')))
-    return Header._make(struct.unpack(_header_fmt, hbytes))
-
-
-def _hconvs_to_htrans(hconvs):
+def _hconvs_to_htrans(hconvs_map):
     """
-    Restructs programmer-speced `hconvs` ordered-mapping to `htrans` mapping, where::
+    Restructs programmer-speced ordered `hconvs_map` to `htrans_map`, where::
 
-        hconvs := [ ( match_field_list, trans_list ), ...]
+        hconvs_map := [ ( match_field_list, trans_list ), ...]
         htrans := { field: trans_list }
     """
     htrans = defaultdict(list)
-    for fields, trans in hconvs:
+    for fields, trans in hconvs_map:
         for fld in fields:
             htrans[fld].extend(trans)
     return htrans
@@ -121,15 +107,27 @@ def _apply_trans(v, trans_list):
     return v
 
 
-def _apply_htrans(h, htrans):
+def _apply_htrans_map(h, htrans):
     """Replaces Header-fields by applying ``htrans := {field-->trans_list}`` on matching fields."""
-    return h._replace(**{fld: _apply_trans(v, htrans.get(fld, ()))
-                         for fld, v in h._asdict().items()
-                         if fld in htrans})
+    m = h._asdict()
+    for fld, v in m.items():
+        if fld in htrans:
+            for i, trans in enumerate(htrans[fld], 1):
+                try:
+                    m[fld] = trans(m[fld])
+                except Exception as ex:
+                    raise ValueError("header-field(%r): %r!\n  orig-value(%r), "
+                            "\n  trans-no%i, \n  prev-value(%r)" % (
+                                    fld, ex, v, i, m[fld]))
+    return h._replace(**m)
 
 
-_bin_fields = ['pub_btc', 'pub_aes', 'iv']
+Header = namedtuple('Header', 'start pub_btc priv_btc pub_aes priv_aes iv size')
+_bin_fields = ['start', 'pub_btc', 'pub_aes', 'iv']
 _hex_fields = ['priv_btc', 'priv_aes']
+_header_fmt     = b'4s 65s 130s 65s 130s 16s 4s'
+_header_len = struct.calcsize(_header_fmt)
+assert _header_len == 414, _header_len
 
 
 def _lrotate_byte_key(byte_key):
@@ -138,56 +136,71 @@ def _lrotate_byte_key(byte_key):
     return byte_key
 
 _x2b_fix_priv_key = lambda v: _lrotate_byte_key(unhexlify(v.rstrip(b'\0')))
-_b2s = lambda v: v.decode(encoding='ascii')
-_b2e = lambda v: v#.decode('string-escape')
-_b2i = lambda v: struct.unpack('<I', v)
-_x2h = lambda v: '0x%s'%v
-_blow = bytes.lower
-_h2i = lambda v: int(v, 16)
-_i2b = lambda v: int(v).to_bytes(4, byteorder='little')
+_b2i = lambda v: struct.unpack('<I', v)[0]
+_b2n = lambda v: int(hexlify(v), 16)
+_b2s = lambda v: str#v.decode('ascii')
+_b2x = lambda v: hexlify(v).decode('ascii')
+_0x = lambda v: '0x%s' % v
 _i2h = lambda v: '0x%x'%v
-_i2d = lambda v: "{:,}".format(v)
+_b2b64 = lambda v: b64.b64encode(v)
+_b2esc = lambda v: repr(bytes(v))
 
 #: See :func:`_hconvs_to_htrans()` for explanation.
-_htrans = {name: _hconvs_to_htrans(hconv) for name, hconv in {
-        'fix': [(_hex_fields, [_x2b_fix_priv_key, hexlify, _blow]),],
-        'bin': [(_hex_fields, [_x2b_fix_priv_key, _b2e]),
-                (_bin_fields, [_b2e]),
-                (['size'], [_i2b, ]), ],
-        'xhex': [
-                (_hex_fields, [_x2b_fix_priv_key, hexlify, _blow]),
-                (_bin_fields, [hexlify]),
-                (['size'], [_i2b, hexlify]), ],
-        'hex': [(_hex_fields, [_x2b_fix_priv_key, hexlify, _blow, _x2h]),
-                (_bin_fields, [hexlify, _x2h]),
-                (['size'], [_i2h]), ],
-        'int': [(_hex_fields, [_x2b_fix_priv_key, hexlify, _h2i]),
-                (_bin_fields, [hexlify, _h2i]), ],
-        'asc': [(_hex_fields, [_x2b_fix_priv_key, b64.b64encode, _b2s]),
-                (_bin_fields, [b64.b64encode, _b2s]),
-                (['size'], [_i2d]), ],
-        'raw':[],
+_htrans_map = {name: _hconvs_to_htrans(hconv) for name, hconv in {
+        'raw': [(_hex_fields+_bin_fields+['size'],      [bytes, _b2esc])],
+        'fix': [(_hex_fields,           [_x2b_fix_priv_key, hexlify, _b2esc]),
+                (_bin_fields,           [_b2esc]),
+                (['size'],              [_b2i]), ],
+        'bin': [(_hex_fields,           [_x2b_fix_priv_key, _b2esc]),
+                (_bin_fields+['size'],  [_b2esc]), ],
+        'xhex': [(_hex_fields,          [_x2b_fix_priv_key, _b2x]),
+                 (_bin_fields+['size'], [_b2x]), ],
+        'hex': [(_hex_fields,           [_x2b_fix_priv_key, _b2x, _0x]),
+                (_bin_fields,           [_b2x, _0x]),
+                (['size'],              [_b2i, _i2h]), ],
+        'num': [(_hex_fields,           [_x2b_fix_priv_key, _b2n]),
+                (_bin_fields,           [_b2n]),
+                (['size'],              [_b2i]), ],
+        'asc': [(_hex_fields,           [_x2b_fix_priv_key, _b2b64, _b2s]),
+                (_bin_fields,           [_b2b64, _b2s]),
+                (['size'],              [_b2i]), ],
     }.items()}
 
-def hconv(h, hconv_name='fix'):
+
+def _matched_hconvs(hconv, hconvs=_htrans_map.keys()):
+    return [n for n in hconvs if hconv and n.startswith(hconv)]
+
+
+def _convert_header(h, hconv):
     """
     Convert header fields into various formats.
 
     :param Header h:
-    :param str hconv_name:
+    :param str hconv:
         any non-ambiguous case-insensitive *prefix* from:
 
-          - raw: no conversion, all bytes, but size:int, i.e. hex private-keys unfixed;
-          - fix: (default) all bytes, but size:int, and fix priv-keys (strip & l-rotate);
-          - bin: all bytes;
-          - hex: all hex-strings, prefixed '0x' prefix;
-          - xhex: hex-bytes, size:int's bytes hexified(!) - may fail if header bytes corrupted;
-          - int: all integers;
-          - asc: all base64, size(int, thousands grouped) - most concise;
+          - raw: all bytes as-is - no conversion (i.e. hex private-keys NOT strip & l-rotate).
+          - fix: like 'raw', but priv-keys fixed and size:int.
+          - bin: all bytes (even private-keys), priv-keys: fixed.
+          - xhex: all string-hex, size:bytes-hexed.
+          - hex: all string-hex prefixed with '0x', size: int-hexed.
+          - num: all natural numbers, size: int.
+          - asc: all base64, size(int) - most concise.
     """
-    names_matched = [n for n in _htrans if hconv_name and n.startswith(hconv_name)]
-    if len(names_matched) != 1:
+    hconv = hconv.lower()
+    hconvs_matched = _matched_hconvs(hconv)
+    if len(hconvs_matched) != 1:
         raise CrackException("Bad Header-conversion(%s)!"
-                "\n  Available conversions: %s"% (
-                        hconv_name, _htrans.keys()))
-    return _apply_htrans(h, _htrans[names_matched[0]])
+                "\n  Must be a case-insensitive prefix of: %s"% (
+                        hconv, sorted(_htrans_map.keys())))
+    return _apply_htrans_map(h, _htrans_map[hconvs_matched[0]])
+
+
+def parse_tesla_header(fd, hconv='fix'):
+    hbytes = fd.read(_header_len)
+    if len(hbytes) < _header_len or not any(hbytes.startswith(tmg) for tmg in tesla_magics):
+        raise CrackException("File(%r) doesn't appear to be TeslaCrypted! "
+                "\n  magic-bytes: %r, file-size: %i (minimum: %i)" % (
+                getattr(fd, 'name', '<unknown>', bytes(hbytes[:5]), len(hbytes), _header_len)))
+    h = Header._make(bytes(b) for b in struct.unpack(_header_fmt, hbytes))
+    return _convert_header(h, hconv)

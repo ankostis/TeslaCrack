@@ -112,13 +112,13 @@ There are more sub-commands available - to receive usage description, type::
       -I <hconv>        Specify print-out format for tesla-header fields (keys, addresses, etc),
                         where <hconv> is any non-ambiguous case-insensitive *prefix* from:
 
-                          - raw: all bytes, but size:int, no conversion (i.e. hex private-keys unfixed);
-                          - fix: (default) all bytes, but size:int, and fix priv-keys (strip & l-rotate);
-                          - bin: all bytes;
-                          - hex: all prefixed '0x' hex-strings, size:hexed;
-                          - xhex: hex-bytes, size:int's bytes hexified(!), may fail on corrupted headers;
-                          - int: all integers;
-                          - asc: all base64, size(int, thousands grouped) - most concise;
+                          - raw: all bytes as-is - no conversion (i.e. hex private-keys NOT strip & l-rotate).
+                          - fix: like 'raw', but priv-keys fixed and size:int.
+                          - bin: all bytes (even private-keys), priv-keys: fixed.
+                          - xhex: all string-hex, size:bytes-hexed.
+                          - hex: all string-hex prefixed with '0x', size: int-hexed.
+                          - num: all natural numbers, size: int.
+                          - asc: all base64, size(int) - most concise.
                         [default: fix]
       --delete          Delete crypted-files after decrypting them.
       --delete-old      Delete crypted even if decrypted-file created during a

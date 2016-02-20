@@ -70,13 +70,13 @@ Options:
   -I <hconv>        Specify print-out format for tesla-header fields (keys, addresses, etc),
                     where <hconv> is any non-ambiguous case-insensitive *prefix* from:
 
-                      - raw: all bytes, but size:int, no conversion (i.e. hex private-keys unfixed);
-                      - fix: (default) all bytes, but size:int, and fix priv-keys (strip & l-rotate);
-                      - bin: all bytes;
-                      - hex: all prefixed '0x' hex-strings, size:hexed;
-                      - xhex: hex-bytes, size:int's bytes hexified(!), may fail on corrupted headers;
-                      - int: all integers;
-                      - asc: all base64, size(int, thousands grouped) - most concise;
+                      - raw: all bytes as-is - no conversion (i.e. hex private-keys NOT strip & l-rotate).
+                      - fix: like 'raw', but priv-keys fixed and size:int.
+                      - bin: all bytes (even private-keys), priv-keys: fixed.
+                      - xhex: all string-hex, size:bytes-hexed.
+                      - hex: all string-hex prefixed with '0x', size: int-hexed.
+                      - num: all natural numbers, size: int.
+                      - asc: all base64, size(int) - most concise.
                     [default: fix]
   --delete          Delete crypted-files after decrypting them.
   --delete-old      Delete crypted even if decrypted-file created during a
@@ -133,6 +133,7 @@ from teslacrack import decrypt
 import docopt
 
 import teslacrack as tc
+from teslacrack import unfactor as unf
 
 
 log = tc.log
@@ -153,7 +154,7 @@ def _attribufy_opts(opts):
 
 def _guess_from_file(opts):
     advice_msg = "\n  Re-validate prime-factors."
-    primes = tc.validate_primes(opts['<prime-factor>'])
+    primes = unf.validate_primes(opts['<prime-factor>'])
     file = opts['<file>']
     log.info('Guessing keys from tesla-file: %s', file)
 
@@ -177,7 +178,7 @@ def _guess_from_file(opts):
 
 
 def _guess_key(opts):
-    primes = tc.validate_primes(opts['<prime-factor>'])
+    primes = unf.validate_primes(opts['<prime-factor>'])
     pubkey = opts['<pub-key>']
 
     if opts['--btc']:
@@ -205,8 +206,7 @@ def _show_file_headers(opts):
 
     log.info('Reading tesla-file: %s', file)
     with io.open(file, 'rb') as fd:
-        h = tc.parse_tesla_header(fd)
-    h = tc.hconv(h, opts['-I'].lower())
+        h = tc.parse_tesla_header(fd, opts['-I'])
 
     return ('\n'.join('%10.10s: %s' % (k,v) for k, v in h._asdict().items()))
 

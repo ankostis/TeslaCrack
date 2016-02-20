@@ -29,10 +29,10 @@ import argparse
 import glob
 import os
 import sys
+from teslacrack import (decrypt)
 import unittest
 
 import teslacrack as tc
-from teslacrack import (decrypt)
 
 
 tc.init_logging()
