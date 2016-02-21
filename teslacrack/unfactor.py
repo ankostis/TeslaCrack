@@ -21,12 +21,11 @@ from __future__ import unicode_literals
 
 from Crypto.Cipher import AES  # @UnresolvedImport
 import ecdsa
+from future.builtins import bytes
 from pycoin import key as btckey
 
 import functools as ft
 import operator as op
-
-from future.builtins import bytes
 
 from . import CrackException, log
 from .teslafile import Header, fix_int_key

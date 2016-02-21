@@ -19,8 +19,8 @@ from __future__ import unicode_literals
 from base64 import b64encode as b64enc
 from binascii import hexlify, unhexlify
 from collections import defaultdict, namedtuple
-import struct
 import re
+import struct
 
 from future.builtins import str, int, bytes  # @UnusedImport
 
@@ -31,10 +31,21 @@ from . import CrackException
 
 tesla_magics = [b'\xde\xad\xbe\xef\x04', b'\x00\x00\x00\x00\x04']
 
+_header_fmt     = b'=5s 64s 130s 65s 130s 16s 1I'
+_header_len = struct.calcsize(_header_fmt)
+assert _header_len == 414, _header_len
+
+
 class Header(namedtuple('Header',
         'start pub_btc priv_btc pub_aes priv_aes iv size')):
     """
     Header-fields convertible to various formats.
+
+    Use either the :meth:`conv` or an attribute named ``<field-name>_<conv>``.
+    The ``<conv>`` might be any case-insensitive conversion-prefix.
+
+    Available conversions:
+
       - raw: all bytes as-is - no conversion (i.e. hex private-keys NOT strip & l-rotate).
       - fix: like 'raw', but priv-keys fixed and size:int.
       - bin: all bytes (even private-keys), priv-keys: fixed.
@@ -53,7 +64,7 @@ class Header(namedtuple('Header',
         :param fd:
             a file-descriptor freshly opened in binary mode on a tesla-file.
         :param str hconv:
-            what transform to apply (see func:`key.convert_header()`).
+            what transform to apply (see :class:`Header`).
         :return:
             a :data:`Header` named-tuple
         """
@@ -102,23 +113,15 @@ class Header(namedtuple('Header',
         return _apply_trans_list(trans_map[fld], getattr(self, fld))
 
 
-    def _convert_TODEL(self, hconv):
-        trans_map = _htrans_map[_prefix_matched_hconv(hconv)]
-        fields_map = _convert_fieldsTODELTODEL(self._asdict(), trans_map)
-        return type(self)(**fields_map)
-
-
-
-_header_fmt     = b'=5s 64s 130s 65s 130s 16s 1I'
-_header_len = struct.calcsize(_header_fmt)
-assert _header_len == 414, _header_len
-
-
-def zipdictTODEL(*dcts):
-    ## Utility from http://stackoverflow.com/questions/16458340/python-equivalent-of-zip-for-dictionaries
-    if dcts:
-        for k in set(dcts[0]).intersection(*dcts[1:]):
-            yield k, tuple(d[k] for d in dcts)
+def _apply_trans_list(trans_list, v):
+    """Pipes value through multiple `trans` (must be iterable, empty allowed)."""
+    for i, trans in enumerate(trans_list, 1):
+        try:
+            v = trans(v)
+        except Exception as ex:
+            raise ValueError("Number %i trans(%r) on %r failed due to: %r!" % (
+                    i, trans, v, ex))
+    return v
 
 
 def _hconvs_to_htrans(hconvs_map):
@@ -135,34 +138,6 @@ def _hconvs_to_htrans(hconvs_map):
     return htrans
 
 
-def _apply_trans_list(trans_list, v):
-    """Pipes value through multiple `trans` (must be iterable, empty allowed)."""
-    for i, trans in enumerate(trans_list, 1):
-        try:
-            v = trans(v)
-        except Exception as ex:
-            raise ValueError("Number %i trans(%r) on %r failed due to: %r!" % (
-                    i, trans, v, ex))
-    return v
-
-
-def _convert_fieldsTODELTODEL(field_values, field_trans_lists):
-    """Applies any ``field_trans_lists := {field-->trans_list}`` on matching `field_values`."""
-    ## Not as dict-comprehension to report errors.
-    m = {}
-    for fld, (v, trans_list) in zipdictTODEL(field_values, field_trans_lists):
-        try:
-            m[fld] = _apply_trans_list(trans_list, v)
-        except ValueError as ex:
-            raise ValueError("While converting header-field(%s=%r): %s!" % (
-                                fld, v, ex))
-    return m
-
-
-_bin_fields = ['start', 'pub_btc', 'pub_aes', 'iv']
-_hex_fields = ['priv_btc', 'priv_aes']
-
-
 def _lrotate_byte_key(byte_key):
     while byte_key[0] == 0:
         byte_key = byte_key[1:] + b'\0'
@@ -171,6 +146,7 @@ def _lrotate_byte_key(byte_key):
 
 def fix_int_key(int_key):
     return _lrotate_byte_key(unhexlify('%064x' % int_key))
+
 
 def fix_hex_key(hex_bkey):
     # XXX: rstrip byte-or-str depends on type(aes-decrypted-key) in decrypt.known_AES_keys.
@@ -185,6 +161,10 @@ _upp = lambda v: v.upper()
 _0x = lambda v: '0x%s' % v
 _i2h = lambda v: '0x%x'%v
 _b2esc = lambda v: bytes(v)
+
+_bin_fields = ['start', 'pub_btc', 'pub_aes', 'iv']
+_hex_fields = ['priv_btc', 'priv_aes']
+
 
 #: See :func:`_hconvs_to_htrans()` for explanation.
 _htrans_map = {name: _hconvs_to_htrans(hconv) for name, hconv in {
