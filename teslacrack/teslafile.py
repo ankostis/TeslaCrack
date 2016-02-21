@@ -40,10 +40,24 @@ def check_tesla_file(fpath, tesla_bytes): #TODO: Delete
 
 
 def parse_tesla_header(fd, hconv='64'):
+    """
+    Reads a tesla-file's header, checks its validity and converts.
+
+    :param fd:
+        a file-descriptor freshly opened in binary mode on a tesla-file.
+    :param str hconv:
+        what transform to apply (see func:`key.convert_header()`).
+    :return:
+        a :data:`Header` named-tuple
+    """
     hbytes = fd.read(_header_len)
-    if len(hbytes) < _header_len or not any(hbytes.startswith(tmg) for tmg in tesla_magics):
+    magic_ok = any(hbytes.startswith(tmg) for tmg in tesla_magics)
+    headerlen_ok = len(hbytes) >= _header_len
+    if not (headerlen_ok and magic_ok):
         raise CrackException("File(%r) doesn't appear to be TeslaCrypted! "
-                "\n  magic-bytes: %r, file-size: %i (minimum: %i)" % (
-                getattr(fd, 'name', '<unknown>', bytes(hbytes[:5]), len(hbytes), _header_len)))
+                "\n  magic-bytes(%r) OK? %s, file-size(%i, minimum: %i) OK? %s." % (
+                        getattr(fd, 'name', '<unknown>'),
+                        bytes(hbytes[:5]), magic_ok,
+                        len(hbytes), _header_len, headerlen_ok))
     h = Header._make(bytes(b) for b in struct.unpack(_header_fmt, hbytes))
-    return tckey._convert_header(h, hconv)
+    return tckey.convert_header(h, hconv)

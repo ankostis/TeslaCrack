@@ -25,7 +25,14 @@ import re
 import struct
 
 from future.builtins import str, int, bytes
-from teslacrack import CrackException, log
+from . import CrackException, log
+
+
+def zipdict(*dcts):
+    ## Utility from http://stackoverflow.com/questions/16458340/python-equivalent-of-zip-for-dictionaries
+    if dcts:
+        for k in set(dcts[0]).intersection(*dcts[1:]):
+            yield k, tuple(d[k] for d in dcts)
 
 
 def fix_int_key(int_key):
@@ -81,26 +88,28 @@ def _hconvs_to_htrans(hconvs_map):
     return htrans
 
 
-def _apply_trans(v, trans_list):
+def _apply_trans_list(trans_list, v):
     """Pass value through multiple `trans` (must be iterable, empty allowed)."""
-    for trans in trans_list:
-        v = trans(v)
+    for i, trans in enumerate(trans_list, 1):
+        try:
+            v = trans(v)
+        except Exception as ex:
+            raise ValueError("Number %i trans(%r) on %r failed due to: %r!" % (
+                    i, trans, v, ex))
     return v
 
 
-def _apply_htrans_map(h, htrans):
-    """Replaces Header-fields by applying ``htrans := {field-->trans_list}`` on matching fields."""
-    m = h._asdict()
-    for fld, v in m.items():
-        if fld in htrans:
-            for i, trans in enumerate(htrans[fld], 1):
-                try:
-                    m[fld] = trans(m[fld])
-                except Exception as ex:
-                    raise ValueError("header-field(%r): %r!\n  orig-value(%r), "
-                            "\n  trans-no%i, \n  prev-value(%r)" % (
-                                    fld, ex, v, i, m[fld]))
-    return h._replace(**m)
+def _convert_fields(field_values, field_trans_lists):
+    """Applies any ``field_trans_lists := {field-->trans_list}`` on matching `field_values`."""
+    ## Not as dict-comprehension to report errors.
+    m = {}
+    for fld, (v, trans_list) in zipdict(field_values, field_trans_lists):
+        try:
+            m[fld] = _apply_trans_list(trans_list, v)
+        except ValueError as ex:
+            raise ValueError("While converting header-field(%s=%r): %s!" % (
+                                fld, v, ex))
+    return m
 
 
 Header = namedtuple('Header', 'start pub_btc priv_btc pub_aes priv_aes iv size')
@@ -148,11 +157,15 @@ _htrans_map = {name: _hconvs_to_htrans(hconv) for name, hconv in {
     }.items()}
 
 
-def _matched_hconvs(hconv, hconvs=_htrans_map.keys()):
-    return [n for n in hconvs if hconv and n.startswith(hconv)]
+def _prefix_matched_hconv(hconv, hconvs=_htrans_map.keys()):
+    matched_hconvs = [n for n in hconvs if hconv and n.startswith(hconv.lower())]
+    if len(matched_hconvs) != 1:
+        raise CrackException("Bad Header-conversion(%s)!"
+                "\n  Must be a case-insensitive prefix of: %s"% (
+                        hconv, sorted(_htrans_map.keys())))
+    return matched_hconvs[0]
 
-
-def _convert_header(h, hconv):
+def convert_header(h, hconv):
     """
     Convert header fields into various formats.
 
@@ -168,10 +181,6 @@ def _convert_header(h, hconv):
           - num: all natural numbers, size: int.
           - 64: all base64, size(int) - most concise.
     """
-    hconv = hconv.lower()
-    hconvs_matched = _matched_hconvs(hconv)
-    if len(hconvs_matched) != 1:
-        raise CrackException("Bad Header-conversion(%s)!"
-                "\n  Must be a case-insensitive prefix of: %s"% (
-                        hconv, sorted(_htrans_map.keys())))
-    return _apply_htrans_map(h, _htrans_map[hconvs_matched[0]])
+    trans_map = _htrans_map[_prefix_matched_hconv(hconv)]
+    fields_map = _convert_fields(h._asdict(), trans_map)
+    return h._replace(**fields_map)

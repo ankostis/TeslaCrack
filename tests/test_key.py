@@ -22,7 +22,7 @@ try:
     assertRegex = unittest.TestCase.assertRegex
     assertNotRegex = unittest.TestCase.assertNotRegex
 except AttributeError:
-    ## Checks also hconv-names uniquely prefixed.
+    ## PY2
     assertRegex = unittest.TestCase.assertRegexpMatches
     assertNotRegex = unittest.TestCase.assertNotRegexpMatches  # @UndefinedVariable
 
@@ -55,19 +55,19 @@ class THeader(unittest.TestCase):
 
     @ddt.data(*_all_iconv_names)
     def test_hconv_prefixmatch_smoketest(self, hconv):
-        h = tckey._convert_header(_sample_header, hconv)
+        h = tckey.convert_header(_sample_header, hconv)
 
     @ddt.data(*itt.product(['raw', 'fix', 'bin'], teslafile.Header._fields))
     def test_hconv_bytes(self, case):
         hconv, fld = case
-        h = tckey._convert_header(_sample_header, hconv)
+        h = tckey.convert_header(_sample_header, hconv)
         if not (fld == 'size' and hconv == 'fix'):
             assertRegex(self, repr(getattr(h, fld)), '^b(\'.*\')|(b".*")$', fld)
 
     @ddt.data(*itt.product(['xhex', 'hex', 'num', '64'], teslafile.Header._fields))
     def test_hconv_non_bytes(self, case):
         hconv, fld = case
-        h = tckey._convert_header(_sample_header, hconv)
+        h = tckey.convert_header(_sample_header, hconv)
         v = getattr(h, fld)
         if not (fld == 'size' and hconv in 'num', '64'):
             self.assertNotRegex(v, '^b(\'.*\')|(b".*")$', fld)
@@ -75,31 +75,31 @@ class THeader(unittest.TestCase):
     @ddt.data(*itt.product(['hex', 'xhex'], teslafile.Header._fields))
     def test_hconv_hex_numbers_smoketest(self, case):
         hconv, fld = case
-        h = tckey._convert_header(_sample_header, hconv)
+        h = tckey.convert_header(_sample_header, hconv)
         int(str(getattr(h, fld)), 16)
 
     @ddt.data(*teslafile.Header._fields)
     def test_hconv_xhex_digits(self, fld):
-        h = tckey._convert_header(_sample_header, 'xhex')
+        h = tckey.convert_header(_sample_header, 'xhex')
         assertRegex(self, getattr(h, fld), '(?i)^[0-9a-f]*$', fld)
 
     @ddt.data(*teslafile.Header._fields)
     def test_hconv_hex_digits(self, fld):
-        h = tckey._convert_header(_sample_header, 'hex')
+        h = tckey.convert_header(_sample_header, 'hex')
         assertRegex(self, getattr(h, fld), '(?i)^0x[0-9a-f]*$', fld)
 
     @ddt.data('fix', 'num', '64')
     def test_hconv_int_size(self, hconv):
-        h = tckey._convert_header(_sample_header, hconv)
+        h = tckey.convert_header(_sample_header, hconv)
         self.assertEqual(h.size, _sample_size, hconv)
 
     def test_hconv_hex_size(self):
-        h = tckey._convert_header(_sample_header, 'hex')
+        h = tckey.convert_header(_sample_header, 'hex')
         self.assertEqual(int(h.size, 16), _sample_size)
 
     @ddt.data(*_key_fields)
     def test_hconv_b64_length_threshold(self, fld):
-        h = tckey._convert_header(_sample_header, '64')
+        h = tckey.convert_header(_sample_header, '64')
         v = getattr(h, fld)
         self.assertGreater(len(v), 30)
         self.assertIsInstance(v, str)
@@ -107,7 +107,7 @@ class THeader(unittest.TestCase):
     @ddt.data(*_key_fields)
     def test_hconv_compare_lengths(self, fld):
         hconvs = ['xhex', 'hex', 'raw', 'fix', 'bin', '64']
-        heads = {hc: tckey._convert_header(_sample_header, hc) for hc in hconvs}
+        heads = {hc: tckey.convert_header(_sample_header, hc) for hc in hconvs}
         headlens = {hc: {f: len(getattr(h, f)) for f in _key_fields}
                     for hc, h in heads.items()}
         self.assertEqual(headlens['xhex'][fld] + 2, headlens['hex'][fld], fld)

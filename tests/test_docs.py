@@ -19,7 +19,7 @@ import teslacrack as tc
 try:
     from unittest.mock import patch
 except ImportError:
-    from mock import patch
+    from mock import patch #PY2
 
 
 
