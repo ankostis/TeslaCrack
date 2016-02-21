@@ -26,15 +26,28 @@ to make files/dirs inaccessible, needed for TCs.
 from __future__ import print_function, unicode_literals
 
 from os import path as osp
+import os
+import struct
+from teslacrack import __main__ as tcm
+from teslacrack import teslafile, CrackException
 import unittest
 
-from teslacrack import teslafile, CrackException
-from teslacrack import __main__ as tcm
+import ddt
+from future.builtins import str, int, bytes  # @UnusedImport
+
+import itertools as itt
+
 
 try:
+    assertRegex = unittest.TestCase.assertRegex
+    assertNotRegex = unittest.TestCase.assertNotRegex
     assertRaisesRegex = unittest.TestCase.assertRaisesRegex
 except AttributeError:
-    assertRaisesRegex = unittest.TestCase.assertRaisesRegexp #PY2
+    ## PY2
+    assertRegex = unittest.TestCase.assertRegexpMatches
+    assertNotRegex = unittest.TestCase.assertNotRegexpMatches  # @UndefinedVariable
+    assertRaisesRegex = unittest.TestCase.assertRaisesRegexp
+
 
 tcm.init_logging()
 
@@ -61,3 +74,93 @@ class TTeslafile(unittest.TestCase):
             with assertRaisesRegex(self, CrackException,
                     ' magic-bytes.+ OK\\? False, file-size.+ OK\\? True'):
                 teslafile.parse_tesla_header(fd)
+
+mydir = os.path.dirname(__file__)
+
+_sample_header = teslafile.Header(
+    start=b'\0\0\0\0',
+    pub_btc=b'\x04\x17z^\ts\xea4\xff\xae\xba\x8b\xab\xa6\xf8\x8fN\xd1M9CU\x9d{\x16=\xda\xc8\xd4\xdf\xe9\xe5\xa8\x92\xd9(m\xbd\xb5o]\x8e\xd1f\x85\xd5VOb\xfa\xfdD\x1f~\xb4\x0e\xc6*\xf7>\x07s\xd7n\xb1',
+    priv_btc=b'372AE820BBF2C3475E18F165F46772087EFFC7D378A3A4D10789AE7633EC09C74578993A2A7104EBA577D229F935AF77C647F18E113647C25EF19CC7E4EE3C4C\x00\x00',
+    pub_aes=b'\x04C\xc3\xfe\x02F\x05}\x066\xd0\xca\xbb}\x8e\xe9\x847\xe6\xe6\xc0\xfe2J#\xee\x1aO\xd8\xc5\x1d\xbc\x06\xd9.m\xe51@\xb0W\xc5\x18P\xe1\rr\xc5\xa2\xce\t\x81\x80u\xd4\x12\xf1\xda\xb7r\x9e\xe4\xd6&\xfe',
+    priv_aes=b'9B2A14529F5CEF649FD0330D15B4E59A9F60484DB5D044E44F757521850BC8E1DCDF3CB770FEE0DD2B6A7742B99300ED02103027B742BC862110A1765A8B4FC6\x00\x00',
+    iv=b"'Q\n\xbf1\x8di&\x17x\x97+\x98}\xf6\x9f",
+    size=b'\x0c\xb0m\x00'
+)
+_sample_size = struct.unpack('<I', _sample_header.size)[0]
+_key_fields = ('priv_btc', 'priv_aes', 'pub_btc', 'pub_aes')
+
+def _all_prefixes(s):
+    return (s[:i] for i in range(1, len(s)))
+
+_all_iconv_names = list(itt.chain(*[_all_prefixes(k) for k in teslafile._htrans_map.keys()]))
+
+@ddt.ddt
+class THeader(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        cls.longMessage = True ## Print also original assertion msg on PY2.
+
+
+    @ddt.data(*_all_iconv_names)
+    def test_hconv_prefixmatch_smoketest(self, hconv):
+        teslafile.convert_header(_sample_header, hconv)
+
+    @ddt.data(*itt.product(['raw', 'fix', 'bin'], teslafile.Header._fields))  # @UndefinedVariable
+    def test_hconv_bytes(self, case):
+        hconv, fld = case
+        h = teslafile.convert_header(_sample_header, hconv)
+        if not (fld == 'size' and hconv == 'fix'):
+            assertRegex(self, repr(getattr(h, fld)), '^b(\'.*\')|(b".*")$', fld)
+
+    @ddt.data(*itt.product(['xhex', 'hex', 'num', '64'], teslafile.Header._fields))  # @UndefinedVariable
+    def test_hconv_non_bytes(self, case):
+        hconv, fld = case
+        h = teslafile.convert_header(_sample_header, hconv)
+        v = getattr(h, fld)
+        if not (fld == 'size' and hconv in 'num', '64'):
+            self.assertNotRegex(v, '^b(\'.*\')|(b".*")$', fld)
+
+    @ddt.data(*itt.product(['hex', 'xhex'], teslafile.Header._fields))  # @UndefinedVariable
+    def test_hconv_hex_numbers_smoketest(self, case):
+        hconv, fld = case
+        h = teslafile.convert_header(_sample_header, hconv)
+        int(str(getattr(h, fld)), 16)
+
+    @ddt.data(*teslafile.Header._fields)  # @UndefinedVariable
+    def test_hconv_xhex_digits(self, fld):
+        h = teslafile.convert_header(_sample_header, 'xhex')
+        assertRegex(self, getattr(h, fld), '(?i)^[0-9a-f]*$', fld)
+
+    @ddt.data(*teslafile.Header._fields)  # @UndefinedVariable
+    def test_hconv_hex_digits(self, fld):
+        h = teslafile.convert_header(_sample_header, 'hex')
+        assertRegex(self, getattr(h, fld), '(?i)^0x[0-9a-f]*$', fld)
+
+    @ddt.data('fix', 'num', '64')
+    def test_hconv_int_size(self, hconv):
+        h = teslafile.convert_header(_sample_header, hconv)
+        self.assertEqual(h.size, _sample_size, hconv)
+
+    def test_hconv_hex_size(self):
+        h = teslafile.convert_header(_sample_header, 'hex')
+        self.assertEqual(int(h.size, 16), _sample_size)
+
+    @ddt.data(*_key_fields)
+    def test_hconv_b64_length_threshold(self, fld):
+        h = teslafile.convert_header(_sample_header, '64')
+        v = getattr(h, fld)
+        self.assertGreater(len(v), 30)
+        self.assertIsInstance(v, str)
+
+    @ddt.data(*_key_fields)
+    def test_hconv_compare_lengths(self, fld):
+        hconvs = ['xhex', 'hex', 'raw', 'fix', 'bin', '64']
+        heads = {hc: teslafile.convert_header(_sample_header, hc) for hc in hconvs}
+        headlens = {hc: {f: len(getattr(h, f)) for f in _key_fields}
+                    for hc, h in heads.items()}
+        self.assertEqual(headlens['xhex'][fld] + 2, headlens['hex'][fld], fld)
+        self.assertEqual(headlens['xhex'][fld],     headlens['bin'][fld] * 2, fld)
+        self.assertGreaterEqual(headlens['raw'][fld], headlens['fix'][fld], fld)
+        self.assertGreater(headlens['xhex'][fld],   headlens['64'][fld], fld)
+

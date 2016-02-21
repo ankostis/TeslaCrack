@@ -28,8 +28,7 @@ import operator as op
 from future.builtins import bytes
 
 from . import CrackException, log
-from .key import fix_int_key
-from .teslafile import parse_tesla_header
+from .teslafile import parse_tesla_header, fix_int_key
 
 
 def validate_primes(str_factors, expected_product=None):

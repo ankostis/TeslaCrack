@@ -32,7 +32,7 @@ import time
 from Crypto.Cipher import AES  # @UnresolvedImport
 
 from . import CrackException, log
-from .key import fix_hex_key
+from .teslafile import fix_hex_key
 from .teslafile import parse_tesla_header
 
 
