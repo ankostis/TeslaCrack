@@ -213,18 +213,19 @@ def _guess_key(opts):
 
 def _show_file_headers(opts):
     file = opts['<file>']
-
+    hconv = opts['-F']
 
     fields = teslafile.match_header_fields(opts['<field>'])
     log.info('Reading header-fields %r for tesla-file: %s', fields, file)
     with io.open(file, 'rb') as fd:
-        h = teslafile.parse_tesla_header(fd, opts['-F'])
+        h = teslafile.Header.from_fd(fd)
 
+        h
     if len(fields) == 1:
-        res = getattr(h, fields[0])
+        res = h.conv(fields[0], hconv)
     else:
-        res = '\n'.join('%10.10s: %r' % (k,v)
-                for k, v in h._asdict().items() if k in fields)
+        res = '\n'.join('%10.10s: %r' % (k, h.conv(k, hconv))
+                for k in h._fields if k in fields)
     return res
 
 

@@ -33,7 +33,7 @@ from Crypto.Cipher import AES  # @UnresolvedImport
 
 from . import CrackException, log
 from .teslafile import fix_hex_key
-from .teslafile import parse_tesla_header
+from .teslafile import Header
 
 
 ## Add your (encrypted-AES-key: reconstructed-AES-key) pair(s) here,
@@ -99,21 +99,21 @@ def decrypt_file(opts, stats, crypted_fname):
     try:
         with open(crypted_fname, "rb") as fin:
             try:
-                header = parse_tesla_header(fin, 'fix')
+                header = Header.from_fd(fin)
                 stats.crypted_nfiles += 1
-            except Exception: #XXX:CrackException:
+            except CrackException:
                 stats.badheader_nfiles += 1
                 return
 
             try:
-                aes_key = known_AES_key_pairs[header.priv_aes.upper()]
+                aes_key = known_AES_key_pairs[header.priv_aes_fix.upper()]
             except KeyError:
-                if header.priv_aes not in unknown_keys:
-                    unknown_keys[header.priv_aes] = crypted_fname
-                if header.priv_btc not in unknown_btkeys:
-                    unknown_btkeys[header.priv_btc] = crypted_fname
+                if header.priv_aes_fix not in unknown_keys:
+                    unknown_keys[header.priv_aes_fix] = crypted_fname
+                if header.priv_btc_fix not in unknown_btkeys:
+                    unknown_btkeys[header.priv_btc_fix] = crypted_fname
                 log.warn("Unknown key: %s \n  in file: %s",
-                        header.priv_aes, crypted_fname)
+                        header.priv_aes_fix, crypted_fname)
                 stats.unknown_nfiles += 1
                 return
 

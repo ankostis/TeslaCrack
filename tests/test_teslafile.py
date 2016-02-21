@@ -65,14 +65,21 @@ class TTeslafile(unittest.TestCase):
         with open(_tf_fpath(f), 'rb') as fd:
             with assertRaisesRegex(self, CrackException,
                     ' magic-bytes.+ OK\\? True, file-size.+ OK\\? False'):
-                teslafile.parse_tesla_header(fd)
+                teslafile.Header.from_fd(fd)
 
     def test_reading_invalid_tesla_file_bad_magic(self):
         f = 'tesla_invalid_magic.pdf.ccc'
         with open(_tf_fpath(f), 'rb') as fd:
             with assertRaisesRegex(self, CrackException,
                     ' magic-bytes.+ OK\\? False, file-size.+ OK\\? True'):
-                teslafile.parse_tesla_header(fd)
+                teslafile.Header.from_fd(fd)
+
+    def test_reading_invalid_tesla_file_ugly_priv_AES_key(self):
+        f = 'tesla_ugly_aeskey.pdf.ccc'
+        with open(_tf_fpath(f), 'rb') as fd:
+            with assertRaisesRegex(self, CrackException,
+                    'keys might be corrupted: '):
+                teslafile.Header.from_fd(fd)
 
 mydir = os.path.dirname(__file__)
 
@@ -92,6 +99,7 @@ def _all_prefixes(s):
     return (s[:i] for i in range(1, len(s)))
 
 _all_iconv_names = list(itt.chain(*[_all_prefixes(k) for k in teslafile._htrans_map.keys()]))
+_all_fields = teslafile.Header._fields
 
 @ddt.ddt
 class THeader(unittest.TestCase):
@@ -101,73 +109,74 @@ class THeader(unittest.TestCase):
         cls.longMessage = True ## Print also original assertion msg on PY2.
 
 
-    @ddt.data(*_all_iconv_names)
-    def test_hconv_prefixmatch_smoketest(self, hconv):
-        teslafile.convert_header(_sample_header, hconv)
+    @ddt.data(*itt.product(_all_iconv_names, _all_fields))
+    def test_hconv_prefixmatch_works_on_attibutes(self, case):
+        hconv, fld = case
+        t = teslafile.Header(*_sample_header)
+        v = t.conv(fld, hconv)
+        self.assertEqual(getattr(t, '%s_%s' % (fld, hconv)), v, fld)
 
-    @ddt.data(*itt.product(['raw', 'fix', 'bin'], teslafile.Header._fields))  # @UndefinedVariable
+    @ddt.data(*itt.product(['raw', 'fix', 'bin'], _all_fields))  # @UndefinedVariable
     def test_hconv_bytes(self, case):
         hconv, fld = case
-        h = teslafile.convert_header(_sample_header, hconv)
+        h = teslafile.Header(*_sample_header)
         if not (fld == 'size' and hconv == 'fix'):
-            assertRegex(self, repr(getattr(h, fld)), '^b(\'.*\')|(b".*")$', fld)
+            assertRegex(self, repr(h.conv(fld, hconv)), '^b(\'.*\')|(b".*")$', fld)
 
-    @ddt.data(*itt.product(['xhex', 'hex', 'num', '64'], teslafile.Header._fields))  # @UndefinedVariable
+    @ddt.data(*itt.product(['xhex', 'hex', 'num', '64'], _all_fields))  # @UndefinedVariable
     def test_hconv_non_bytes(self, case):
         hconv, fld = case
-        h = teslafile.convert_header(_sample_header, hconv)
-        v = getattr(h, fld)
+        h = teslafile.Header(*_sample_header)
+        v = h.conv(fld, hconv)
         if not (fld == 'size' and hconv in 'num', '64'):
             self.assertNotRegex(v, '^b(\'.*\')|(b".*")$', fld)
 
-    @ddt.data(*itt.product(['hex', 'xhex'], teslafile.Header._fields))  # @UndefinedVariable
-    def test_hconv_hex_numbers_smoketest(self, case):
-        hconv, fld = case
-        h = teslafile.convert_header(_sample_header, hconv)
-        int(str(getattr(h, fld)), 16)
+    @ddt.data(*(f for f in _all_fields if f != 'size'))  # @UndefinedVariable
+    def test_hconv_hex_numbers_equal(self, fld):
+        h = teslafile.Header(*_sample_header)
+        ahex = int(str(h.conv(fld, 'hex')), 16)
+        xhex = int(str(h.conv(fld, 'xhex')), 16)
+        self.assertEqual(ahex, xhex)
 
-    @ddt.data(*teslafile.Header._fields)  # @UndefinedVariable
+    @ddt.data(*_all_fields)
     def test_hconv_xhex_digits(self, fld):
-        h = teslafile.convert_header(_sample_header, 'xhex')
-        assertRegex(self, getattr(h, fld), '(?i)^[0-9a-f]*$', fld)
+        h = teslafile.Header(*_sample_header)
+        assertRegex(self, h.conv(fld, 'xhex'), '(?i)^[0-9a-f]*$', fld)
 
-    @ddt.data(*teslafile.Header._fields)  # @UndefinedVariable
+    @ddt.data(*_all_fields)
     def test_hconv_hex_digits(self, fld):
-        h = teslafile.convert_header(_sample_header, 'hex')
-        assertRegex(self, getattr(h, fld), '(?i)^0x[0-9a-f]*$', fld)
+        h = teslafile.Header(*_sample_header)
+        assertRegex(self, h.conv(fld, 'hex'), '(?i)^0x[0-9a-f]*$', fld)
 
     @ddt.data(*teslafile._htrans_map.keys())
     def test_hconv_int_size(self, hconv):
-        h = teslafile.convert_header(_sample_header, hconv)
+        h = teslafile.Header(*_sample_header)
+        sz = h.conv('size', hconv)
         if hconv in ('fix', 'num', '64'):
-            self.assertEqual(h.size, _sample_size, hconv)
+            self.assertEqual(sz, _sample_size, hconv)
         else:
-            self.assertNotEqual(h.size, _sample_size, hconv)
+            self.assertNotEqual(sz, _sample_size, hconv)
 
     def test_hconv_hex_size(self):
-        h = teslafile.convert_header(_sample_header, 'hex')
-        self.assertEqual(int(h.size, 16), _sample_size)
+        h = teslafile.Header(*_sample_header)
+        self.assertEqual(int(h.size_hex, 16), _sample_size)
 
     @ddt.data(*_key_fields)
     def test_hconv_b64_length_threshold(self, fld):
-        h = teslafile.convert_header(_sample_header, '64')
-        v = getattr(h, fld)
+        h = teslafile.Header(*_sample_header)
+        v = h.conv(fld, '64')
         self.assertGreater(len(v), 30)
         self.assertIsInstance(v, str)
 
     @ddt.data(*_key_fields)
     def test_hconv_compare_lengths(self, fld):
-        hconvs = ['xhex', 'hex', 'raw', 'fix', 'bin', '64']
-        heads = {hc: teslafile.convert_header(_sample_header, hc) for hc in hconvs}
-        headlens = {hc: {f: len(getattr(h, f)) for f in _key_fields}
-                    for hc, h in heads.items()}
-        self.assertEqual(headlens['xhex'][fld] + 2, headlens['hex'][fld], fld)
-        self.assertEqual(headlens['xhex'][fld],     headlens['bin'][fld] * 2, fld)
-        self.assertGreaterEqual(headlens['raw'][fld], headlens['fix'][fld], fld)
-        self.assertGreater(headlens['xhex'][fld],   headlens['64'][fld], fld)
+        h = teslafile.Header(*_sample_header)
+        self.assertEqual(len(h.conv(fld, 'xhex')) + 2,   len(h.conv(fld, 'hex')), fld)
+        self.assertEqual(len(h.conv(fld, 'xhex')),       len(h.conv(fld, 'bin')) * 2, fld)
+        self.assertGreaterEqual(len(h.conv(fld, 'raw')), len(h.conv(fld, 'fix')), fld)
+        self.assertGreater(len(h.conv(fld, 'xhex')),     len(h.conv(fld, '64')), fld)
 
-
-_bin_fields = (f for f in teslafile.Header._fields if f != 'size')
+_bin_fields = (f for f in _all_fields if f != 'size')
 
 @ddt.ddt
 class TFileSubcmd(unittest.TestCase):
@@ -187,7 +196,7 @@ class TFileSubcmd(unittest.TestCase):
         file = _tf_fpath('tesla_key14.jpg.vvv')
         opts = {'<file>': file, '<field>': [], '-F': 'r'}
         res = tcm._show_file_headers(opts)
-        self.assertEqual(len(res.split('\n')), len(teslafile.Header._fields))
+        self.assertEqual(len(res.split('\n')), len(_all_fields))
 
     def test_bad_fields_screams(self):
         file = _tf_fpath('tesla_key14.jpg.vvv')

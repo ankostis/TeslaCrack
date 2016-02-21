@@ -29,7 +29,7 @@ import operator as op
 from future.builtins import bytes
 
 from . import CrackException, log
-from .teslafile import parse_tesla_header, fix_int_key
+from .teslafile import Header, fix_int_key
 
 
 def validate_primes(str_factors, expected_product=None):
@@ -121,9 +121,9 @@ def _is_known_file(fname, fbytes):
 
 def guess_aes_keys_from_file(fpath, primes):
     with open(fpath, "rb") as f:
-        header = parse_tesla_header(f, 'fix')
+        header = Header.from_fd(f)
         data = f.read(16)
-    priv_aes = int(header.priv_aes, 16)
+    priv_aes = int(header.priv_aes_fix, 16)
     init_vector = header.iv
     primes = _validate_factors_product(primes, priv_aes, allow_cofactor=True)
 
@@ -184,10 +184,10 @@ def _decide_which_key(primes, pub_aes, pub_btc, file):
 
 def guess_ecdsa_key_from_file(file, primes):
     with open(file, "rb") as f:
-        header = parse_tesla_header(f, 'fix')
-    priv_aes = int(header.priv_aes, 16)
+        header = Header.from_fd(f)
+    priv_aes = int(header.priv_aes_fix, 16)
     pub_aes = header.pub_aes
-    priv_btc = int(header.priv_btc, 16)
+    priv_btc = int(header.priv_btc_fix, 16)
     pub_btc = header.pub_btc
     primes, key_name = _decide_which_key(primes, priv_aes, priv_btc, file)
 

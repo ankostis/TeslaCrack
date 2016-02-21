@@ -20,6 +20,7 @@ from base64 import b64encode as b64enc
 from binascii import hexlify, unhexlify
 from collections import defaultdict, namedtuple
 import struct
+import re
 
 from future.builtins import str, int, bytes  # @UnusedImport
 
@@ -30,14 +31,90 @@ from . import CrackException
 
 tesla_magics = [b'\xde\xad\xbe\xef\x04', b'\x00\x00\x00\x00\x04']
 
+class Header(namedtuple('Header',
+        'start pub_btc priv_btc pub_aes priv_aes iv size')):
+    """
+    Header-fields convertible to various formats.
+      - raw: all bytes as-is - no conversion (i.e. hex private-keys NOT strip & l-rotate).
+      - fix: like 'raw', but priv-keys fixed and size:int.
+      - bin: all bytes (even private-keys), priv-keys: fixed.
+      - xhex: all string-HEX, size:bytes-hexed.
+      - hex: all string-hex prefixed with '0x', size: int-hexed.
+      - num: all natural numbers, size: int.
+      - 64: all base64, size(int) - most concise.
+    """
+    __slots__ = ()
 
-Header = namedtuple('Header', 'start pub_btc priv_btc pub_aes priv_aes iv size')
+    @classmethod
+    def from_fd(cls, fd):
+        """
+        Reads a tesla-file's header, checks its validity and converts.
+
+        :param fd:
+            a file-descriptor freshly opened in binary mode on a tesla-file.
+        :param str hconv:
+            what transform to apply (see func:`key.convert_header()`).
+        :return:
+            a :data:`Header` named-tuple
+        """
+        fname = lambda: getattr(fd, 'name', '<unknown>')
+        hbytes = fd.read(_header_len)
+        magic_ok = any(hbytes.startswith(tmg) for tmg in tesla_magics)
+        headerlen_ok = len(hbytes) >= _header_len
+        if not (headerlen_ok and magic_ok):
+            raise CrackException("Tesla-file(%r) doesn't appear to be TeslaCrypted! "
+                    "\n  magic-bytes(%r) OK? %s, file-size(%i, minimum: %i) OK? %s." % (
+                            fname(),
+                            bytes(hbytes[:5]), magic_ok,
+                            len(hbytes), _header_len, headerlen_ok))
+        try:
+            h = cls._make(struct.unpack(_header_fmt, hbytes))
+            ## To detect problems in the keys
+            h.priv_btc_fix
+            h.priv_aes_fix
+        except Exception as ex:
+            raise CrackException("Tesla-file(%r)'s keys might be corrupted: %s" %
+                    (fname(), ex))
+        return h
+
+    def __item__(self, k):
+        return getattr(self, k)
+
+    def __getattr__(self, a):
+        fields = _prefixes_in_word(a, self._fields)
+        if len(fields) == 1:
+            attr = fields[0]
+            m = re.match('^%s_(.+)$' % attr, a)
+            if m:
+                return self.conv(attr, m.group(1))
+
+    def conv(self, fld, hconv):
+        """
+        Convert a header field into various formats.
+
+        :param str fld:
+            which field to convert
+        :param str hconv:
+            any non-ambiguous case-insensitive *prefix* from supported formats.
+            See class docstring.
+        """
+        trans_map = _htrans_map[_prefix_matched_hconv(hconv)]
+        return _apply_trans_list(trans_map[fld], getattr(self, fld))
+
+
+    def _convert_TODEL(self, hconv):
+        trans_map = _htrans_map[_prefix_matched_hconv(hconv)]
+        fields_map = _convert_fieldsTODELTODEL(self._asdict(), trans_map)
+        return type(self)(**fields_map)
+
+
+
 _header_fmt     = b'=5s 64s 130s 65s 130s 16s 1I'
 _header_len = struct.calcsize(_header_fmt)
 assert _header_len == 414, _header_len
 
 
-def zipdict(*dcts):
+def zipdictTODEL(*dcts):
     ## Utility from http://stackoverflow.com/questions/16458340/python-equivalent-of-zip-for-dictionaries
     if dcts:
         for k in set(dcts[0]).intersection(*dcts[1:]):
@@ -69,11 +146,11 @@ def _apply_trans_list(trans_list, v):
     return v
 
 
-def _convert_fields(field_values, field_trans_lists):
+def _convert_fieldsTODELTODEL(field_values, field_trans_lists):
     """Applies any ``field_trans_lists := {field-->trans_list}`` on matching `field_values`."""
     ## Not as dict-comprehension to report errors.
     m = {}
-    for fld, (v, trans_list) in zipdict(field_values, field_trans_lists):
+    for fld, (v, trans_list) in zipdictTODEL(field_values, field_trans_lists):
         try:
             m[fld] = _apply_trans_list(trans_list, v)
         except ValueError as ex:
@@ -131,65 +208,27 @@ _htrans_map = {name: _hconvs_to_htrans(hconv) for name, hconv in {
     }.items()}
 
 
-def _match_prefix(prefix, strlist):
-    return [n for n in strlist if prefix and n.startswith(prefix)]
+def _prefixes_in_word(word, prefixlist):
+    """Word `'abc'` is matched only by the 1st from ``['ab', 'bc', 'abcd', '']``"""
+    return [prefix for prefix in prefixlist if word and word.startswith(prefix)]
 
 
-def _match_substr(substr, strlist):
-    return [n for n in strlist if substr and substr in n]
+def _words_with_prefix(prefix, wordlist):
+    """Word `'abc'` matches only the 3rd from  ``['ab', 'bc', 'abcd', '']``"""
+    return [n for n in wordlist if prefix and n.startswith(prefix)]
+
+
+def _words_with_substr(substr, wordlist):
+    return [n for n in wordlist if substr and substr in n]
 
 
 def _prefix_matched_hconv(hconv, hconvs=_htrans_map.keys()):
-    matched_hconvs = _match_prefix(hconv.lower(), hconvs)
+    matched_hconvs = _words_with_prefix(hconv.lower(), hconvs)
     if len(matched_hconvs) != 1:
         raise CrackException("Bad Header-conversion(%s)!"
                 "\n  Must be a case-insensitive prefix of: %s"% (
                         hconv, sorted(_htrans_map.keys())))
     return matched_hconvs[0]
-
-def convert_header(h, hconv):
-    """
-    Convert header fields into various formats.
-
-    :param Header h:
-    :param str hconv:
-        any non-ambiguous case-insensitive *prefix* from:
-
-          - raw: all bytes as-is - no conversion (i.e. hex private-keys NOT strip & l-rotate).
-          - fix: like 'raw', but priv-keys fixed and size:int.
-          - bin: all bytes (even private-keys), priv-keys: fixed.
-          - xhex: all string-HEX, size:bytes-hexed.
-          - hex: all string-hex prefixed with '0x', size: int-hexed.
-          - num: all natural numbers, size: int.
-          - 64: all base64, size(int) - most concise.
-    """
-    trans_map = _htrans_map[_prefix_matched_hconv(hconv)]
-    fields_map = _convert_fields(h._asdict(), trans_map)
-    return h._replace(**fields_map)
-
-
-def parse_tesla_header(fd, hconv='64'):
-    """
-    Reads a tesla-file's header, checks its validity and converts.
-
-    :param fd:
-        a file-descriptor freshly opened in binary mode on a tesla-file.
-    :param str hconv:
-        what transform to apply (see func:`key.convert_header()`).
-    :return:
-        a :data:`Header` named-tuple
-    """
-    hbytes = fd.read(_header_len)
-    magic_ok = any(hbytes.startswith(tmg) for tmg in tesla_magics)
-    headerlen_ok = len(hbytes) >= _header_len
-    if not (headerlen_ok and magic_ok):
-        raise CrackException("File(%r) doesn't appear to be TeslaCrypted! "
-                "\n  magic-bytes(%r) OK? %s, file-size(%i, minimum: %i) OK? %s." % (
-                        getattr(fd, 'name', '<unknown>'),
-                        bytes(hbytes[:5]), magic_ok,
-                        len(hbytes), _header_len, headerlen_ok))
-    h = Header._make(struct.unpack(_header_fmt, hbytes))
-    return convert_header(h, hconv)
 
 
 def match_header_fields(field_substr_list):
@@ -198,12 +237,12 @@ def match_header_fields(field_substr_list):
     if not field_substr_list:
         fields_list = all_fields
     else:
-        not_matched = [not _match_prefix(f, all_fields) for f in field_substr_list]
+        not_matched = [not _words_with_prefix(f, all_fields) for f in field_substr_list]
         if any(not_matched):
             raise CrackException(
                     "Invalid header-field(s): %r! "
                     "\n  Must be a case-insensitive subs-string of: %s" %
                     ([f for f, m in zip(field_substr_list, not_matched) if m], all_fields))
-        fields_list = [_match_prefix(f, all_fields) for f in field_substr_list]
+        fields_list = [_words_with_prefix(f, all_fields) for f in field_substr_list]
         fields_list = tuple(set(itt.chain(*fields_list)))
     return fields_list
