@@ -214,7 +214,7 @@ def _show_file_headers(opts):
     with io.open(file, 'rb') as fd:
         h = teslafile.parse_tesla_header(fd, opts['-I'])
 
-    return ('\n'.join('%10.10s: %s' % (k,v) for k, v in h._asdict().items()))
+    return ('\n'.join('%10.10s: %r' % (k,v) for k, v in h._asdict().items()))
 
 
 def main(*args):

@@ -39,6 +39,7 @@ _sample_header = teslafile.Header(
     size=b'\x0c\xb0m\x00'
 )
 _sample_size = struct.unpack('<I', _sample_header.size)[0]
+_key_fields = ('priv_btc', 'priv_aes', 'pub_btc', 'pub_aes')
 
 def _all_prefixes(s):
     return (s[:i] for i in range(1, len(s)))
@@ -62,7 +63,7 @@ class TTeslacrack(unittest.TestCase):
         hconv, fld = case
         h = tckey._convert_header(_sample_header, hconv)
         if not (fld == 'size' and hconv == 'fix'):
-            assertRegex(self, getattr(h, fld), '^b(\'.*\')|(b".*")$', fld)
+            assertRegex(self, repr(getattr(h, fld)), '^b(\'.*\')|(b".*")$', fld)
 
     @ddt.data(*itt.product(['xhex', 'hex', 'num', '64'], teslafile.Header._fields))
     def test_hconv_non_bytes(self, case):
@@ -96,6 +97,24 @@ class TTeslacrack(unittest.TestCase):
     def test_hconv_hex_size(self):
         h = tckey._convert_header(_sample_header, 'hex')
         self.assertEqual(int(h.size, 16), _sample_size)
+
+    @ddt.data(*_key_fields)
+    def test_hconv_b64_length_threshold(self, fld):
+        h = tckey._convert_header(_sample_header, '64')
+        v = getattr(h, fld)
+        self.assertGreater(len(v), 30)
+        self.assertIsInstance(v, str)
+
+    @ddt.data(*_key_fields)
+    def test_hconv_compare_lengths(self, fld):
+        hconvs = ['xhex', 'hex', 'raw', 'fix', 'bin', '64']
+        heads = {hc: tckey._convert_header(_sample_header, hc) for hc in hconvs}
+        headlens = {hc: {f: len(getattr(h, f)) for f in _key_fields}
+                    for hc, h in heads.items()}
+        self.assertEqual(headlens['xhex'][fld] + 2, headlens['hex'][fld], fld)
+        self.assertEqual(headlens['xhex'][fld],     headlens['bin'][fld] * 2, fld)
+        self.assertGreaterEqual(headlens['raw'][fld], headlens['fix'][fld], fld)
+        self.assertGreater(headlens['xhex'][fld],   headlens['64'][fld], fld)
 
 
 @ddt.ddt

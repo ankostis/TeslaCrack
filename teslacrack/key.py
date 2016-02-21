@@ -119,12 +119,12 @@ def _lrotate_byte_key(byte_key):
 _x2b_fix_priv_key = lambda v: _lrotate_byte_key(unhexlify(v.rstrip(b'\0')))
 _b2i = lambda v: struct.unpack('<I', v)[0]
 _b2n = lambda v: int(hexlify(v), 16)
-_b2s = lambda v: str#v.decode('ascii')
+_b2s = lambda v: v.decode('ascii')
 _b2x = lambda v: hexlify(v).decode('ascii')
 _upp = lambda v: v.upper()
 _0x = lambda v: '0x%s' % v
 _i2h = lambda v: '0x%x'%v
-_b2esc = lambda v: repr(bytes(v))
+_b2esc = lambda v: bytes(v)
 
 #: See :func:`_hconvs_to_htrans()` for explanation.
 _htrans_map = {name: _hconvs_to_htrans(hconv) for name, hconv in {
