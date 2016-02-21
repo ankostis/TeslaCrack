@@ -28,7 +28,7 @@ tesla_magics = [b'\xde\xad\xbe\xef\x04', b'\x00\x00\x00\x00\x04']
 
 
 Header = namedtuple('Header', 'start pub_btc priv_btc pub_aes priv_aes iv size')
-_header_fmt     = b'4s 65s 130s 65s 130s 16s 4s'
+_header_fmt     = b'5s 64s 130s 65s 130s 16s 4s'
 _header_len = struct.calcsize(_header_fmt)
 assert _header_len == 414, _header_len
 

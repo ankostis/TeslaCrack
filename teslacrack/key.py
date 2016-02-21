@@ -85,7 +85,7 @@ def _hconvs_to_htrans(hconvs_map):
 
 
 def _apply_trans_list(trans_list, v):
-    """Pass value through multiple `trans` (must be iterable, empty allowed)."""
+    """Pipes value through multiple `trans` (must be iterable, empty allowed)."""
     for i, trans in enumerate(trans_list, 1):
         try:
             v = trans(v)
@@ -108,12 +108,8 @@ def _convert_fields(field_values, field_trans_lists):
     return m
 
 
-Header = namedtuple('Header', 'start pub_btc priv_btc pub_aes priv_aes iv size')
 _bin_fields = ['start', 'pub_btc', 'pub_aes', 'iv']
 _hex_fields = ['priv_btc', 'priv_aes']
-_header_fmt     = b'4s 65s 130s 65s 130s 16s 4s'
-_header_len = struct.calcsize(_header_fmt)
-assert _header_len == 414, _header_len
 
 
 def _lrotate_byte_key(byte_key):
