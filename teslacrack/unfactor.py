@@ -21,6 +21,7 @@ from __future__ import unicode_literals
 
 from Crypto.Cipher import AES  # @UnresolvedImport
 import ecdsa
+from pycoin import key as btckey
 
 import functools as ft
 import operator as op
@@ -96,6 +97,8 @@ def _guess_all_keys(primes, key_ok_predicate):
         return list(keys)
 
 
+#: Start-bytes for common file-types,
+#:     used to validate if decrypt was successful.
 known_file_magics = {
     'pdf': b'%PDF',
     'doc': b'\xd0\xcf\x11\xe0',
@@ -132,15 +135,10 @@ def guess_aes_keys_from_file(fpath, primes):
 
 
 def guess_btc_key_from_btc_address(btc_address, primes, public_btc=None):
-    try:
-        from pybitcoin.keypair import BitcoinKeypair
-    except ImportError:
-        from coinkit.keypair import BitcoinKeypair
-
     primes = _validate_factors_product(primes, public_btc, allow_cofactor=True)
 
     def does_key_gen_my_btc_address(btc_key):
-        test_addr = BitcoinKeypair(btc_key).address()
+        test_addr = btckey.Key(btc_key).address(use_uncompressed=True)
         return test_addr == btc_address
 
     return _guess_key(primes, key_ok_predicate=does_key_gen_my_btc_address)

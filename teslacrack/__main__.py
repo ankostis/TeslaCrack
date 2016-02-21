@@ -26,7 +26,7 @@ Usage:
                                 [<path>]...
   teslacrack guess-fkey     [-v] [--progress] [--ecdsa | --btc <btc-addr>]  <file>  <prime-factor>...
   teslacrack guess-key      [-v] [--progress] (--ecdsa <ecdsa-secret> | --btc <btc-addr>)  <pub-key>  <prime-factor>...
-  teslacrack file           [-v] [ -I <hconv>] <file>
+  teslacrack file           [-v] [ -F <hconv>] <file>
   teslacrack -h | --help
   teslacrack -V | --version
 
@@ -36,12 +36,14 @@ Sub-commands:
       already guessed, while reporting any unknown AES & BTC public-key(s) encountered.
 
       The (rough) pattern of usage is this:
-        1. Run this cmd on some tesla-files to gather your public-AES keys,
-        2. factorize the public-key(s) reported by *msieve* external program
-           or found in http://factordb.com/.
-        3. use `guess-XXX` sub-cmds to reconstruct private-keys from public ones,
+        1. Run this cmd on some tesla-files to gather your public-AES keys;
+        2. factorize the public-key(s) reported, first by searching http://factordb.com/
+           and then use *msieve* or *YAFU* external programs to factorize
+           any remaining non-prime ones;
+        3. use `guess-XXX` sub-cmds to reconstruct private-keys from public ones;
         4. add public/private key pairs into `known_AES_key_pairs`, and then
         5. re-run `decrypt` on all infected file/directories.
+
       If no <path> given, current-directory assumed.
 
   guess-fkey:
@@ -56,7 +58,7 @@ Sub-commands:
       must be one of *ECDSA* or *btc*.  Use the public-keys reported by `decrypt`.
 
   file:
-      Print tesla-file's header fields (keys, addresses, etc), converted by -I <hconv> option.
+      Print tesla-file's header fields (keys, addresses, etc), converted by -F <hconv> option.
 
 Options:
   --ecdsa           A slower key-reconstructor based on Elliptic-Curve-Cryptography which:
@@ -64,10 +66,10 @@ Options:
                       - can recover keys from any file-type (no need for *magic-bytes*);
                       - yields always a single correct key.
                     The <prime-factors> select which public-key to use from file (AES or BTC).
-  --btc <btc-addr>  Guess BTC private-keys based on the bitcoin-address and BTC public-key.
+  --btc <btc-addr>  Guess BTC private-keys based on the bitcoin-address and BTC[1] public-key.
                       - The <btc-addr> is typically found in the ransom-note or recovery file
                       - The <pub-key> is the BTC key reported by `decrypt` sub-cmd.
-  -I <hconv>        Specify print-out format for tesla-header fields (keys, addresses, etc),
+  -F <hconv>        Specify print-out format for tesla-header fields (keys, addresses, etc),
                     where <hconv> is any non-ambiguous case-insensitive *prefix* from:
 
                       - raw: all bytes as-is - no conversion (i.e. hex private-keys NOT strip & l-rotate).
@@ -212,7 +214,7 @@ def _show_file_headers(opts):
 
     log.info('Reading tesla-file: %s', file)
     with io.open(file, 'rb') as fd:
-        h = teslafile.parse_tesla_header(fd, opts['-I'])
+        h = teslafile.parse_tesla_header(fd, opts['-F'])
 
     return ('\n'.join('%10.10s: %r' % (k,v) for k, v in h._asdict().items()))
 

@@ -102,10 +102,8 @@ setup(
         'docopt',
         'pycryptodome',
         'ecdsa',
+        'pycoin',
     ],
-    extras_require={
-        'btc': ['pybitcoin'],
-    },
     tests_require=tests_deps,
     #entry_points={'console_scripts': ['teslacrack = teslacrack.__main__:main']},
     setup_requires=[

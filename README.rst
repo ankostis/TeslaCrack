@@ -1,6 +1,6 @@
-##########################################################
+###########################################################
 TeslaCrack - decrypt files crypted by TeslaCrypt ransomware
-##########################################################
+###########################################################
 |python-ver| |proj-license| |pypi-ver| |downloads-count| \
 |flattr-donate| |btc-donate|
 
@@ -39,6 +39,9 @@ Quickstart
 
 The main entry-point of the tool is the ``teslacrack`` console-command::
 
+    ## Install it.
+    pip install teslacrack
+
     ## Gather the public-AES keys that have encrypted your files:
     > teslacrack decrypt D:\some\infected\folder
 
@@ -68,7 +71,7 @@ There are more sub-commands available - to receive usage description, type::
                                     [<path>]...
       teslacrack guess-fkey     [-v] [--progress] [--ecdsa | --btc <btc-addr>]  <file>  <prime-factor>...
       teslacrack guess-key      [-v] [--progress] (--ecdsa <ecdsa-secret> | --btc <btc-addr>)  <pub-key>  <prime-factor>...
-      teslacrack file           [-v] [ -I <hconv>] <file>
+      teslacrack file           [-v] [ -F <hconv>] <file>
       teslacrack -h | --help
       teslacrack -V | --version
 
@@ -78,12 +81,14 @@ There are more sub-commands available - to receive usage description, type::
           already guessed, while reporting any unknown AES & BTC public-key(s) encountered.
 
           The (rough) pattern of usage is this:
-            1. Run this cmd on some tesla-files to gather your public-AES keys,
-            2. factorize the public-key(s) reported by *msieve* external program
-               or found in http://factordb.com/.
-            3. use `guess-XXX` sub-cmds to reconstruct private-keys from public ones,
+            1. Run this cmd on some tesla-files to gather your public-AES keys;
+            2. factorize the public-key(s) reported, first by searching http://factordb.com/
+               and then use *msieve* or *YAFU* external programs to factorize
+               any remaining non-prime ones;
+            3. use `guess-XXX` sub-cmds to reconstruct private-keys from public ones;
             4. add public/private key pairs into `known_AES_key_pairs`, and then
             5. re-run `decrypt` on all infected file/directories.
+
           If no <path> given, current-directory assumed.
 
       guess-fkey:
@@ -98,7 +103,7 @@ There are more sub-commands available - to receive usage description, type::
           must be one of *ECDSA* or *btc*.  Use the public-keys reported by `decrypt`.
 
       file:
-          Print tesla-file's header fields (keys, addresses, etc), converted by -I <hconv> option.
+          Print tesla-file's header fields (keys, addresses, etc), converted by -F <hconv> option.
 
     Options:
       --ecdsa           A slower key-reconstructor based on Elliptic-Curve-Cryptography which:
@@ -106,10 +111,10 @@ There are more sub-commands available - to receive usage description, type::
                           - can recover keys from any file-type (no need for *magic-bytes*);
                           - yields always a single correct key.
                         The <prime-factors> select which public-key to use from file (AES or BTC).
-      --btc <btc-addr>  Guess BTC private-keys based on the bitcoin-address and BTC public-key.
+      --btc <btc-addr>  Guess BTC private-keys based on the bitcoin-address and BTC[1] public-key.
                           - The <btc-addr> is typically found in the ransom-note or recovery file
                           - The <pub-key> is the BTC key reported by `decrypt` sub-cmd.
-      -I <hconv>        Specify print-out format for tesla-header fields (keys, addresses, etc),
+      -F <hconv>        Specify print-out format for tesla-header fields (keys, addresses, etc),
                         where <hconv> is any non-ambiguous case-insensitive *prefix* from:
 
                           - raw: all bytes as-is - no conversion (i.e. hex private-keys NOT strip & l-rotate).
@@ -210,15 +215,6 @@ Install TeslaCrypt
 
         pip install teslacrack
 
-     .. Note::
-        If you want to use the alternative *ECDSA* and/or *bitcoin* key-reconstructors
-        (see `Quickstart`_, above), install with this *pip* command::
-
-            pip install teslacrack[btc]
-
-        But notice that the ``btc`` extra library is not(!) available under
-        python-3 platforms - you have to failback to python-2 for that.
-
    - Or install it directly the latest version from GitHub::
 
         pip install git+https://github.com/Googulator/TeslaCrack.git
@@ -273,10 +269,13 @@ How to decrypt your files
    This command will fail to decrypt your files, but it will print out all
    encountered encrypted AES and BTC keys.
 
-3. If the previous step returned a single AES/BTC key-pair only, you may opt for
-   attacking directly the AES key, using the plain ``unfactor`` sub-cmd,
-   which is usually faster.  In that case you have to choose a file with known
-   magic-bytes in its header:
+   If you got a single AES/BTC key-pair only, you may opt for attacking directly
+   the AES key using the plain ``unfactor`` sub-cmd, which is usually faster.
+   Otherwise, attack the BTC key and use the *TeslaDecoder* -
+   read the `Break bitcoin-keys for *TeslaDecoder*`_ section, below.
+
+3. Assuming the previous step returned a single AES/BTC key-pair only, you have
+   to choose a file with known magic-bytes in its header:
 
      - *pdf* & *word-doc* files,
      - images and sounds (*jpg, png, gif, mp3*), and
@@ -423,11 +422,6 @@ Example:
          2 2 3 7 11 17 19 139 2311 14278309 465056119273 250220277466967 373463829010805159059 ^
          1261349708817837740609 38505609642285116603442307097561327764453851349351841755789120180499
 
-
-.. Tip:
-   If you receive an ``ImportError``, make sure that you've installed any
-   *extras* required for the key-reconstructor you choose to work with
-   (see `Install TeslaCrypt`_, above).
 
 
 How it works?

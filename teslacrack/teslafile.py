@@ -86,7 +86,7 @@ _hex_fields = ['priv_btc', 'priv_aes']
 
 
 def _lrotate_byte_key(byte_key):
-    while byte_key[0] == b'\0':
+    while byte_key[0] == 0:
         byte_key = byte_key[1:] + b'\0'
     return byte_key
 
