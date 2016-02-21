@@ -30,7 +30,7 @@ import glob
 from os import path as osp
 import os
 import sys
-from teslacrack import (decrypt)
+from teslacrack import decrypt
 from teslacrack import __main__ as tcm
 import unittest
 
@@ -91,8 +91,8 @@ class TDecrypt(unittest.TestCase):
         #print(stats)
         exp_stats = argparse.Namespace(
                 badexisting_nfiles=1,
-                badheader_nfiles=1,
-                crypted_nfiles=12,
+                badheader_nfiles=3,
+                crypted_nfiles=11,
                 decrypted_nfiles=6,
                 deleted_nfiles=0,
                 failed_nfiles=2,
@@ -101,8 +101,8 @@ class TDecrypt(unittest.TestCase):
                 overwrite_nfiles=0,
                 scanned_nfiles=-1,
                 skip_nfiles=2,
-                tesla_nfiles=14,
-                unknown_nfiles=3,
+                tesla_nfiles=15,
+                unknown_nfiles=2,
                 visited_ndirs=8)
 
         self.assertEquals(stats, exp_stats)
@@ -120,8 +120,8 @@ class TDecrypt(unittest.TestCase):
         stats.scanned_nfiles = -1 ## arbitrary
         #print(stats)
         exp_stats = argparse.Namespace(badexisting_nfiles=1,
-                badheader_nfiles=1,
-                crypted_nfiles=12,
+                badheader_nfiles=3,
+                crypted_nfiles=11,
                 decrypted_nfiles=1,
                 deleted_nfiles=0,
                 failed_nfiles=2,
@@ -130,8 +130,8 @@ class TDecrypt(unittest.TestCase):
                 overwrite_nfiles=1,
                 scanned_nfiles=-1,
                 skip_nfiles=7,
-                tesla_nfiles=14,
-                unknown_nfiles=3,
+                tesla_nfiles=15,
+                unknown_nfiles=2,
                 visited_ndirs=8)
         self.assertEquals(stats, exp_stats)
 
@@ -148,8 +148,8 @@ class TDecrypt(unittest.TestCase):
         stats.scanned_nfiles = -1 ## arbitrary
         #print(stats)
         exp_stats = argparse.Namespace(badexisting_nfiles=0,
-                    badheader_nfiles=1,
-                    crypted_nfiles=12,
+                    badheader_nfiles=3,
+                    crypted_nfiles=11,
                     decrypted_nfiles=8,
                     deleted_nfiles=0,
                     failed_nfiles=2,
@@ -158,8 +158,8 @@ class TDecrypt(unittest.TestCase):
                     overwrite_nfiles=8,
                     scanned_nfiles=-1,
                     skip_nfiles=0,
-                    tesla_nfiles=14,
-                    unknown_nfiles=3,
+                    tesla_nfiles=15,
+                    unknown_nfiles=2,
                     visited_ndirs=8)
         self.assertEquals(stats, exp_stats)
 
@@ -177,8 +177,8 @@ class TDecrypt(unittest.TestCase):
         stats.scanned_nfiles = -1 ## arbitrary
         #print(stats)
         exp_stats = argparse.Namespace(badexisting_nfiles=1,
-                badheader_nfiles=1,
-                crypted_nfiles=12,
+                badheader_nfiles=3,
+                crypted_nfiles=11,
                 decrypted_nfiles=0,
                 deleted_nfiles=0,
                 failed_nfiles=2,
@@ -187,8 +187,8 @@ class TDecrypt(unittest.TestCase):
                 overwrite_nfiles=0,
                 scanned_nfiles=-1,
                 skip_nfiles=8,
-                tesla_nfiles=14,
-                unknown_nfiles=3,
+                tesla_nfiles=15,
+                unknown_nfiles=2,
                 visited_ndirs=8)
         self.assertEquals(stats, exp_stats)
 
@@ -205,8 +205,8 @@ class TDecrypt(unittest.TestCase):
         stats.scanned_nfiles = -1 ## arbitrary
         #print(stats)
         exp_stats = argparse.Namespace(badexisting_nfiles=1,
-                    badheader_nfiles=1,
-                    crypted_nfiles=12,
+                    badheader_nfiles=3,
+                    crypted_nfiles=11,
                     decrypted_nfiles=0,
                     deleted_nfiles=8,
                     failed_nfiles=2,
@@ -215,8 +215,8 @@ class TDecrypt(unittest.TestCase):
                     overwrite_nfiles=0,
                     scanned_nfiles=-1,
                     skip_nfiles=8,
-                    tesla_nfiles=14,
-                    unknown_nfiles=3,
+                    tesla_nfiles=15,
+                    unknown_nfiles=2,
                     visited_ndirs=8)
         self.assertEquals(stats, exp_stats)
 

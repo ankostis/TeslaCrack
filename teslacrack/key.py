@@ -39,10 +39,6 @@ def fix_int_key(int_key):
     return _lrotate_byte_key(unhexlify('%064x' % int_key))
 
 
-def fix_hex_key(hex_bkey):
-    # XXX: rstrip byte-or-str depends on type(aes-decrypted-key) in decrypt.known_AES_keys.
-    return _lrotate_byte_key(unhexlify(hex_bkey.rstrip(b'\0')))
-
 _unquote_str_regex = re.compile('^(?:[bu]?(?P<quote>[\'"]))(.*)(?P=quote)$')
 
 def autoconvert_key_to_binary(d):
@@ -125,7 +121,10 @@ def _lrotate_byte_key(byte_key):
         byte_key = byte_key[1:] + b'\0'
     return byte_key
 
-_x2b_fix_priv_key = lambda v: _lrotate_byte_key(unhexlify(v.rstrip(b'\0')))
+def fix_hex_key(hex_bkey):
+    # XXX: rstrip byte-or-str depends on type(aes-decrypted-key) in decrypt.known_AES_keys.
+    return _lrotate_byte_key(unhexlify(hex_bkey.rstrip(b'\0')))
+
 _b2i = lambda v: struct.unpack('<I', v)[0]
 _b2n = lambda v: int(hexlify(v), 16)
 _b2s = lambda v: v.decode('ascii')
@@ -138,20 +137,20 @@ _b2esc = lambda v: bytes(v)
 #: See :func:`_hconvs_to_htrans()` for explanation.
 _htrans_map = {name: _hconvs_to_htrans(hconv) for name, hconv in {
         'raw': [(_hex_fields+_bin_fields+['size'],      [bytes, _b2esc])],
-        'fix': [(_hex_fields,           [_x2b_fix_priv_key, hexlify, _b2esc]),
+        'fix': [(_hex_fields,           [fix_hex_key, hexlify, _b2esc]),
                 (_bin_fields,           [_b2esc]),
                 (['size'],              [_b2i]), ],
-        'bin': [(_hex_fields,           [_x2b_fix_priv_key, _b2esc]),
+        'bin': [(_hex_fields,           [fix_hex_key, _b2esc]),
                 (_bin_fields+['size'],  [_b2esc]), ],
-        'xhex': [(_hex_fields,          [_x2b_fix_priv_key, _b2x, _upp]),
+        'xhex': [(_hex_fields,          [fix_hex_key, _b2x, _upp]),
                  (_bin_fields+['size'], [_b2x, _upp]), ],
-        'hex': [(_hex_fields,           [_x2b_fix_priv_key, _b2x, _0x]),
+        'hex': [(_hex_fields,           [fix_hex_key, _b2x, _0x]),
                 (_bin_fields,           [_b2x, _0x]),
                 (['size'],              [_b2i, _i2h]), ],
-        'num': [(_hex_fields,           [_x2b_fix_priv_key, _b2n]),
+        'num': [(_hex_fields,           [fix_hex_key, _b2n]),
                 (_bin_fields,           [_b2n]),
                 (['size'],              [_b2i]), ],
-        '64':  [(_hex_fields,           [_x2b_fix_priv_key, b64enc, _b2s]),
+        '64':  [(_hex_fields,           [fix_hex_key, b64enc, _b2s]),
                 (_bin_fields,           [b64enc, _b2s]),
                 (['size'],              [_b2i]), ],
     }.items()}

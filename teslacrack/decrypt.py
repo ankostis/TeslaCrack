@@ -26,7 +26,6 @@ from __future__ import unicode_literals
 import argparse
 import os
 import shutil
-import struct
 import sys
 import time
 
@@ -34,7 +33,7 @@ from Crypto.Cipher import AES  # @UnresolvedImport
 
 from . import CrackException, log
 from .key import fix_hex_key
-from .teslafile import check_tesla_file
+from .teslafile import parse_tesla_header
 
 
 ## Add your (encrypted-AES-key: reconstructed-AES-key) pair(s) here,
@@ -99,34 +98,28 @@ def decrypt_file(opts, stats, crypted_fname):
     do_unlink = False
     try:
         with open(crypted_fname, "rb") as fin:
-            header = fin.read(414)
-
             try:
-                check_tesla_file(crypted_fname, header[:5])
-            except CrackException:
+                header = parse_tesla_header(fin, 'fix')
+                stats.crypted_nfiles += 1
+            except Exception: #XXX:CrackException:
                 stats.badheader_nfiles += 1
                 return
-            stats.crypted_nfiles += 1
 
-            aes_crypted_key = header[0x108:0x188].rstrip(b'\0')
             try:
-                aes_key = known_AES_key_pairs[aes_crypted_key]
+                aes_key = known_AES_key_pairs[header.priv_aes.upper()]
             except KeyError:
-                if aes_crypted_key not in unknown_keys:
-                    unknown_keys[aes_crypted_key] = crypted_fname
-                btc_key = header[0x45:0xc5].rstrip(b'\0')
-                if btc_key not in unknown_btkeys:
-                    unknown_btkeys[btc_key] = crypted_fname
+                if header.priv_aes not in unknown_keys:
+                    unknown_keys[header.priv_aes] = crypted_fname
+                if header.priv_btc not in unknown_btkeys:
+                    unknown_btkeys[header.priv_btc] = crypted_fname
                 log.warn("Unknown key: %s \n  in file: %s",
-                        aes_crypted_key, crypted_fname)
+                        header.priv_aes, crypted_fname)
                 stats.unknown_nfiles += 1
                 return
 
-
-            size = struct.unpack('<I', header[0x19a:0x19e])[0]
             decrypted_fname = os.path.splitext(crypted_fname)[0]
             decrypted_exists, should_decrypt, backup_ext = _needs_decrypt(
-                    decrypted_fname, size, opts.fix, opts.overwrite, stats)
+                    decrypted_fname, header.size, opts.fix, opts.overwrite, stats)
             if should_decrypt:
                 log.debug("decrypting%s%s%s: %s",
                         '(overwrite)' if decrypted_exists else '',
@@ -135,10 +128,8 @@ def decrypt_file(opts, stats, crypted_fname):
                 if decrypted_exists and backup_ext:
                     backup_fname = decrypted_fname + backup_ext
                     opts.dry_run or shutil.move(decrypted_fname, backup_fname)
-                decryptor = AES.new(
-                        fix_hex_key(aes_key),
-                        AES.MODE_CBC, header[0x18a:0x19a])
-                data = decryptor.decrypt(fin.read())[:size]
+                decryptor = AES.new(fix_hex_key(aes_key), AES.MODE_CBC, header.iv)
+                data = decryptor.decrypt(fin.read())[:header.size]
                 if not opts.dry_run:
                     with open(decrypted_fname, 'wb') as fout:
                         fout.write(data)

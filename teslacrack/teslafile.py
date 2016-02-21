@@ -33,12 +33,6 @@ _header_len = struct.calcsize(_header_fmt)
 assert _header_len == 414, _header_len
 
 
-def check_tesla_file(fpath, tesla_bytes): #TODO: Delete
-    if tesla_bytes not in tesla_magics:
-        raise CrackException(
-                "File %s doesn't appear to be TeslaCrypted!" % fpath)
-
-
 def parse_tesla_header(fd, hconv='64'):
     """
     Reads a tesla-file's header, checks its validity and converts.

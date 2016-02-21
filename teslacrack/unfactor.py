@@ -25,9 +25,11 @@ import ecdsa
 import functools as ft
 import operator as op
 
+from future.builtins import bytes
+
 from . import CrackException, log
 from .key import fix_int_key
-from .teslafile import check_tesla_file
+from .teslafile import parse_tesla_header
 
 
 def validate_primes(str_factors, expected_product=None):
@@ -117,12 +119,11 @@ def _is_known_file(fname, fbytes):
 
 def guess_aes_keys_from_file(fpath, primes):
     with open(fpath, "rb") as f:
-        header = f.read(414)
-        check_tesla_file(fpath, header[:5])
-        aes_crypted_key = int(header[0x108:0x188].rstrip(b'\0'), 16)
-        init_vector = header[0x18a:0x19a]
+        header = parse_tesla_header(f, 'fix')
         data = f.read(16)
-    primes = _validate_factors_product(primes, aes_crypted_key, allow_cofactor=True)
+    priv_aes = int(header.priv_aes, 16)
+    init_vector = header.iv
+    primes = _validate_factors_product(primes, priv_aes, allow_cofactor=True)
 
     def did_AES_produced_known_file(aes_key):
         file_bytes = AES.new(fix_int_key(aes_key), AES.MODE_CBC, init_vector).decrypt(data)
@@ -186,20 +187,18 @@ def _decide_which_key(primes, pub_aes, pub_btc, file):
 
 def guess_ecdsa_key_from_file(file, primes):
     with open(file, "rb") as f:
-        header = f.read(414)
-    check_tesla_file(file, header[:5])
-    pub_aes = int(header[0x108:0x188].rstrip(b'\0'), 16)
-    ecdsa_aes = header[200:265]
-    pub_btc = int(header[0x45:0xc5].rstrip(b'\0'), 16)
-    ecdsa_btc = header[5:70]
-
-    primes, key_name = _decide_which_key(primes, pub_aes, pub_btc, file)
+        header = parse_tesla_header(f, 'fix')
+    priv_aes = int(header.priv_aes, 16)
+    pub_aes = header.pub_aes
+    priv_btc = int(header.priv_btc, 16)
+    pub_btc = header.pub_btc
+    primes, key_name = _decide_which_key(primes, priv_aes, priv_btc, file)
 
     def does_key_gen_my_ecdsa(key):
-        gen_ecdsa = ecdsa.SigningKey.from_secret_exponent(key,
-                curve=ecdsa.SECP256k1).verifying_key.to_string()
-        return ecdsa_aes.startswith(gen_ecdsa) or ecdsa_btc.startswith(gen_ecdsa)
+        gen_ecdsa = ecdsa.SigningKey.from_secret_exponent(
+                key, curve=ecdsa.SECP256k1).verifying_key
+        gen_ecdsa = bytes(gen_ecdsa.to_string())
+        return pub_aes.startswith(gen_ecdsa) or pub_btc.startswith(gen_ecdsa)
 
     key = _guess_key(primes, key_ok_predicate=does_key_gen_my_ecdsa)
-    if key:
-        return key_name, key
+    return (key_name, key) if key else (None, None)
