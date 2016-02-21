@@ -25,8 +25,8 @@ to make files/dirs inaccessible, needed for TCs.
 """
 from __future__ import print_function, unicode_literals
 
+from os import path as osp
 import os
-import sys
 from teslacrack import __main__ as tcm
 from teslacrack import unfactor
 import textwrap
@@ -34,8 +34,6 @@ import unittest
 
 import ddt
 import yaml
-
-import teslacrack as tc
 
 
 tcm.init_logging()
@@ -128,7 +126,7 @@ class TUnfactor(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.longMessage = True ## Print also original assertion msg.
-        os.chdir(os.path.dirname(__file__))
+        os.chdir(osp.join(osp.dirname(__file__), 'teslafiles'))
 
     @ddt.data(*[k for k in app_db['keys'] if k['type'] == 'AES'])
     def test_unfactor_from_file(self, key_rec):

@@ -27,6 +27,7 @@ from __future__ import print_function, unicode_literals
 
 import argparse
 import glob
+from os import path as osp
 import os
 import sys
 from teslacrack import (decrypt)
@@ -51,16 +52,16 @@ class TDecrypt(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.longMessage = True ## Print also original assertion msg.
-        os.chdir(os.path.dirname(__file__))
+        os.chdir(osp.join(osp.dirname(__file__), 'teslafiles'))
         ## Mark unreadable-files.
         chmod('115', glob.glob('unreadable*'))
 
 
     @classmethod
     def tearDownClass(cls):
-        os.chdir(os.path.dirname(__file__))
         ## UNMark unreadable-files.
         chmod('775', glob.glob('unreadable*'))
+        os.chdir(osp.dirname(__file__))
 
 
     min_scanned_files = 16
@@ -75,8 +76,8 @@ class TDecrypt(unittest.TestCase):
         skip_ext = ['.py', '.ccc', '.vvv', '.zzz']
         skip_files = ['bad_decrypted', 'README']
         for f in glob.glob('*'):
-            if (os.path.isfile(f) and
-                    os.path.splitext(f)[1] not in skip_ext and
+            if (osp.isfile(f) and
+                    osp.splitext(f)[1] not in skip_ext and
                     not [sf for sf in skip_files if sf in f]):
                 os.unlink(f)
 
@@ -102,7 +103,7 @@ class TDecrypt(unittest.TestCase):
                 skip_nfiles=2,
                 tesla_nfiles=14,
                 unknown_nfiles=3,
-                visited_ndirs=9)
+                visited_ndirs=8)
 
         self.assertEquals(stats, exp_stats)
 
@@ -131,7 +132,7 @@ class TDecrypt(unittest.TestCase):
                 skip_nfiles=7,
                 tesla_nfiles=14,
                 unknown_nfiles=3,
-                visited_ndirs=9)
+                visited_ndirs=8)
         self.assertEquals(stats, exp_stats)
 
 
@@ -159,7 +160,7 @@ class TDecrypt(unittest.TestCase):
                     skip_nfiles=0,
                     tesla_nfiles=14,
                     unknown_nfiles=3,
-                    visited_ndirs=9)
+                    visited_ndirs=8)
         self.assertEquals(stats, exp_stats)
 
 
@@ -188,7 +189,7 @@ class TDecrypt(unittest.TestCase):
                 skip_nfiles=8,
                 tesla_nfiles=14,
                 unknown_nfiles=3,
-                visited_ndirs=9)
+                visited_ndirs=8)
         self.assertEquals(stats, exp_stats)
 
 
@@ -216,7 +217,7 @@ class TDecrypt(unittest.TestCase):
                     skip_nfiles=8,
                     tesla_nfiles=14,
                     unknown_nfiles=3,
-                    visited_ndirs=9)
+                    visited_ndirs=8)
         self.assertEquals(stats, exp_stats)
 
 

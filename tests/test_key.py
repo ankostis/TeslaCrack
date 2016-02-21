@@ -16,7 +16,6 @@ import ddt
 from future.builtins import str
 
 import itertools as itt
-import teslacrack as tc
 
 
 try:
@@ -47,7 +46,7 @@ def _all_prefixes(s):
 _all_iconv_names = list(itt.chain(*[_all_prefixes(k) for k in tckey._htrans_map.keys()]))
 
 @ddt.ddt
-class TTeslacrack(unittest.TestCase):
+class THeader(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
