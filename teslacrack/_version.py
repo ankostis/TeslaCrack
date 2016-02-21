@@ -16,8 +16,8 @@
 # Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
 
 #: Authoritative project's PEP 440 version.
-__version__ = '0.3.0'  # Also update README.rst & CHANGES.rst.
+__version__ = '0.4.0'  # Also update README.rst & CHANGES.rst.
 
 # Please UPDATE TIMESTAMP WHEN BUMPING VERSIONS AND BEFORE RELEASE.
 #: Release date.
-__updated__ = '2016-02-18 04:15:11'
+__updated__ = '2016-02-21 18:45:02'

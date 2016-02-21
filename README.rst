@@ -4,8 +4,8 @@ TeslaCrack - decrypt files crypted by TeslaCrypt ransomware
 |python-ver| |proj-license| |pypi-ver| |downloads-count| \
 |flattr-donate| |btc-donate|
 
-:Release:     0.3.0
-:Date:        2016-02-18 04:15:11
+:Release:     0.4.0
+:Date:        2016-02-21 18:45:02
 :Source:      https://github.com/Googulator/TeslaCrack
 :PyPI repo:   https://pypi.python.org/pypi/teslacrack
 :Keywords:    TeslaCrypt, ransomware, unlock, cryptography,decryptor, unlocker,
