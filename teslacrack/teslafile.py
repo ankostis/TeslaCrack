@@ -31,7 +31,7 @@ tesla_magics = [b'\xde\xad\xbe\xef\x04', b'\x00\x00\x00\x00\x04']
 
 
 Header = namedtuple('Header', 'start pub_btc priv_btc pub_aes priv_aes iv size')
-_header_fmt     = b'5s 64s 130s 65s 130s 16s 4s'
+_header_fmt     = b'=5s 64s 130s 65s 130s 16s 1I'
 _header_len = struct.calcsize(_header_fmt)
 assert _header_len == 414, _header_len
 
@@ -98,6 +98,7 @@ def fix_hex_key(hex_bkey):
     # XXX: rstrip byte-or-str depends on type(aes-decrypted-key) in decrypt.known_AES_keys.
     return _lrotate_byte_key(unhexlify(hex_bkey.rstrip(b'\0')))
 
+_i2b = lambda v: struct.pack('<I', v)
 _b2i = lambda v: struct.unpack('<I', v)[0]
 _b2n = lambda v: int(hexlify(v), 16)
 _b2s = lambda v: v.decode('ascii')
@@ -109,23 +110,23 @@ _b2esc = lambda v: bytes(v)
 
 #: See :func:`_hconvs_to_htrans()` for explanation.
 _htrans_map = {name: _hconvs_to_htrans(hconv) for name, hconv in {
-        'raw': [(_hex_fields+_bin_fields+['size'],      [bytes, _b2esc])],
+        'raw': [(_hex_fields+_bin_fields,   [bytes, _b2esc]),
+                (['size'],              [_i2b, _b2esc]), ],
         'fix': [(_hex_fields,           [fix_hex_key, hexlify, _b2esc]),
-                (_bin_fields,           [_b2esc]),
-                (['size'],              [_b2i]), ],
+                (_bin_fields,           [_b2esc]), ],
         'bin': [(_hex_fields,           [fix_hex_key, _b2esc]),
-                (_bin_fields+['size'],  [_b2esc]), ],
+                (_bin_fields,           [_b2esc]),
+                (['size'],              [_i2b, _b2esc])],
         'xhex': [(_hex_fields,          [fix_hex_key, _b2x, _upp]),
-                 (_bin_fields+['size'], [_b2x, _upp]), ],
+                 (_bin_fields,          [_b2x, _upp]),
+                 (['size'],             [_i2b, _b2x, _upp])],
         'hex': [(_hex_fields,           [fix_hex_key, _b2x, _0x]),
                 (_bin_fields,           [_b2x, _0x]),
-                (['size'],              [_b2i, _i2h]), ],
+                (['size'],              [_i2h]), ],
         'num': [(_hex_fields,           [fix_hex_key, _b2n]),
-                (_bin_fields,           [_b2n]),
-                (['size'],              [_b2i]), ],
+                (_bin_fields,           [_b2n]), ],
         '64':  [(_hex_fields,           [fix_hex_key, b64enc, _b2s]),
-                (_bin_fields,           [b64enc, _b2s]),
-                (['size'],              [_b2i]), ],
+                (_bin_fields,           [b64enc, _b2s]), ],
     }.items()}
 
 
@@ -178,5 +179,5 @@ def parse_tesla_header(fd, hconv='64'):
                         getattr(fd, 'name', '<unknown>'),
                         bytes(hbytes[:5]), magic_ok,
                         len(hbytes), _header_len, headerlen_ok))
-    h = Header._make(bytes(b) for b in struct.unpack(_header_fmt, hbytes))
+    h = Header._make(struct.unpack(_header_fmt, hbytes))
     return convert_header(h, hconv)

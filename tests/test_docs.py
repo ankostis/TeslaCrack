@@ -13,6 +13,8 @@ import re
 from teslacrack import __main__ as tcm
 import unittest
 
+from future.builtins import str, int, bytes  # @UnusedImport
+
 import teslacrack as tc
 
 
@@ -55,7 +57,7 @@ class TDoctest(unittest.TestCase):
             ftext = fd.read()
             with patch('sys.stdout', new=io.StringIO()) as stdout:
                 try:
-                    tcm.main(b'--version')
+                    tcm.main(str('--version'))
                 except SystemExit as ex:
                     pass ## Cancel docopt's exit()
             ver_str = stdout.getvalue().strip()

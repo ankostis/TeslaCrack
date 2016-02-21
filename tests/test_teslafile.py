@@ -84,9 +84,9 @@ _sample_header = teslafile.Header(
     pub_aes=b'\x04C\xc3\xfe\x02F\x05}\x066\xd0\xca\xbb}\x8e\xe9\x847\xe6\xe6\xc0\xfe2J#\xee\x1aO\xd8\xc5\x1d\xbc\x06\xd9.m\xe51@\xb0W\xc5\x18P\xe1\rr\xc5\xa2\xce\t\x81\x80u\xd4\x12\xf1\xda\xb7r\x9e\xe4\xd6&\xfe',
     priv_aes=b'9B2A14529F5CEF649FD0330D15B4E59A9F60484DB5D044E44F757521850BC8E1DCDF3CB770FEE0DD2B6A7742B99300ED02103027B742BC862110A1765A8B4FC6\x00\x00',
     iv=b"'Q\n\xbf1\x8di&\x17x\x97+\x98}\xf6\x9f",
-    size=b'\x0c\xb0m\x00'
+    size=7188492
 )
-_sample_size = struct.unpack('<I', _sample_header.size)[0]
+_sample_size = _sample_header.size
 _key_fields = ('priv_btc', 'priv_aes', 'pub_btc', 'pub_aes')
 
 def _all_prefixes(s):
@@ -137,10 +137,13 @@ class THeader(unittest.TestCase):
         h = teslafile.convert_header(_sample_header, 'hex')
         assertRegex(self, getattr(h, fld), '(?i)^0x[0-9a-f]*$', fld)
 
-    @ddt.data('fix', 'num', '64')
+    @ddt.data(*teslafile._htrans_map.keys())
     def test_hconv_int_size(self, hconv):
         h = teslafile.convert_header(_sample_header, hconv)
-        self.assertEqual(h.size, _sample_size, hconv)
+        if hconv in ('fix', 'num', '64'):
+            self.assertEqual(h.size, _sample_size, hconv)
+        else:
+            self.assertNotEqual(h.size, _sample_size, hconv)
 
     def test_hconv_hex_size(self):
         h = teslafile.convert_header(_sample_header, 'hex')
