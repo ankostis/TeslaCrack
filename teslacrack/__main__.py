@@ -26,7 +26,7 @@ Usage:
                                 [<path>]...
   teslacrack guess-fkey     [-v] [--progress] [--ecdsa | --btc <btc-addr>]  <file>  <prime-factor>...
   teslacrack guess-key      [-v] [--progress] (--ecdsa <ecdsa-secret> | --btc <btc-addr>)  <pub-key>  <prime-factor>...
-  teslacrack file           [-v] [ -F <hconv>] <file>
+  teslacrack file           [-v] [ -F <hconv>] <file>  [<field>]...
   teslacrack -h | --help
   teslacrack -V | --version
 
@@ -58,7 +58,9 @@ Sub-commands:
       must be one of *ECDSA* or *btc*.  Use the public-keys reported by `decrypt`.
 
   file:
-      Print tesla-file's header fields (keys, addresses, etc), converted by -F <hconv> option.
+      Print tesla-file's header fields (keys, addresses, etc), or those explicitly
+      specified, converted by -F <hconv> option.  Each <field> may be a case-insenstive
+      subs-string of fields available.
 
 Options:
   --ecdsa           A slower key-reconstructor based on Elliptic-Curve-Cryptography which:
@@ -212,11 +214,18 @@ def _guess_key(opts):
 def _show_file_headers(opts):
     file = opts['<file>']
 
-    log.info('Reading tesla-file: %s', file)
+
+    fields = teslafile.match_header_fields(opts['<field>'])
+    log.info('Reading header-fields %r for tesla-file: %s', fields, file)
     with io.open(file, 'rb') as fd:
         h = teslafile.parse_tesla_header(fd, opts['-F'])
 
-    return ('\n'.join('%10.10s: %r' % (k,v) for k, v in h._asdict().items()))
+    if len(fields) == 1:
+        res = getattr(h, fields[0])
+    else:
+        res = '\n'.join('%10.10s: %r' % (k,v)
+                for k, v in h._asdict().items() if k in fields)
+    return res
 
 
 def main(*args):

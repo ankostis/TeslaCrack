@@ -71,7 +71,7 @@ There are more sub-commands available - to receive usage description, type::
                                     [<path>]...
       teslacrack guess-fkey     [-v] [--progress] [--ecdsa | --btc <btc-addr>]  <file>  <prime-factor>...
       teslacrack guess-key      [-v] [--progress] (--ecdsa <ecdsa-secret> | --btc <btc-addr>)  <pub-key>  <prime-factor>...
-      teslacrack file           [-v] [ -F <hconv>] <file>
+      teslacrack file           [-v] [ -F <hconv>] <file>  [<field>]...
       teslacrack -h | --help
       teslacrack -V | --version
 
@@ -103,7 +103,9 @@ There are more sub-commands available - to receive usage description, type::
           must be one of *ECDSA* or *btc*.  Use the public-keys reported by `decrypt`.
 
       file:
-          Print tesla-file's header fields (keys, addresses, etc), converted by -F <hconv> option.
+          Print tesla-file's header fields (keys, addresses, etc), or those explicitly
+          specified, converted by -F <hconv> option.  Each <field> may be a case-insenstive
+          subs-string of fields available.
 
     Options:
       --ecdsa           A slower key-reconstructor based on Elliptic-Curve-Cryptography which:

@@ -27,7 +27,6 @@ from __future__ import print_function, unicode_literals
 
 from os import path as osp
 import os
-import struct
 from teslacrack import __main__ as tcm
 from teslacrack import teslafile, CrackException
 import unittest
@@ -77,9 +76,9 @@ class TTeslafile(unittest.TestCase):
 
 mydir = os.path.dirname(__file__)
 
-_sample_header = teslafile.Header(
-    start=b'\0\0\0\0',
-    pub_btc=b'\x04\x17z^\ts\xea4\xff\xae\xba\x8b\xab\xa6\xf8\x8fN\xd1M9CU\x9d{\x16=\xda\xc8\xd4\xdf\xe9\xe5\xa8\x92\xd9(m\xbd\xb5o]\x8e\xd1f\x85\xd5VOb\xfa\xfdD\x1f~\xb4\x0e\xc6*\xf7>\x07s\xd7n\xb1',
+_sample_header = teslafile.Header( # From file: tesla_key14.jpg.vvv
+    start=b'\0\0\0\0\x04',
+    pub_btc=b'\x17z^\ts\xea4\xff\xae\xba\x8b\xab\xa6\xf8\x8fN\xd1M9CU\x9d{\x16=\xda\xc8\xd4\xdf\xe9\xe5\xa8\x92\xd9(m\xbd\xb5o]\x8e\xd1f\x85\xd5VOb\xfa\xfdD\x1f~\xb4\x0e\xc6*\xf7>\x07s\xd7n\xb1',
     priv_btc=b'372AE820BBF2C3475E18F165F46772087EFFC7D378A3A4D10789AE7633EC09C74578993A2A7104EBA577D229F935AF77C647F18E113647C25EF19CC7E4EE3C4C\x00\x00',
     pub_aes=b'\x04C\xc3\xfe\x02F\x05}\x066\xd0\xca\xbb}\x8e\xe9\x847\xe6\xe6\xc0\xfe2J#\xee\x1aO\xd8\xc5\x1d\xbc\x06\xd9.m\xe51@\xb0W\xc5\x18P\xe1\rr\xc5\xa2\xce\t\x81\x80u\xd4\x12\xf1\xda\xb7r\x9e\xe4\xd6&\xfe',
     priv_aes=b'9B2A14529F5CEF649FD0330D15B4E59A9F60484DB5D044E44F757521850BC8E1DCDF3CB770FEE0DD2B6A7742B99300ED02103027B742BC862110A1765A8B4FC6\x00\x00',
@@ -166,4 +165,33 @@ class THeader(unittest.TestCase):
         self.assertEqual(headlens['xhex'][fld],     headlens['bin'][fld] * 2, fld)
         self.assertGreaterEqual(headlens['raw'][fld], headlens['fix'][fld], fld)
         self.assertGreater(headlens['xhex'][fld],   headlens['64'][fld], fld)
+
+
+_bin_fields = (f for f in teslafile.Header._fields if f != 'size')
+
+@ddt.ddt
+class TFileSubcmd(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        cls.longMessage = True ## Print also original assertion msg on PY2.
+
+    @ddt.data(*_bin_fields)
+    def test_singe_fields_raw(self, fld):
+        file = _tf_fpath('tesla_key14.jpg.vvv')
+        opts = {'<file>': file, '<field>': [fld], '-F': 'r'}
+        res = tcm._show_file_headers(opts)
+        self.assertIn(res, getattr(_sample_header, fld))
+
+    def test_all_fields_is_multiline(self):
+        file = _tf_fpath('tesla_key14.jpg.vvv')
+        opts = {'<file>': file, '<field>': [], '-F': 'r'}
+        res = tcm._show_file_headers(opts)
+        self.assertEqual(len(res.split('\n')), len(teslafile.Header._fields))
+
+    def test_bad_fields_screams(self):
+        file = _tf_fpath('tesla_key14.jpg.vvv')
+        opts = {'<file>': file, '<field>': ['BAD_GOO!'], '-F': 'r'}
+        with assertRaisesRegex(self, CrackException, 'Must be a case-insensitive subs-string of:'):
+            tcm._show_file_headers(opts)
 

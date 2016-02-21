@@ -18,11 +18,12 @@ from __future__ import unicode_literals
 
 from base64 import b64encode as b64enc
 from binascii import hexlify, unhexlify
-from collections import defaultdict
-from collections import namedtuple
+from collections import defaultdict, namedtuple
 import struct
 
 from future.builtins import str, int, bytes  # @UnusedImport
+
+import itertools as itt
 
 from . import CrackException
 
@@ -130,8 +131,16 @@ _htrans_map = {name: _hconvs_to_htrans(hconv) for name, hconv in {
     }.items()}
 
 
+def _match_prefix(prefix, strlist):
+    return [n for n in strlist if prefix and n.startswith(prefix)]
+
+
+def _match_substr(substr, strlist):
+    return [n for n in strlist if substr and substr in n]
+
+
 def _prefix_matched_hconv(hconv, hconvs=_htrans_map.keys()):
-    matched_hconvs = [n for n in hconvs if hconv and n.startswith(hconv.lower())]
+    matched_hconvs = _match_prefix(hconv.lower(), hconvs)
     if len(matched_hconvs) != 1:
         raise CrackException("Bad Header-conversion(%s)!"
                 "\n  Must be a case-insensitive prefix of: %s"% (
@@ -181,3 +190,20 @@ def parse_tesla_header(fd, hconv='64'):
                         len(hbytes), _header_len, headerlen_ok))
     h = Header._make(struct.unpack(_header_fmt, hbytes))
     return convert_header(h, hconv)
+
+
+def match_header_fields(field_substr_list):
+    """An empty list matches all."""
+    all_fields = Header._fields
+    if not field_substr_list:
+        fields_list = all_fields
+    else:
+        not_matched = [not _match_prefix(f, all_fields) for f in field_substr_list]
+        if any(not_matched):
+            raise CrackException(
+                    "Invalid header-field(s): %r! "
+                    "\n  Must be a case-insensitive subs-string of: %s" %
+                    ([f for f, m in zip(field_substr_list, not_matched) if m], all_fields))
+        fields_list = [_match_prefix(f, all_fields) for f in field_substr_list]
+        fields_list = tuple(set(itt.chain(*fields_list)))
+    return fields_list
