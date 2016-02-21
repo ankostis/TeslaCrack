@@ -129,14 +129,20 @@ from __future__ import print_function
 import io
 import logging
 from teslacrack import decrypt
+from teslacrack import key as tckey, teslafile, unfactor
 
 import docopt
 
 import teslacrack as tc
-from teslacrack import unfactor as unf
 
 
 log = tc.log
+
+
+def init_logging(level=logging.INFO,
+                 frmt="%(asctime)-15s:%(levelname)3.3s: %(message)s"):
+    logging.basicConfig(level=level, format=frmt)
+
 
 def _attribufy_opts(opts):
     """
@@ -154,20 +160,20 @@ def _attribufy_opts(opts):
 
 def _guess_from_file(opts):
     advice_msg = "\n  Re-validate prime-factors."
-    primes = unf.validate_primes(opts['<prime-factor>'])
+    primes = unfactor.validate_primes(opts['<prime-factor>'])
     file = opts['<file>']
     log.info('Guessing keys from tesla-file: %s', file)
 
     if opts['--btc']:
         key_name = 'BTC'
-        key = tc.unfactor.guess_btc_key_from_btc_address(opts['--btc'], primes)
+        key = unfactor.guess_btc_key_from_btc_address(opts['--btc'], primes)
         msg = key and "Found BTC-key: 0x%0.64X" % key
     elif opts['--ecdsa']:
-        key_name, key = tc.unfactor.guess_ecdsa_key_from_file(file, primes)
+        key_name, key = unfactor.guess_ecdsa_key_from_file(file, primes)
         msg = key and "Found %s-key: 0x%0.64X" % (key_name, key)
     else:
         key_name = 'AES'
-        keys = tc.unfactor.guess_aes_keys_from_file(file, primes)
+        keys = unfactor.guess_aes_keys_from_file(file, primes)
         msg = keys and "Candidate AES-key(s): \n  %s" % '\n  '.join(
                     '0x%0.64X' % key for key in keys)
         advice_msg = "\n  Re-validate prime-factors and/or try another file-type."
@@ -178,18 +184,18 @@ def _guess_from_file(opts):
 
 
 def _guess_key(opts):
-    primes = unf.validate_primes(opts['<prime-factor>'])
+    primes = unfactor.validate_primes(opts['<prime-factor>'])
     pubkey = opts['<pub-key>']
 
     if opts['--btc']:
         key_name = 'BTC'
-        key = tc.unfactor.guess_btc_key_from_btc_address(
+        key = unfactor.guess_btc_key_from_btc_address(
                 opts['--btc'], primes, pubkey)
         msg = key and "Found BTC-key: 0x%0.64X" % key
     elif opts['--ecdsa']:
         key_name = '<AES_or_BTC>'
-        ecdsa_secret = tc.autoconvert_key_to_binary(opts['--ecdsa'])
-        key = tc.unfactor.guess_ecdsa_key(ecdsa_secret, pubkey, primes)
+        ecdsa_secret = tckey.autoconvert_key_to_binary(opts['--ecdsa'])
+        key = unfactor.guess_ecdsa_key(ecdsa_secret, pubkey, primes)
         msg = key and "Found ECDSA-key: 0x%0.64X" % key
     else:
         msg = "main() miss-matched *docopt* mutual-exclusive opts (--ecdsa|--btc)! \n  %s"
@@ -206,7 +212,7 @@ def _show_file_headers(opts):
 
     log.info('Reading tesla-file: %s', file)
     with io.open(file, 'rb') as fd:
-        h = tc.parse_tesla_header(fd, opts['-I'])
+        h = teslafile.parse_tesla_header(fd, opts['-I'])
 
     return ('\n'.join('%10.10s: %s' % (k,v) for k, v in h._asdict().items()))
 
@@ -217,7 +223,7 @@ def main(*args):
 
     _attribufy_opts(opts)
     log_level = logging.DEBUG if opts.verbose else logging.INFO
-    tc.init_logging(log_level)
+    init_logging(log_level)
     log.debug('Options: %s', opts)
 
     try:
@@ -234,7 +240,7 @@ def main(*args):
             msg = "main() miss-matched *docopt* sub-commands! \n  %s"
             raise AssertionError(msg % opts)
     except tc.CrackException as ex:
-        tc.log.error("%s", ex)
+        log.error("%s", ex)
         exit(-2)
 
 if __name__ == '__main__':

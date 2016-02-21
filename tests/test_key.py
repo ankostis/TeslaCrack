@@ -9,6 +9,7 @@ from __future__ import unicode_literals
 
 import os
 import struct
+from teslacrack import teslafile, key as tckey
 import unittest
 
 import ddt
@@ -28,7 +29,7 @@ except AttributeError:
 
 mydir = os.path.dirname(__file__)
 
-_sample_header = tc.Header(
+_sample_header = teslafile.Header(
     start=b'\0\0\0\0',
     pub_btc=b'\x04\x17z^\ts\xea4\xff\xae\xba\x8b\xab\xa6\xf8\x8fN\xd1M9CU\x9d{\x16=\xda\xc8\xd4\xdf\xe9\xe5\xa8\x92\xd9(m\xbd\xb5o]\x8e\xd1f\x85\xd5VOb\xfa\xfdD\x1f~\xb4\x0e\xc6*\xf7>\x07s\xd7n\xb1',
     priv_btc=b'372AE820BBF2C3475E18F165F46772087EFFC7D378A3A4D10789AE7633EC09C74578993A2A7104EBA577D229F935AF77C647F18E113647C25EF19CC7E4EE3C4C\x00\x00',
@@ -42,7 +43,7 @@ _sample_size = struct.unpack('<I', _sample_header.size)[0]
 def _all_prefixes(s):
     return (s[:i] for i in range(1, len(s)))
 
-_all_iconv_names = list(itt.chain(*[_all_prefixes(k) for k in tc._htrans_map.keys()]))
+_all_iconv_names = list(itt.chain(*[_all_prefixes(k) for k in tckey._htrans_map.keys()]))
 
 @ddt.ddt
 class TTeslacrack(unittest.TestCase):
@@ -54,46 +55,46 @@ class TTeslacrack(unittest.TestCase):
 
     @ddt.data(*_all_iconv_names)
     def test_hconv_prefixmatch_smoketest(self, hconv):
-        h = tc._convert_header(_sample_header, hconv)
+        h = tckey._convert_header(_sample_header, hconv)
 
-    @ddt.data(*itt.product(['raw', 'fix', 'bin'], tc.Header._fields))
+    @ddt.data(*itt.product(['raw', 'fix', 'bin'], teslafile.Header._fields))
     def test_hconv_bytes(self, case):
         hconv, fld = case
-        h = tc._convert_header(_sample_header, hconv)
+        h = tckey._convert_header(_sample_header, hconv)
         if not (fld == 'size' and hconv == 'fix'):
             assertRegex(self, getattr(h, fld), '^b(\'.*\')|(b".*")$', fld)
 
-    @ddt.data(*itt.product(['xhex', 'hex', 'num', '64'], tc.Header._fields))
+    @ddt.data(*itt.product(['xhex', 'hex', 'num', '64'], teslafile.Header._fields))
     def test_hconv_non_bytes(self, case):
         hconv, fld = case
-        h = tc._convert_header(_sample_header, hconv)
+        h = tckey._convert_header(_sample_header, hconv)
         v = getattr(h, fld)
         if not (fld == 'size' and hconv in 'num', '64'):
             self.assertNotRegex(v, '^b(\'.*\')|(b".*")$', fld)
 
-    @ddt.data(*itt.product(['hex', 'xhex'], tc.Header._fields))
+    @ddt.data(*itt.product(['hex', 'xhex'], teslafile.Header._fields))
     def test_hconv_hex_numbers_smoketest(self, case):
         hconv, fld = case
-        h = tc._convert_header(_sample_header, hconv)
+        h = tckey._convert_header(_sample_header, hconv)
         int(str(getattr(h, fld)), 16)
 
-    @ddt.data(*tc.Header._fields)
+    @ddt.data(*teslafile.Header._fields)
     def test_hconv_xhex_digits(self, fld):
-        h = tc._convert_header(_sample_header, 'xhex')
+        h = tckey._convert_header(_sample_header, 'xhex')
         assertRegex(self, getattr(h, fld), '(?i)^[0-9a-f]*$', fld)
 
-    @ddt.data(*tc.Header._fields)
+    @ddt.data(*teslafile.Header._fields)
     def test_hconv_hex_digits(self, fld):
-        h = tc._convert_header(_sample_header, 'hex')
+        h = tckey._convert_header(_sample_header, 'hex')
         assertRegex(self, getattr(h, fld), '(?i)^0x[0-9a-f]*$', fld)
 
     @ddt.data('fix', 'num', '64')
     def test_hconv_int_size(self, hconv):
-        h = tc._convert_header(_sample_header, hconv)
+        h = tckey._convert_header(_sample_header, hconv)
         self.assertEqual(h.size, _sample_size, hconv)
 
     def test_hconv_hex_size(self):
-        h = tc._convert_header(_sample_header, 'hex')
+        h = tckey._convert_header(_sample_header, 'hex')
         self.assertEqual(int(h.size, 16), _sample_size)
 
 
@@ -112,7 +113,7 @@ class TAutonvertKey(unittest.TestCase):
     def test_unquote_str_regex(self, case):
         quoted, unquoted = case
         quoted %= unquoted
-        m = tc._unquote_str_regex.match(quoted)
+        m = tckey._unquote_str_regex.match(quoted)
         self.assertIsNotNone(m, quoted)
         self.assertEqual(m.group(2), unquoted)
 
@@ -123,5 +124,5 @@ class TAutonvertKey(unittest.TestCase):
     def test_unquote_str_regex2(self, case):
         quoted, unquoted = case
         quoted %= unquoted
-        m = tc._unquote_str_regex.match(quoted)
+        m = tckey._unquote_str_regex.match(quoted)
         self.assertIsNone(m, quoted)

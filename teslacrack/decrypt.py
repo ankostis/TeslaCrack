@@ -32,7 +32,9 @@ import time
 
 from Crypto.Cipher import AES  # @UnresolvedImport
 
-from . import (CrackException, log, fix_hex_key, check_tesla_file, autoconvert_key_to_binary)
+from . import CrackException, log
+from .key import fix_hex_key
+from .teslafile import check_tesla_file
 
 
 ## Add your (encrypted-AES-key: reconstructed-AES-key) pair(s) here,

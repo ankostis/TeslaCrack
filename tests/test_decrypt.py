@@ -30,13 +30,11 @@ import glob
 import os
 import sys
 from teslacrack import (decrypt)
+from teslacrack import __main__ as tcm
 import unittest
 
-import teslacrack as tc
 
-
-tc.init_logging()
-
+tcm.init_logging()
 
 def chmod(mode, files):
     files = ' '.join("'%s'" % f for f in files)

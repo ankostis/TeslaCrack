@@ -27,6 +27,8 @@ from __future__ import print_function, unicode_literals
 
 import os
 import sys
+from teslacrack import __main__ as tcm
+from teslacrack import unfactor
 import textwrap
 import unittest
 
@@ -34,10 +36,10 @@ import ddt
 import yaml
 
 import teslacrack as tc
-from teslacrack import unfactor
 
 
-tc.init_logging()
+tcm.init_logging()
+
 
 app_db_txt = r"""
 keys:

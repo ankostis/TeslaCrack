@@ -25,7 +25,9 @@ import ecdsa
 import functools as ft
 import operator as op
 
-from . import (CrackException, log, fix_int_key, check_tesla_file)
+from . import CrackException, log
+from .key import fix_int_key
+from .teslafile import check_tesla_file
 
 
 def validate_primes(str_factors, expected_product=None):

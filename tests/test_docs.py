@@ -10,10 +10,10 @@ from __future__ import unicode_literals
 import io
 import os
 import re
+from teslacrack import __main__ as tcm
 import unittest
 
-from teslacrack import __main__ as tcm
-import teslacrack
+import teslacrack as tc
 
 
 try:
@@ -26,6 +26,8 @@ except ImportError:
 mydir = os.path.dirname(__file__)
 readme_path = os.path.join(mydir, '..', 'README.rst')
 
+tcm.init_logging()
+
 
 class TDoctest(unittest.TestCase):
 
@@ -35,7 +37,7 @@ class TDoctest(unittest.TestCase):
 
 
     def test_README_version_opening(self):
-        ver = teslacrack.__version__
+        ver = tc.__version__
         header_len = 20
         mydir = os.path.dirname(__file__)
         with io.open(readme_path, 'rt', encoding='utf-8') as fd:
@@ -69,7 +71,7 @@ class TDoctest(unittest.TestCase):
 
 
     def test_README_relDate(self):
-        reldate = teslacrack.__updated__
+        reldate = tc.__updated__
         mydir = os.path.dirname(__file__)
         with io.open(readme_path, 'rt', encoding='utf-8') as fd:
             ftext = fd.read()
