@@ -32,7 +32,8 @@ import time
 from Crypto.Cipher import AES  # @UnresolvedImport
 
 from . import CrackException, log
-from .teslafile import Header, fix_hex_key
+from .key import key_x2b
+from .teslafile import Header
 
 
 ## Add your (encrypted-AES-key: reconstructed-AES-key) pair(s) here,
@@ -127,7 +128,7 @@ def decrypt_file(opts, stats, crypted_fname):
                 if decrypted_exists and backup_ext:
                     backup_fname = decrypted_fname + backup_ext
                     opts.dry_run or shutil.move(decrypted_fname, backup_fname)
-                decryptor = AES.new(fix_hex_key(aes_key), AES.MODE_CBC, header.iv)
+                decryptor = AES.new(key_x2b(aes_key), AES.MODE_CBC, header.iv)
                 data = decryptor.decrypt(fin.read())[:header.size]
                 if not opts.dry_run:
                     with open(decrypted_fname, 'wb') as fout:

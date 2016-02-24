@@ -28,7 +28,8 @@ import functools as ft
 import operator as op
 
 from . import CrackException, log
-from .teslafile import Header, fix_int_key
+from .key import key_n2b
+from .teslafile import Header
 
 
 def validate_primes(str_factors, expected_product=None):
@@ -122,12 +123,10 @@ def guess_aes_keys_from_file(fpath, primes):
     with open(fpath, "rb") as f:
         header = Header.from_fd(f)
         data = f.read(16)
-    priv_aes = int(header.priv_aes_fix, 16)
-    init_vector = header.iv
-    primes = _validate_factors_product(primes, priv_aes, allow_cofactor=True)
+    primes = _validate_factors_product(primes, header.priv_aes_num, allow_cofactor=True)
 
     def did_AES_produced_known_file(aes_key):
-        file_bytes = AES.new(fix_int_key(aes_key), AES.MODE_CBC, init_vector).decrypt(data)
+        file_bytes = AES.new(key_n2b(aes_key), AES.MODE_CBC, header.iv).decrypt(data)
         return _is_known_file(fpath, file_bytes)
 
     return _guess_all_keys(primes, key_ok_predicate=did_AES_produced_known_file)

@@ -98,7 +98,8 @@ _key_fields = ('priv_btc', 'priv_aes', 'pub_btc', 'pub_aes')
 def _all_prefixes(s):
     return (s[:i] for i in range(1, len(s)))
 
-_all_iconv_names = list(itt.chain(*[_all_prefixes(k) for k in teslafile._htrans_map.keys()]))
+_all_hconv_names = teslafile._htrans_maps().keys()
+_all_hconv_prefixes = list(itt.chain(*[_all_prefixes(k) for k in _all_hconv_names]))
 _all_fields = teslafile.Header._fields
 
 @ddt.ddt
@@ -109,7 +110,7 @@ class THeader(unittest.TestCase):
         cls.longMessage = True ## Print also original assertion msg on PY2.
 
 
-    @ddt.data(*itt.product(_all_iconv_names, _all_fields))
+    @ddt.data(*itt.product(_all_hconv_prefixes, _all_fields))
     def test_hconv_prefixmatch_works_on_attibutes(self, case):
         hconv, fld = case
         t = teslafile.Header(*_sample_header)
@@ -148,7 +149,7 @@ class THeader(unittest.TestCase):
         h = teslafile.Header(*_sample_header)
         assertRegex(self, h.conv(fld, 'hex'), '(?i)^0x[0-9a-f]*$', fld)
 
-    @ddt.data(*teslafile._htrans_map.keys())
+    @ddt.data(*_all_hconv_names)
     def test_hconv_int_size(self, hconv):
         h = teslafile.Header(*_sample_header)
         sz = h.conv('size', hconv)

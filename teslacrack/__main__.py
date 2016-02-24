@@ -198,7 +198,7 @@ def _guess_key(opts):
         msg = key and "Found BTC-key: 0x%0.64X" % key
     elif opts['--ecdsa']:
         key_name = '<AES_or_BTC>'
-        ecdsa_secret = tckey.autoconvert_key_to_binary(opts['--ecdsa'])
+        ecdsa_secret = tckey.autoconv_key(opts['--ecdsa'])
         key = unfactor.guess_ecdsa_key(ecdsa_secret, pubkey, primes)
         msg = key and "Found ECDSA-key: 0x%0.64X" % key
     else:

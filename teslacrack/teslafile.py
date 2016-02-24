@@ -14,19 +14,16 @@
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software Foundation,
 # Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
+"""Parse keys from tesla-files headers, impl `file` sub-cmd."""
 from __future__ import unicode_literals
 
-from base64 import b64encode as b64enc
-from binascii import hexlify, unhexlify
 from collections import defaultdict, namedtuple
-import re
-import struct
 
 from future.builtins import str, int, bytes  # @UnusedImport
 
 import itertools as itt
 
-from . import CrackException
+from .key import *
 
 
 tesla_magics = [b'\xde\xad\xbe\xef\x04', b'\x00\x00\x00\x00\x04']
@@ -109,19 +106,8 @@ class Header(namedtuple('Header',
             any non-ambiguous case-insensitive *prefix* from supported formats.
             See class docstring.
         """
-        trans_map = _htrans_map[_prefix_matched_hconv(hconv)]
-        return _apply_trans_list(trans_map[fld], getattr(self, fld))
-
-
-def _apply_trans_list(trans_list, v):
-    """Pipes value through multiple `trans` (must be iterable, empty allowed)."""
-    for i, trans in enumerate(trans_list, 1):
-        try:
-            v = trans(v)
-        except Exception as ex:
-            raise ValueError("Number %i trans(%r) on %r failed due to: %r!" % (
-                    i, trans, v, ex))
-    return v
+        trans_map = _htrans_maps()[_prefix_matched_hconv(hconv)]
+        return apply_trans_list(trans_map[fld], getattr(self, fld))
 
 
 def _hconvs_to_htrans(hconvs_map):
@@ -138,54 +124,35 @@ def _hconvs_to_htrans(hconvs_map):
     return htrans
 
 
-def _lrotate_byte_key(byte_key):
-    while byte_key[0] == 0:
-        byte_key = byte_key[1:] + b'\0'
-    return byte_key
+_bin_fields = ('start', 'pub_btc', 'pub_aes', 'iv')
+_hex_fields = ('priv_btc', 'priv_aes')
 
-
-def fix_int_key(int_key):
-    return _lrotate_byte_key(unhexlify('%064x' % int_key))
-
-
-def fix_hex_key(hex_bkey):
-    # XXX: rstrip byte-or-str depends on type(aes-decrypted-key) in decrypt.known_AES_keys.
-    return _lrotate_byte_key(unhexlify(hex_bkey.rstrip(b'\0')))
-
-_i2b = lambda v: struct.pack('<I', v)
-_b2i = lambda v: struct.unpack('<I', v)[0]
-_b2n = lambda v: int(hexlify(v), 16)
-_b2s = lambda v: v.decode('ascii')
-_b2x = lambda v: hexlify(v).decode('ascii')
-_upp = lambda v: v.upper()
-_0x = lambda v: '0x%s' % v
-_i2h = lambda v: '0x%x'%v
-_b2esc = lambda v: bytes(v)
-
-_bin_fields = ['start', 'pub_btc', 'pub_aes', 'iv']
-_hex_fields = ['priv_btc', 'priv_aes']
-
-
-#: See :func:`_hconvs_to_htrans()` for explanation.
-_htrans_map = {name: _hconvs_to_htrans(hconv) for name, hconv in {
-        'raw': [(_hex_fields+_bin_fields,   [bytes, _b2esc]),
-                (['size'],              [_i2b, _b2esc]), ],
-        'fix': [(_hex_fields,           [fix_hex_key, hexlify, _b2esc]),
-                (_bin_fields,           [_b2esc]), ],
-        'bin': [(_hex_fields,           [fix_hex_key, _b2esc]),
-                (_bin_fields,           [_b2esc]),
-                (['size'],              [_i2b, _b2esc])],
-        'xhex': [(_hex_fields,          [fix_hex_key, _b2x, _upp]),
-                 (_bin_fields,          [_b2x, _upp]),
-                 (['size'],             [_i2b, _b2x, _upp])],
-        'hex': [(_hex_fields,           [fix_hex_key, _b2x, _0x]),
-                (_bin_fields,           [_b2x, _0x]),
-                (['size'],              [_i2h]), ],
-        'num': [(_hex_fields,           [fix_hex_key, _b2n]),
-                (_bin_fields,           [_b2n]), ],
-        '64':  [(_hex_fields,           [fix_hex_key, b64enc, _b2s]),
-                (_bin_fields,           [b64enc, _b2s]), ],
-    }.items()}
+#: Laxy assigned.
+_htrans_maps_lvar = None
+def _htrans_maps():
+    """See :func:`_hconvs_to_htrans()` for explanation."""
+    global _htrans_maps_lvar
+    if not _htrans_maps_lvar:
+        _htrans_maps_lvar = {name: _hconvs_to_htrans(hconv) for name, hconv in {
+            'raw': ((_hex_fields+_bin_fields,   (bytes, b2esc)),
+                    (('size',),             (i2b, b2esc))),
+            'fix': ((_hex_fields,           (rstrip, key_x2b, hexlify, b2esc)),
+                    (_bin_fields,           (b2esc,))),
+            'bin': ((_hex_fields,           (rstrip, key_x2b, b2esc)),
+                    (_bin_fields,           (b2esc,)),
+                    (('size',),             (i2b, b2esc))),
+            'xhex': ((_hex_fields,          (rstrip, key_x2b, b2x, upp)),
+                     (_bin_fields,          (b2x, upp)),
+                     (('size',),            (i2b, b2x, upp))),
+            'hex': ((_hex_fields,           (rstrip, key_x2b, b2x, xs0x)),
+                    (_bin_fields,           (b2x, xs0x)),
+                    (('size',),             (ns2h,))),
+            'num': ((_hex_fields,           (rstrip, key_x2b, b2n)),
+                    (_bin_fields,           (b2n,))),
+            '64':  ((_hex_fields,           (rstrip, key_x2b, b64enc, b2s)),
+                    (_bin_fields,           (b64enc, b2s))),
+        }.items()}
+    return _htrans_maps_lvar
 
 
 def _prefixes_in_word(word, prefixlist):
@@ -202,12 +169,14 @@ def _words_with_substr(substr, wordlist):
     return [n for n in wordlist if substr and substr in n]
 
 
-def _prefix_matched_hconv(hconv, hconvs=_htrans_map.keys()):
+def _prefix_matched_hconv(hconv, hconvs=None):
+    if hconvs is None:
+        hconvs = _htrans_maps().keys()
     matched_hconvs = _words_with_prefix(hconv.lower(), hconvs)
     if len(matched_hconvs) != 1:
         raise CrackException("Bad Header-conversion(%s)!"
                 "\n  Must be a case-insensitive prefix of: %s"% (
-                        hconv, sorted(_htrans_map.keys())))
+                        hconv, sorted(hconvs)))
     return matched_hconvs[0]
 
 
