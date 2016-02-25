@@ -18,7 +18,6 @@ from __future__ import unicode_literals
 
 from base64 import b64decode as b64dec, b64encode as b64enc
 from binascii import hexlify, unhexlify
-import codecs
 import re
 import struct
 

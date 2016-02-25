@@ -13,7 +13,6 @@ TeslaCrack - decrypt files crypted by TeslaCrypt ransomware
 :Author:      Googulator
 :License:     GNU General Public License v3 (GPLv3)
 
-
 This is a tool for decrypting files that were encrypted with the versions < 3.0
 of the **TeslaCrypt ransomware** (variously known as "v8" or "v2.2.0").
 
@@ -23,19 +22,13 @@ being ``Howto_RESTORE_FILES.txt``.
 The tool should may help also ancient versions by reconstructing the Bitcoin private-key,
 which is utilized by *tesladecrypt* or *TeslaDecoder* external programs
 
-*TeslaCrack* implements (primarily) an integer factorization attack against
-the asymmetric scheme (breaking the encrypted-AES-key).
-The actual factorization is not implemented within *TeslaCrack*, instead,
-it just extracts the numbers to be factored, and you have to feed them into
-3rd party factoring tools, such as `YAFU or msieve
-<https://www.google.com/search?q=msieve+factorization>`_.
-
 
 .. contents:: Table of Contents
   :backlinks: top
 
+
 Quickstart
-----------
+==========
 
 The main entry-point of the tool is the ``teslacrack`` console-command::
 
@@ -176,6 +169,32 @@ There are more sub-commands available - to receive usage description, type::
 Step-by-step instructions are given in the `How to decrypt your files`_ section.
 
 
+How it works?
+-------------
+We recapitulate `how TeslaCrypt ransomware works and explain the weakness
+<http://www.bleepingcomputer.com/news/security/teslacrypt-decrypted-flaw-in-teslacrypt-allows-victims-to-recover-their-files/>`_
+that is relevant for this cracking tool:
+
+1. *TeslaCrypt* creates a symmetrical AES-session-key that will be used to
+   encrypt your files,
+2. it then asymmetrically encrypts that AES-key with a "semi-baked" ECDH method,
+   splits the ciphered-AES-key in 2 parts and transmits one part
+   to the operators of the ransomware (but that is irrelevant here), and finally
+3. it starts encrypting your files one-by-one, attaching the other part of the
+   encrypted-AES-key into the headers of all files.
+
+- Multiple AES-keys are generated if you interrupt the ransomware while it encrypts
+  your files (i.e. reboot).
+
+*TeslaCrack* implements (primarily) an integer factorization attack against
+the asymmetric "semi-baked" scheme, recovering the original  AES-key from part
+that is stored on the file headers.
+The actual factorization is not implemented within *TeslaCrack*, instead,
+it just extracts the numbers to be factored, and you have to feed them into
+3rd party factoring tools, such as `YAFU or msieve
+<https://www.google.com/search?q=msieve+factorization>`_.
+
+
 
 Installation
 ============
@@ -183,9 +202,6 @@ Installation
 You need a working Python 2.7 or Python-3.4+ environment,
 **preferably 64-bit** (if supported by your OS).
 A 32-bit Python can also work, but it will be significantly slower
-
-  .. Note::
-    The ``--btc`` option DOES NOT RUN on Python 3 - use a Python-2.7.
 
 Install Python
 --------------
@@ -208,7 +224,7 @@ In *Windows*, the following 1 + 2 alternative have been tested:
   if the files to decrypt originate from a different user.
 
 
-Install TeslaCrypt
+Install TeslaCrack
 ------------------
 1. At a command-prompt with python enabled (and with admin-rights in the "official" distribution),
    do one of the following:
@@ -226,12 +242,17 @@ Install TeslaCrypt
 
         pip install -e <sources-folder>
 
-   .. Tip::
+   .. Warning::
         If you get an error like ``'pip' is not recognized as an internal or external command ...``
         then you may execute the following Python-2 code and re-run the commands above::
 
             python -c "import urllib2; print urllib2.urlopen('https://bootstrap.pypa.io/ez_setup.py').read()" | python
             easy_install pip
+
+        If you get native-compilation errors, make sure you have the latest
+        your `pip` is upgraded to the latest version::
+
+            python -m pip install -U pip
 
         In all cases, check that the command ``teslacrack`` has been installed
         in your path::
@@ -255,7 +276,7 @@ How to decrypt your files
    append it into ``tesla_extensions`` string-list.
 
    .. Note::
-        The extensions ``.ttt``, ``.xxx``, ``.micro`` and ``.mp3``(!) have been
+        The extensions ``.ttt, .xxx, .micro`` and ``.mp3``(!) have been
         reported for the new variant of TeslaCrypt (3.0+), and this tool cannot
         decrypt them, anyway.
 
@@ -272,7 +293,7 @@ How to decrypt your files
    encountered encrypted AES and BTC keys.
 
    If you got a single AES/BTC key-pair only, you may opt for attacking directly
-   the AES key using the plain ``unfactor`` sub-cmd, which is usually faster.
+   the AES key using the plain ``guess-fkey`` sub-cmd, which is usually faster.
    Otherwise, attack the BTC key and use the *TeslaDecoder* -
    read the `Break bitcoin-keys for *TeslaDecoder*`_ section, below.
 
@@ -295,9 +316,15 @@ How to decrypt your files
    `factordb.com <http://factordb.com/>`_ for this number. If you are lucky,
    it may have been already factored, and you can skip the next step :-)
 
-5. Factorize the AES or BTC key (this step might take considerable time):
+   You may view the keys contained in a file converted as integers, issue this::
 
-   - Using *msieve*::
+        teslacrack file <your-tesla-file> -Fnum
+
+
+5. Factorize the AES or BTC keys or any composite-factors (marked as "CF")
+   fecthed from *factordb.com* (this step might take considerable time):
+
+   - For instance, using *msieve*::
 
          msieve -v -e <encrypted-key>
 
@@ -317,17 +344,23 @@ How to decrypt your files
      run slow), use ``factmsieve.py`` (downloaded optionally above), which is
      more complicated, but also faster, multithreaded, and doesn't tend to crash.
 
-6. To reconstruct the AES-key that has crypted your files, run::
 
-       teslacrack unfactor <crypteded file>  <primes from previous step, separated by spaces>
+6. To reconstruct the AES-key that has crypted your files, add the primes from
+   previous step, separated by spaces, into this command::
+
+       teslacrack guess-fkey <crypted-file>  <factor-1>  <factor-2> ...
 
    It will reconstruct and print any decrypted AES-keys candidates (usually just one).
 
-   - Alternatively you may use ``unfactorecdsa`` sub-cmd to break either AES or
-     BTC key for the *TeslaDecoder* tool (see section below).
+   - Alternatively you may use ``--ecdsa`` option to break either AES or
+     BTC key for the *TeslaDecoder* tool (see section below).  This option requires
+     AES or BTC pub-keys, which you may get them as integers from a file with this
+     command:
+
+       teslacrack guess-fkey --edcsa <crypted-file>  <factor-1>  <factor-2> ...
+
      Which key to break gets to be deduced from the factors you provide.
-     This sub-cmd has the same syntax as ``unfactor`.  See `Quickstart`_ for
-     an explaination
+
 
 7. Edit ``teslacrack.py`` to add a new key-pair into the ``known_AES_key_pairs``
    dictionary, like that::
@@ -389,7 +422,7 @@ files from all(?) versions, assuming you have the *bitcoin private-key*.
 For very old TeslaCrypt versions (i.e. file-extensions ``ECC, .EXX, or .EZZ``)
 *TeslaDecoder* could also extract this BTC private-key.  For later versions, you
 have to manually factorize the BTC public-key reported by ``decrypt`` in step 2,
-above, and feed its primes into the ``guess-XXX`` sub-cmds with the ``-btc`` option.
+above, and feed its primes into the ``guess-XXX`` sub-cmds with the ``--btc`` option.
 
 This ``guess-key`` sub-cmd requires the *Bitcoin ransom address*,
 as reported on the "ransom note", or obtained from:
@@ -402,7 +435,7 @@ as reported on the "ransom note", or obtained from:
   <https://securelist.com/blog/research/71371/teslacrypt-2-0-disguised-as-cryptowall/#key-data-saved-in-the-system>`_.
 
 .. Note::
-   The ``teslacrack decrypt`` can't decode the files encryoted withvery old
+   The ``teslacrack decrypt`` can't decode the files encryoted with very old
    TeslaCrypt versions, so you must perform the actual decryption with
    *TeslaDecoder*.
 
@@ -412,35 +445,29 @@ Example:
     The ``^`` char at the end of each line is the line-continuation characters
     on ``cmd.exe``/DOS.  The respective char in Linux is ```\``.
 
+To reconstruct a BTC priv-key from a tesla-file::
+
+    > teslacrack guess-fkey <tesla-file>  ^
+         --btc 1GSswEGHysnASUwNEKNjWXCW9vRCy57qA4 ^
+         2 2 3 7 11 17 19 139 2311 14278309 465056119273 250220277466967 373463829010805159059 ^
+         1261349708817837740609 38505609642285116603442307097561327764453851349351841755789120180499
+
+
+To reconstruct the same BTC priv-key in 2 steps with the ``guess-key`` sub-cmd
+with *base64* formatted pub-key:
+
+.. Note:: Notice that since no file is given, you have to provide
+    the BTC pub-key before the prime-factors.
 ::
 
-    > teslacrack guess-f --btc 1GSswEGHysnASUwNEKNjWXCW9vRCy57qA4 ^
-         372AE820BBF2C3475E18F165F46772087EFFC7D378A3A4D10789AE7633EC09C74578993A2A7104EBA577D229F935AF77C647F18E113647C25EF19CC7E4EE3C4C ^
+    > teslacrack file <tesla-file>  pub-btc -F64
+    BEPD/gJGBX0GNtDKu32O6YQ35ubA/jJKI+4aT9jFHbwG2S5t5TFAsFfFGFDhDXLFos4JgYB11BLx2rdynuTWJv4=
+
+    > teslacrack guess-key --btc 1GSswEGHysnASUwNEKNjWXCW9vRCy57qA4 ^
+         BEPD/gJGBX0GNtDKu32O6YQ35ubA/jJKI+4aT9jFHbwG2S5t5TFAsFfFGFDhDXLFos4JgYB11BLx2rdynuTWJv4=
          2 2 3 7 11 17 19 139 2311 14278309 465056119273 250220277466967 373463829010805159059 ^
          1261349708817837740609 38505609642285116603442307097561327764453851349351841755789120180499
 
-    > teslacrack guess-f --btc 1GSswEGHysnASUwNEKNjWXCW9vRCy57qA4 ^
-         372AE820BBF2C3475E18F165F46772087EFFC7D378A3A4D10789AE7633EC09C74578993A2A7104EBA577D229F935AF77C647F18E113647C25EF19CC7E4EE3C4C ^
-         2 2 3 7 11 17 19 139 2311 14278309 465056119273 250220277466967 373463829010805159059 ^
-         1261349708817837740609 38505609642285116603442307097561327764453851349351841755789120180499
-
-
-
-How it works?
-=============
-We recapitulate `how TeslaCrypt ransomware works and explain the weakness
-<http://www.bleepingcomputer.com/news/security/teslacrypt-decrypted-flaw-in-teslacrypt-allows-victims-to-recover-their-files/>`_
-that is relevant for this cracking tool:
-
-1. *TeslaCrypt* creates a symmetrical AES-session-key that will be used to
-   encrypt your files,
-2. it then asymmetrically ECDH-encrypts that AES-key and transmits the private-ECDH-key
-   to the operators of the ransomware (but that is irrelevant here), and finally
-3. it starts encrypting your files one-by-one, attaching the encrypted-AES-key
-   into their header.
-
-- Multiple AES-keys are generated if you interrupt the ransomware while it encrypts
-  your files (i.e. reboot).
 
 
 And now, for some controversy...

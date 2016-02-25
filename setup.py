@@ -100,7 +100,7 @@ setup(
         'setuptools-git >= 0.3',
         'future',
         'docopt',
-        'pycryptodome',
+        'pycryptodome<=3.3', # 3.4 needs fairly recent 1.8+ pip`.
         'ecdsa',
         'pycoin',
     ],
