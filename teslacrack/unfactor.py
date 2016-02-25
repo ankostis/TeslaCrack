@@ -28,7 +28,7 @@ import functools as ft
 import operator as op
 
 from . import CrackException, log
-from .key import key_n2b
+from .key import int_to_32or64bytes
 from .teslafile import Header
 
 
@@ -126,7 +126,7 @@ def crack_aes_keys_from_file(fpath, primes):
     primes = _validate_factors_product(primes, header.priv_aes_num, allow_cofactor=True)
 
     def did_AES_produced_known_file(aes_key):
-        file_bytes = AES.new(key_n2b(aes_key), AES.MODE_CBC, header.iv).decrypt(data)
+        file_bytes = AES.new(int_to_32or64bytes(aes_key), AES.MODE_CBC, header.iv).decrypt(data)
         return _is_known_file(fpath, file_bytes)
 
     return _guess_all_keys(primes, key_ok_predicate=did_AES_produced_known_file)

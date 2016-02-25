@@ -27,15 +27,16 @@ from __future__ import print_function, unicode_literals
 
 import argparse
 import glob
+import logging
 from os import path as osp
 import os
 import sys
-from teslacrack import decrypt
-from teslacrack import __main__ as tcm
 import unittest
 
+from teslacrack import __main__ as tcm, decrypt
 
-tcm.init_logging()
+
+tcm.init_logging(level=logging.INFO)
 
 def chmod(mode, files):
     files = ' '.join("'%s'" % f for f in files)

@@ -32,7 +32,7 @@ import time
 from Crypto.Cipher import AES  # @UnresolvedImport
 
 from . import CrackException, log
-from .key import key_x2b
+from .key import PairedKeys
 from .teslafile import Header
 
 
@@ -106,7 +106,7 @@ def decrypt_file(opts, stats, crypted_fname):
                 return
 
             try:
-                aes_key = known_AES_key_pairs[header.priv_aes_fix.upper()]
+                aes_key = opts.known_AES_key_pairs[header.priv_aes_fix]
             except KeyError:
                 if header.priv_aes_fix not in unknown_keys:
                     unknown_keys[header.priv_aes_fix] = crypted_fname
@@ -128,7 +128,9 @@ def decrypt_file(opts, stats, crypted_fname):
                 if decrypted_exists and backup_ext:
                     backup_fname = decrypted_fname + backup_ext
                     opts.dry_run or shutil.move(decrypted_fname, backup_fname)
-                decryptor = AES.new(key_x2b(aes_key), AES.MODE_CBC, header.iv)
+                aes_key_bytes = opts.known_AES_key_pairs.as_bytes(aes_key)
+                print(aes_key, aes_key_bytes)
+                decryptor = AES.new(aes_key_bytes, AES.MODE_CBC, header.iv)
                 data = decryptor.decrypt(fin.read())[:header.size]
                 if not opts.dry_run:
                     with open(decrypted_fname, 'wb') as fout:
@@ -272,6 +274,7 @@ def decrypt(opts):
             skip_nfiles=0, unknown_nfiles=0, failed_nfiles=0, deleted_nfiles=0,
             overwrite_nfiles=0, badexisting_nfiles=0)
 
+    opts.known_AES_key_pairs = PairedKeys(known_AES_key_pairs)
     if opts.progress:
         stats.ndirs = count_subdirs(opts, stats)
     traverse_fpaths(opts, stats)

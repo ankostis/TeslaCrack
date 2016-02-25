@@ -134,11 +134,11 @@ from __future__ import print_function
 
 import io
 import logging
-from teslacrack import decrypt
-from teslacrack import key as tckey, teslafile, unfactor
 
 import docopt
 
+from teslacrack import decrypt
+from teslacrack import key as tckey, teslafile, unfactor
 import teslacrack as tc
 
 
@@ -191,7 +191,7 @@ def _crack_file_key(opts):
 
 def _crack_key(opts):
     primes = unfactor.validate_primes(opts['<prime-factor>'])
-    pubkey = opts['<pub-key>']
+    pubkey = tckey.autoconv_to_bytes(opts['<pub-key>'])
 
     if opts['--btc']:
         key_name = 'BTC'
@@ -200,7 +200,7 @@ def _crack_key(opts):
         msg = key and "Found BTC-key: 0x%0.64X" % key
     elif opts['--ecdsa']:
         key_name = '<AES_or_BTC>'
-        ecdsa_secret = tckey.autoconv_key(opts['--ecdsa'])
+        ecdsa_secret = tckey.autoconv_to_bytes(opts['--ecdsa'])
         key = unfactor.crack_ecdsa_key(ecdsa_secret, pubkey, primes)
         msg = key and "Found ECDSA-key: 0x%0.64X" % key
     else:

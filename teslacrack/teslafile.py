@@ -17,13 +17,19 @@
 """Parse keys from tesla-files headers, impl `file` sub-cmd."""
 from __future__ import unicode_literals
 
+from base64 import b64encode
+from binascii import hexlify
 from collections import defaultdict, namedtuple
+import re
+import struct
 
 from future.builtins import str, int, bytes  # @UnusedImport
 
 import itertools as itt
 
-from .key import *
+from . import CrackException
+from .key import (apply_trans_list, tesla_mul_to_bytes, b2esc, b2x, b2n,
+                  b2s, xs0x, upp, i2b, n2h)
 
 
 tesla_magics = [b'\xde\xad\xbe\xef\x04', b'\x00\x00\x00\x00\x04']
@@ -44,7 +50,7 @@ class Header(namedtuple('Header',
     Available conversions:
 
       - raw: all bytes as-is - no conversion (i.e. hex private-keys NOT strip & l-rotate).
-      - fix: like 'raw', but priv-keys fixed and size:int.
+      - fix: like 'raw', but priv-keys fixed and size:int; fail if priv-keys invalid.
       - bin: all bytes (even private-keys), priv-keys: fixed.
       - xhex: all string-HEX, size:bytes-hexed.
       - hex: all string-hex prefixed with '0x', size: int-hexed.
@@ -136,21 +142,21 @@ def _htrans_maps():
         _htrans_maps_lvar = {name: _hconvs_to_htrans(hconv) for name, hconv in {
             'raw': ((_hex_fields+_bin_fields,   (bytes, b2esc)),
                     (('size',),             (i2b, b2esc))),
-            'fix': ((_hex_fields,           (rstrip, key_x2b, hexlify, b2esc)),
+            'fix': ((_hex_fields,           (tesla_mul_to_bytes, hexlify, b2esc)),
                     (_bin_fields,           (b2esc,))),
-            'bin': ((_hex_fields,           (rstrip, key_x2b, b2esc)),
+            'bin': ((_hex_fields,           (tesla_mul_to_bytes, b2esc)),
                     (_bin_fields,           (b2esc,)),
                     (('size',),             (i2b, b2esc))),
-            'xhex': ((_hex_fields,          (rstrip, key_x2b, b2x, upp)),
+            'xhex': ((_hex_fields,          (tesla_mul_to_bytes, b2x, upp)),
                      (_bin_fields,          (b2x, upp)),
                      (('size',),            (i2b, b2x, upp))),
-            'hex': ((_hex_fields,           (rstrip, key_x2b, b2x, xs0x)),
+            'hex': ((_hex_fields,           (tesla_mul_to_bytes, b2x, xs0x)),
                     (_bin_fields,           (b2x, xs0x)),
-                    (('size',),             (ns2h,))),
-            'num': ((_hex_fields,           (rstrip, key_x2b, b2n)),
+                    (('size',),             (n2h,))),
+            'num': ((_hex_fields,           (tesla_mul_to_bytes, b2n)),
                     (_bin_fields,           (b2n,))),
-            '64':  ((_hex_fields,           (rstrip, key_x2b, b64enc, b2s)),
-                    (_bin_fields,           (b64enc, b2s))),
+            '64':  ((_hex_fields,           (tesla_mul_to_bytes, b64encode, b2s)),
+                    (_bin_fields,           (b64encode, b2s))),
         }.items()}
     return _htrans_maps_lvar
 
