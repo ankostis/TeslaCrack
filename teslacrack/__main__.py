@@ -24,8 +24,8 @@ Usage:
   teslacrack decrypt  [-v] [--dry-run] [--delete | --delete-old]  [--progress]
                                 [(--fix | --overwrite) [--backup=<.ext>]]
                                 [<path>]...
-  teslacrack guess-fkey     [-v] [--progress] [--ecdsa | --btc <btc-addr>]  <file>  <prime-factor>...
-  teslacrack guess-key      [-v] [--progress] (--ecdsa <ecdsa-secret> | --btc <btc-addr>)  <pub-key>  <prime-factor>...
+  teslacrack crack-fkey     [-v] [--progress] [--ecdsa | --btc <btc-addr>]  <file>  <prime-factor>...
+  teslacrack crack-key      [-v] [--progress] (--ecdsa <ecdsa-secret> | --btc <btc-addr>)  <pub-key>  <prime-factor>...
   teslacrack file           [-v] [ -F <hconv>] <file>  [<field>]...
   teslacrack -h | --help
   teslacrack -V | --version
@@ -40,22 +40,23 @@ Sub-commands:
         2. factorize the public-key(s) reported, first by searching http://factordb.com/
            and then use *msieve* or *YAFU* external programs to factorize
            any remaining non-prime ones;
-        3. use `guess-XXX` sub-cmds to reconstruct private-keys from public ones;
+        3. use `crack-XXX` sub-cmds to reconstruct private-keys from public ones;
         4. add public/private key pairs into `known_AES_key_pairs`, and then
         5. re-run `decrypt` on all infected file/directories.
 
       If no <path> given, current-directory assumed.
 
-  guess-fkey:
+  crack-fkey:
       Read public-key(s) from <file> and use the <prime-factor> integers produced by
       external factorization program (i.e. *msieve*) or found in http://factordb.com/
       to reconstruct their private-key(s), optionally according to *ECDSA* or *btc* methods
       (explained in respective options).
       When no method specified (the default), the <file> must belong to `known_file_magic`.
 
-  guess-key
-      Like the `guess-fkey`, above, but the <pub-key> is explicitly given and the method
-      must be one of *ECDSA* or *btc*.  Use the public-keys reported by `decrypt`.
+  crack-key
+      Like the `crack-fkey`, above, but the <pub-key> is explicitly given and the method
+      must be one of *ECDSA* or *btc*.  Use the public-keys reported by `file` or
+      `decrypt` suc-cmds.
 
   file:
       Print tesla-file's header fields (keys, addresses, etc), or those explicitly
@@ -67,7 +68,8 @@ Options:
                       - can recover both AES or BTC[1] private-keys;
                       - can recover keys from any file-type (no need for *magic-bytes*);
                       - yields always a single correct key.
-                    The <prime-factors> select which public-key to use from file (AES or BTC).
+                    For the `crack-fkey` sub-cmd, the <prime-factors> select which public-key
+                    to crack (AES or BTC).
   --btc <btc-addr>  Guess BTC private-keys based on the bitcoin-address and BTC[1] public-key.
                       - The <btc-addr> is typically found in the ransom-note or recovery file
                       - The <pub-key> is the BTC key reported by `decrypt` sub-cmd.
@@ -119,12 +121,12 @@ Notes:
 
 Examples:
 
-   teslacrack decrypt -v tesla-file.vvv       ## Decrypt file, and if unknwon key, printed.
-   teslacrack unfactor tesla-file.vvv 1 3 5   ## Decrypt key of the file from primes 1,3,5.
-   teslacrack decrypt .  bar\cob.xlsx         ## Decrypt current-folder & a file
-   teslacrack decrypt --delete-old C:\\       ## WILL DELETE ALL `.vvv` files on disk!!!
-   teslacrack decrypt                         ## Decrypt current-folder, logging verbosely.
-   teslacrack decrypt --progress -n -v  C:\\  ## Just to check what actions will perform.
+   teslacrack decrypt -v tesla-file.vvv        ## Decrypt file, and if unknwon key, printed.
+   teslacrack crack-fkey tesla-file.vvv 1 3 5  ## Unfacrtor the AES-key of the file from primes 1,3,5.
+   teslacrack decrypt .  bar\cob.xlsx          ## Decrypt current-folder & a file
+   teslacrack decrypt --delete-old C:\\        ## WILL DELETE ALL `.vvv` files on disk!!!
+   teslacrack decrypt                          ## Decrypt current-folder, logging verbosely.
+   teslacrack decrypt --progress -n -v  C:\\   ## Just to check what actions will perform.
 
 Enjoy! ;)
 """
@@ -162,7 +164,7 @@ def _attribufy_opts(opts):
             setattr(opts, k[1:-1], v)
 
 
-def _guess_from_file(opts):
+def _crack_file_key(opts):
     advice_msg = "\n  Re-validate prime-factors."
     primes = unfactor.validate_primes(opts['<prime-factor>'])
     file = opts['<file>']
@@ -170,14 +172,14 @@ def _guess_from_file(opts):
 
     if opts['--btc']:
         key_name = 'BTC'
-        key = unfactor.guess_btc_key_from_btc_address(opts['--btc'], primes)
+        key = unfactor.crack_btc_key_from_btc_address(opts['--btc'], primes)
         msg = key and "Found BTC-key: 0x%0.64X" % key
     elif opts['--ecdsa']:
-        key_name, key = unfactor.guess_ecdsa_key_from_file(file, primes)
+        key_name, key = unfactor.crack_ecdsa_key_from_file(file, primes)
         msg = key and "Found %s-key: 0x%0.64X" % (key_name, key)
     else:
         key_name = 'AES'
-        keys = unfactor.guess_aes_keys_from_file(file, primes)
+        keys = unfactor.crack_aes_keys_from_file(file, primes)
         msg = keys and "Candidate AES-key(s): \n  %s" % '\n  '.join(
                     '0x%0.64X' % key for key in keys)
         advice_msg = "\n  Re-validate prime-factors and/or try another file-type."
@@ -187,19 +189,19 @@ def _guess_from_file(opts):
     return msg
 
 
-def _guess_key(opts):
+def _crack_key(opts):
     primes = unfactor.validate_primes(opts['<prime-factor>'])
     pubkey = opts['<pub-key>']
 
     if opts['--btc']:
         key_name = 'BTC'
-        key = unfactor.guess_btc_key_from_btc_address(
+        key = unfactor.crack_btc_key_from_btc_address(
                 opts['--btc'], primes, pubkey)
         msg = key and "Found BTC-key: 0x%0.64X" % key
     elif opts['--ecdsa']:
         key_name = '<AES_or_BTC>'
         ecdsa_secret = tckey.autoconv_key(opts['--ecdsa'])
-        key = unfactor.guess_ecdsa_key(ecdsa_secret, pubkey, primes)
+        key = unfactor.crack_ecdsa_key(ecdsa_secret, pubkey, primes)
         msg = key and "Found ECDSA-key: 0x%0.64X" % key
     else:
         msg = "main() miss-matched *docopt* mutual-exclusive opts (--ecdsa|--btc)! \n  %s"
@@ -242,10 +244,10 @@ def main(*args):
         if opts['decrypt']:
             opts.fpaths = opts['<path>']
             decrypt.decrypt(opts)
-        elif opts['guess-fkey']:
-            return _guess_from_file(opts)
-        elif opts['guess-key']:
-            return _guess_key(opts)
+        elif opts['crack-fkey']:
+            return _crack_file_key(opts)
+        elif opts['crack-key']:
+            return _crack_key(opts)
         elif opts['file']:
             return _show_file_headers(opts)
         else:

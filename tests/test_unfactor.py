@@ -135,7 +135,7 @@ class TUnfactor(unittest.TestCase):
             if not exp_aes_key:
                 continue
             factors = [int(fc) for fc in key_rec['factors']]
-            aes_keys = unfactor.guess_aes_keys_from_file(f, factors)
+            aes_keys = unfactor.crack_aes_keys_from_file(f, factors)
             #print(key_rec['name'], f, aes_keys, exp_aes_key)
             self.assertIn(exp_aes_key.upper(),
                     ['%0.64X' % k for k in aes_keys], msg=key_rec)
@@ -146,7 +146,7 @@ class TUnfactor(unittest.TestCase):
 #         exp_aes_key = key_rec.get('decrypted')
 #         if not exp_aes_key:
 #             crypted_aes_key = int(key_rec['encrypted'], 16)
-#             unfactor.guess_aes_keys_from_file('<fpath>', factors, crypted_aes_key,
+#             unfactor.crack_aes_keys_from_file('<fpath>', factors, crypted_aes_key,
 #                     lambda *args: b'')
 #             err_msg = cm.exception.args[0]
 #             self.assertIn(key_rec['error'], err_msg, msg=key_rec)
@@ -158,7 +158,7 @@ class TUnfactor(unittest.TestCase):
             if not exp_aes_key:
                 continue
             factors = [int(fc) for fc in key_rec['factors']]
-            key_name, key = unfactor.guess_ecdsa_key_from_file(f, factors)
+            key_name, key = unfactor.crack_ecdsa_key_from_file(f, factors)
             #print(key_rec['name'], f, aes_keys, exp_aes_key)
             self.assertEqual('BTC', key_name, msg=key_rec)
             self.assertIn(exp_aes_key.upper(), '0x%0.64X'%key, msg=key_rec)
@@ -170,6 +170,6 @@ class TUnfactor(unittest.TestCase):
         btc_addr = key_rec.get('btc_addr')
         if btc_addr:
             factors = [int(fc) for fc in key_rec['factors']]
-            btc_key = unfactor.guess_btc_key_from_btc_address(btc_addr, factors)
+            btc_key = unfactor.crack_btc_key_from_btc_address(btc_addr, factors)
             #print(key_rec['name'], btc_addr, dec_key)
             self.assertIn(dec_key.upper(), '0x%0.64X' % btc_key, msg=key_rec)

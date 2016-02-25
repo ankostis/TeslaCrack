@@ -43,7 +43,7 @@ The main entry-point of the tool is the ``teslacrack`` console-command::
     > msieve -e 0xAD34AD2A32F4EE2...
 
     ## Guess your decrypted-AES key from a "known" file-type:
-    > teslacrack guess-fkey D:\some\infected\folder\foo.pdf
+    > teslacrack crack-fkey D:\some\infected\folder\foo.pdf
 
     ## Now decrypt all your hard-drive:
     > teslacrack decrypt --progress D:\
@@ -62,8 +62,8 @@ There are more sub-commands available - to receive usage description, type::
       teslacrack decrypt  [-v] [--dry-run] [--delete | --delete-old]  [--progress]
                                     [(--fix | --overwrite) [--backup=<.ext>]]
                                     [<path>]...
-      teslacrack guess-fkey     [-v] [--progress] [--ecdsa | --btc <btc-addr>]  <file>  <prime-factor>...
-      teslacrack guess-key      [-v] [--progress] (--ecdsa <ecdsa-secret> | --btc <btc-addr>)  <pub-key>  <prime-factor>...
+      teslacrack crack-fkey     [-v] [--progress] [--ecdsa | --btc <btc-addr>]  <file>  <prime-factor>...
+      teslacrack crack-key      [-v] [--progress] (--ecdsa <ecdsa-secret> | --btc <btc-addr>)  <pub-key>  <prime-factor>...
       teslacrack file           [-v] [ -F <hconv>] <file>  [<field>]...
       teslacrack -h | --help
       teslacrack -V | --version
@@ -78,22 +78,23 @@ There are more sub-commands available - to receive usage description, type::
             2. factorize the public-key(s) reported, first by searching http://factordb.com/
                and then use *msieve* or *YAFU* external programs to factorize
                any remaining non-prime ones;
-            3. use `guess-XXX` sub-cmds to reconstruct private-keys from public ones;
+            3. use `crack-XXX` sub-cmds to reconstruct private-keys from public ones;
             4. add public/private key pairs into `known_AES_key_pairs`, and then
             5. re-run `decrypt` on all infected file/directories.
 
           If no <path> given, current-directory assumed.
 
-      guess-fkey:
+      crack-fkey:
           Read public-key(s) from <file> and use the <prime-factor> integers produced by
           external factorization program (i.e. *msieve*) or found in http://factordb.com/
           to reconstruct their private-key(s), optionally according to *ECDSA* or *btc* methods
           (explained in respective options).
           When no method specified (the default), the <file> must belong to `known_file_magic`.
 
-      guess-key
-          Like the `guess-fkey`, above, but the <pub-key> is explicitly given and the method
-          must be one of *ECDSA* or *btc*.  Use the public-keys reported by `decrypt`.
+      crack-key
+          Like the `crack-fkey`, above, but the <pub-key> is explicitly given and the method
+          must be one of *ECDSA* or *btc*.  Use the public-keys reported by `file` or
+          `decrypt` suc-cmds.
 
       file:
           Print tesla-file's header fields (keys, addresses, etc), or those explicitly
@@ -105,7 +106,8 @@ There are more sub-commands available - to receive usage description, type::
                           - can recover both AES or BTC[1] private-keys;
                           - can recover keys from any file-type (no need for *magic-bytes*);
                           - yields always a single correct key.
-                        The <prime-factors> select which public-key to use from file (AES or BTC).
+                        For the `crack-fkey` sub-cmd, the <prime-factors> select which public-key
+                        to crack (AES or BTC).
       --btc <btc-addr>  Guess BTC private-keys based on the bitcoin-address and BTC[1] public-key.
                           - The <btc-addr> is typically found in the ransom-note or recovery file
                           - The <pub-key> is the BTC key reported by `decrypt` sub-cmd.
@@ -157,12 +159,12 @@ There are more sub-commands available - to receive usage description, type::
 
     Examples:
 
-       teslacrack decrypt -v tesla-file.vvv       ## Decrypt file, and if unknwon key, printed.
-       teslacrack unfactor tesla-file.vvv 1 3 5   ## Decrypt key of the file from primes 1,3,5.
-       teslacrack decrypt .  bar\cob.xlsx         ## Decrypt current-folder & a file
-       teslacrack decrypt --delete-old C:\\       ## WILL DELETE ALL `.vvv` files on disk!!!
-       teslacrack decrypt                         ## Decrypt current-folder, logging verbosely.
-       teslacrack decrypt --progress -n -v  C:\\  ## Just to check what actions will perform.
+       teslacrack decrypt -v tesla-file.vvv        ## Decrypt file, and if unknwon key, printed.
+       teslacrack crack-fkey tesla-file.vvv 1 3 5  ## Unfacrtor the AES-key of the file from primes 1,3,5.
+       teslacrack decrypt .  bar\cob.xlsx          ## Decrypt current-folder & a file
+       teslacrack decrypt --delete-old C:\\        ## WILL DELETE ALL `.vvv` files on disk!!!
+       teslacrack decrypt                          ## Decrypt current-folder, logging verbosely.
+       teslacrack decrypt --progress -n -v  C:\\   ## Just to check what actions will perform.
 
     Enjoy! ;)
 
@@ -293,7 +295,7 @@ How to decrypt your files
    encountered encrypted AES and BTC keys.
 
    If you got a single AES/BTC key-pair only, you may opt for attacking directly
-   the AES key using the plain ``guess-fkey`` sub-cmd, which is usually faster.
+   the AES key using the plain ``crack-fkey`` sub-cmd, which is usually faster.
    Otherwise, attack the BTC key and use the *TeslaDecoder* -
    read the `Break bitcoin-keys for *TeslaDecoder*`_ section, below.
 
@@ -348,7 +350,7 @@ How to decrypt your files
 6. To reconstruct the AES-key that has crypted your files, add the primes from
    previous step, separated by spaces, into this command::
 
-       teslacrack guess-fkey <crypted-file>  <factor-1>  <factor-2> ...
+       teslacrack crack-fkey <crypted-file>  <factor-1>  <factor-2> ...
 
    It will reconstruct and print any decrypted AES-keys candidates (usually just one).
 
@@ -357,7 +359,7 @@ How to decrypt your files
      AES or BTC pub-keys, which you may get them as integers from a file with this
      command:
 
-       teslacrack guess-fkey --edcsa <crypted-file>  <factor-1>  <factor-2> ...
+       teslacrack crack-fkey --edcsa <crypted-file>  <factor-1>  <factor-2> ...
 
      Which key to break gets to be deduced from the factors you provide.
 
@@ -422,9 +424,9 @@ files from all(?) versions, assuming you have the *bitcoin private-key*.
 For very old TeslaCrypt versions (i.e. file-extensions ``ECC, .EXX, or .EZZ``)
 *TeslaDecoder* could also extract this BTC private-key.  For later versions, you
 have to manually factorize the BTC public-key reported by ``decrypt`` in step 2,
-above, and feed its primes into the ``guess-XXX`` sub-cmds with the ``--btc`` option.
+above, and feed its primes into the ``crack-XXX`` sub-cmds with the ``--btc`` option.
 
-This ``guess-key`` sub-cmd requires the *Bitcoin ransom address*,
+This ``crack-key`` sub-cmd requires the *Bitcoin ransom address*,
 as reported on the "ransom note", or obtained from:
 
 - For very old v0.x.x TeslaCrypt versions, get it `from the recovery
@@ -447,13 +449,13 @@ Example:
 
 To reconstruct a BTC priv-key from a tesla-file::
 
-    > teslacrack guess-fkey <tesla-file>  ^
+    > teslacrack crack-fkey <tesla-file>  ^
          --btc 1GSswEGHysnASUwNEKNjWXCW9vRCy57qA4 ^
          2 2 3 7 11 17 19 139 2311 14278309 465056119273 250220277466967 373463829010805159059 ^
          1261349708817837740609 38505609642285116603442307097561327764453851349351841755789120180499
 
 
-To reconstruct the same BTC priv-key in 2 steps with the ``guess-key`` sub-cmd
+To reconstruct the same BTC priv-key in 2 steps with the ``crack-key`` sub-cmd
 with *base64* formatted pub-key:
 
 .. Note:: Notice that since no file is given, you have to provide
@@ -463,7 +465,7 @@ with *base64* formatted pub-key:
     > teslacrack file <tesla-file>  pub-btc -F64
     BEPD/gJGBX0GNtDKu32O6YQ35ubA/jJKI+4aT9jFHbwG2S5t5TFAsFfFGFDhDXLFos4JgYB11BLx2rdynuTWJv4=
 
-    > teslacrack guess-key --btc 1GSswEGHysnASUwNEKNjWXCW9vRCy57qA4 ^
+    > teslacrack crack-key --btc 1GSswEGHysnASUwNEKNjWXCW9vRCy57qA4 ^
          BEPD/gJGBX0GNtDKu32O6YQ35ubA/jJKI+4aT9jFHbwG2S5t5TFAsFfFGFDhDXLFos4JgYB11BLx2rdynuTWJv4=
          2 2 3 7 11 17 19 139 2311 14278309 465056119273 250220277466967 373463829010805159059 ^
          1261349708817837740609 38505609642285116603442307097561327764453851349351841755789120180499

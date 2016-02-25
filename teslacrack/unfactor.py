@@ -80,7 +80,7 @@ def _gen_product_combinations(factors):
             yield prod
 
 
-def _guess_key(primes, key_ok_predicate):
+def _crack_key(primes, key_ok_predicate):
     """Returns the 1st key satisfying the predicate, or None."""
     for key in _gen_product_combinations(primes):
         if key_ok_predicate(key):
@@ -119,7 +119,7 @@ def _is_known_file(fname, fbytes):
             return True
 
 
-def guess_aes_keys_from_file(fpath, primes):
+def crack_aes_keys_from_file(fpath, primes):
     with open(fpath, "rb") as f:
         header = Header.from_fd(f)
         data = f.read(16)
@@ -132,17 +132,17 @@ def guess_aes_keys_from_file(fpath, primes):
     return _guess_all_keys(primes, key_ok_predicate=did_AES_produced_known_file)
 
 
-def guess_btc_key_from_btc_address(btc_address, primes, public_btc=None):
+def crack_btc_key_from_btc_address(btc_address, primes, public_btc=None):
     primes = _validate_factors_product(primes, public_btc, allow_cofactor=True)
 
     def does_key_gen_my_btc_address(btc_key):
         test_addr = btckey.Key(btc_key).address(use_uncompressed=True)
         return test_addr == btc_address
 
-    return _guess_key(primes, key_ok_predicate=does_key_gen_my_btc_address)
+    return _crack_key(primes, key_ok_predicate=does_key_gen_my_btc_address)
 
 
-def guess_ecdsa_key(ecdsa_secret, key, primes):
+def crack_ecdsa_key(ecdsa_secret, key, primes):
     primes = _validate_factors_product(primes, key, allow_cofactor=True)
 
     def does_key_gen_my_ecdsa(key):
@@ -150,7 +150,7 @@ def guess_ecdsa_key(ecdsa_secret, key, primes):
                 curve=ecdsa.SECP256k1).verifying_key.to_string()
         return ecdsa_secret.startswith(gen_ecdsa)
 
-    return _guess_key(primes, key_ok_predicate=does_key_gen_my_ecdsa)
+    return _crack_key(primes, key_ok_predicate=does_key_gen_my_ecdsa)
 
 
 def _decide_which_key(primes, pub_aes, pub_btc, file):
@@ -180,7 +180,7 @@ def _decide_which_key(primes, pub_aes, pub_btc, file):
     return sorted(primes), key_name
 
 
-def guess_ecdsa_key_from_file(file, primes):
+def crack_ecdsa_key_from_file(file, primes):
     with open(file, "rb") as f:
         header = Header.from_fd(f)
     priv_aes = int(header.priv_aes_fix, 16)
@@ -195,5 +195,5 @@ def guess_ecdsa_key_from_file(file, primes):
         gen_ecdsa = bytes(gen_ecdsa.to_string())
         return pub_aes.startswith(gen_ecdsa) or pub_btc.startswith(gen_ecdsa)
 
-    key = _guess_key(primes, key_ok_predicate=does_key_gen_my_ecdsa)
+    key = _crack_key(primes, key_ok_predicate=does_key_gen_my_ecdsa)
     return (key_name, key) if key else (None, None)
