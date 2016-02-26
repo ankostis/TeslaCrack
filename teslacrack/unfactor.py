@@ -28,7 +28,7 @@ import functools as ft
 import operator as op
 
 from . import CrackException, log
-from .key import int_to_32or64bytes
+from .keyconv import int_to_32or64bytes
 from .teslafile import Header
 
 

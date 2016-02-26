@@ -14,7 +14,7 @@ import ddt
 from future.builtins import str, int, bytes  # @UnusedImport
 
 import itertools as itt
-from teslacrack import __main__ as tcm, key as tckey
+from teslacrack import __main__ as tcm, keyconv
 
 
 tcm.init_logging(level=logging.DEBUG)
@@ -57,7 +57,7 @@ class TAutonvertKey(unittest.TestCase):
     def test_unquote_str_regex(self, case):
         quoted, unquoted = case
         quoted %= unquoted
-        m = tckey._unquote_str_regex.match(quoted)
+        m = keyconv._unquote_str_regex.match(quoted)
         self.assertIsNotNone(m, quoted)
         self.assertEqual(m.group(2), unquoted)
 
@@ -68,15 +68,15 @@ class TAutonvertKey(unittest.TestCase):
     def test_unquote_str_regex2(self, case):
         quoted, unquoted = case
         quoted %= unquoted
-        self.assertEqual(tckey._unquote(quoted), quoted)
+        self.assertEqual(keyconv._unquote(quoted), quoted)
 
     @ddt.data(*list(_gen_key_variations()))
     def test_autoconv_to_bytes(self, key):
-        autokey = tckey.autoconv_to_bytes(key)
+        autokey = keyconv.autoconv_to_bytes(key)
         self.assertEqual(autokey, _key)
 
     def test_autoconv_to_bytes2(self):
         key='07e18921c536c112a14966d4eaad01f10537f77984adaae398048f12685e2870cd1968fe3317319693da16ffecf6a78edbc325dda2ee78a3f9df8eefd40299d9'
         exp_bytes= b'\x07\xe1\x89!\xc56\xc1\x12\xa1If\xd4\xea\xad\x01\xf1\x057\xf7y\x84\xad\xaa\xe3\x98\x04\x8f\x12h^(p\xcd\x19h\xfe3\x171\x96\x93\xda\x16\xff\xec\xf6\xa7\x8e\xdb\xc3%\xdd\xa2\xeex\xa3\xf9\xdf\x8e\xef\xd4\x02\x99\xd9'
-        autokey = tckey.autoconv_to_bytes(key)
+        autokey = keyconv.autoconv_to_bytes(key)
         self.assertEqual(autokey, exp_bytes)

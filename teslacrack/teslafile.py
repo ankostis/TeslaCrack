@@ -28,7 +28,7 @@ from future.builtins import str, int, bytes  # @UnusedImport
 import itertools as itt
 
 from . import CrackException
-from .key import (apply_trans_list, tesla_mul_to_bytes, b2esc, b2x, b2n,
+from .keyconv import (apply_trans_list, tesla_mul_to_bytes, b2esc, b2x, b2n,
                   b2s, xs0x, upp, i2b, n2h)
 
 

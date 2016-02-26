@@ -35,5 +35,5 @@ class CrackException(Exception):
     pass
 
 
-log = logging.getLogger('teslacrypt')
+log = logging.getLogger('teslacrack')
 
