@@ -123,7 +123,7 @@ def crack_aes_keys_from_file(fpath, primes):
     with open(fpath, "rb") as f:
         header = Header.from_fd(f)
         data = f.read(16)
-    primes = _validate_factors_product(primes, header.priv_aes_num, allow_cofactor=True)
+    primes = _validate_factors_product(primes, header.conv('priv_aes', 'num'), allow_cofactor=True)
 
     def did_AES_produced_known_file(aes_key):
         file_bytes = AES.new(int_to_32or64bytes(aes_key), AES.MODE_CBC, header.iv).decrypt(data)
@@ -183,9 +183,9 @@ def _decide_which_key(primes, pub_aes, pub_btc, file):
 def crack_ecdsa_key_from_file(file, primes):
     with open(file, "rb") as f:
         header = Header.from_fd(f)
-    priv_aes = int(header.priv_aes_fix, 16)
+    priv_aes = int(header.conv('priv_aes', 'fix'), 16)
     pub_aes = header.pub_aes
-    priv_btc = int(header.priv_btc_fix, 16)
+    priv_btc = int(header.conv('priv_btc', 'fix'), 16)
     pub_btc = header.pub_btc
     primes, key_name = _decide_which_key(primes, priv_aes, priv_btc, file)
 

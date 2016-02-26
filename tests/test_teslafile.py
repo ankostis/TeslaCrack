@@ -95,12 +95,12 @@ _sample_header = teslafile.Header( # From file: tesla_key14.jpg.vvv
 _sample_size = _sample_header.size
 _key_fields = ('priv_btc', 'priv_aes', 'pub_btc', 'pub_aes')
 
+
 def _all_prefixes(s):
     return (s[:i] for i in range(1, len(s)))
 
-_all_hconv_names = teslafile._htrans_maps().keys()
-_all_hconv_prefixes = list(itt.chain(*[_all_prefixes(k) for k in _all_hconv_names]))
-_all_fields = teslafile.Header._fields
+_all_hconv_names = teslafile.Header._htrans_maps.keys()
+_all_fields = teslafile.Header._fields  # @UndefinedVariable
 
 @ddt.ddt
 class THeader(unittest.TestCase):
@@ -109,13 +109,6 @@ class THeader(unittest.TestCase):
     def setUpClass(cls):
         cls.longMessage = True ## Print also original assertion msg on PY2.
 
-
-    @ddt.data(*itt.product(_all_hconv_prefixes, _all_fields))
-    def test_hconv_prefixmatch_works_on_attibutes(self, case):
-        hconv, fld = case
-        t = teslafile.Header(*_sample_header)
-        v = t.conv(fld, hconv)
-        self.assertEqual(getattr(t, '%s_%s' % (fld, hconv)), v, fld)
 
     @ddt.data(*itt.product(['raw', 'fix', 'bin'], _all_fields))  # @UndefinedVariable
     def test_hconv_bytes(self, case):
@@ -160,7 +153,7 @@ class THeader(unittest.TestCase):
 
     def test_hconv_hex_size(self):
         h = teslafile.Header(*_sample_header)
-        self.assertEqual(int(h.size_hex, 16), _sample_size)
+        self.assertEqual(int(h.conv('size', 'hex'), 16), _sample_size)
 
     @ddt.data(*_key_fields)
     def test_hconv_b64_length_threshold(self, fld):
@@ -185,6 +178,12 @@ class TFileSubcmd(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.longMessage = True ## Print also original assertion msg on PY2.
+
+    @ddt.data(*[(conv, pref) for conv in _all_hconv_names for pref in _all_prefixes(conv)])
+    def test_hconv_prefixmatch(self, case):
+        exp_conv, prefix = case
+        conv = teslafile.match_header_conv(prefix)
+        self.assertEqual(conv, exp_conv)
 
     @ddt.data(*_bin_fields)
     def test_singe_fields_raw(self, fld):

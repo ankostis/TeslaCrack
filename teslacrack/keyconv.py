@@ -31,7 +31,7 @@ from . import CrackException, log
 ### key-transformations ###
 ###########################
 i16 = lambda v: int(v, 16)
-i2b = lambda v: struct.pack('<1I', v)
+i2b = lambda v: bytes(struct.pack('<1I', v))
 b2n = lambda v: int(hexlify(v), 16)
 b2s = lambda v: v.decode('latin')
 b2x = lambda v: hexlify(v).decode('latin')

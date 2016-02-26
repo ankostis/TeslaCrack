@@ -20,7 +20,6 @@ from __future__ import unicode_literals
 from base64 import b64encode
 from binascii import hexlify
 from collections import defaultdict, namedtuple
-import re
 import struct
 
 from future.builtins import str, int, bytes  # @UnusedImport
@@ -32,15 +31,35 @@ from .keyconv import (apply_trans_list, tesla_mul_to_bytes, b2esc, b2x, b2n,
                   b2s, xs0x, upp, i2b, n2h)
 
 
+def _hconvs_to_htrans(hconvs_map):
+    """
+    Restructs programmer-speced ordered `hconvs_map` to `htrans_map`, where::
+
+        hconvs_map := [ ( match_field_list, trans_list ), ...]
+        htrans := { field: trans_list }
+    """
+    htrans = defaultdict(list)
+    for fields, trans in hconvs_map:
+        for fld in fields:
+            htrans[fld].extend(trans)
+    return htrans
+
+
+def _trans_per_field(trans_per_conv):
+    return {name: _hconvs_to_htrans(hconv) for name, hconv in trans_per_conv.items()}
+
+
 tesla_magics = [b'\xde\xad\xbe\xef\x04', b'\x00\x00\x00\x00\x04']
 
 _header_fmt     = b'=5s 64s 130s 65s 130s 16s 1I'
 _header_len = struct.calcsize(_header_fmt)
 assert _header_len == 414, _header_len
 
+_bin_fields = ('start', 'pub_btc', 'pub_aes', 'iv')
+_hex_fields = ('priv_btc', 'priv_aes')
 
-class Header(namedtuple('Header',
-        'start pub_btc priv_btc pub_aes priv_aes iv size')):
+
+class Header(namedtuple('Header', 'start pub_btc priv_btc pub_aes priv_aes iv size')):
     """
     Header-fields convertible to various formats.
 
@@ -58,6 +77,26 @@ class Header(namedtuple('Header',
       - 64: all base64, size(int) - most concise.
     """
     __slots__ = ()
+
+    _htrans_maps = _trans_per_field({
+        'raw': ((_hex_fields+_bin_fields,   (bytes, b2esc)),
+                (('size',),             (i2b, b2esc))),
+        'fix': ((_hex_fields,           (tesla_mul_to_bytes, hexlify, b2esc)),
+                (_bin_fields,           (b2esc,))),
+        'bin': ((_hex_fields,           (tesla_mul_to_bytes, b2esc)),
+                (_bin_fields,           (b2esc,)),
+                (('size',),             (i2b, b2esc))),
+        'xhex': ((_hex_fields,          (tesla_mul_to_bytes, b2x, upp)),
+                 (_bin_fields,          (b2x, upp)),
+                 (('size',),            (i2b, b2x, upp))),
+        'hex': ((_hex_fields,           (tesla_mul_to_bytes, b2x, xs0x)),
+                (_bin_fields,           (b2x, xs0x)),
+                (('size',),             (n2h,))),
+        'num': ((_hex_fields,           (tesla_mul_to_bytes, b2n)),
+                (_bin_fields,           (b2n,))),
+        '64':  ((_hex_fields,           (tesla_mul_to_bytes, b64encode, b2s)),
+                (_bin_fields,           (b64encode, b2s))),
+    })
 
     @classmethod
     def from_fd(cls, fd):
@@ -84,23 +123,12 @@ class Header(namedtuple('Header',
         try:
             h = cls._make(struct.unpack(_header_fmt, hbytes))
             ## To detect problems in the keys
-            h.priv_btc_fix
-            h.priv_aes_fix
+            h.conv('priv_btc', 'fix')
+            h.conv('priv_aes', 'fix')
         except Exception as ex:
             raise CrackException("Tesla-file(%r)'s keys might be corrupted: %s" %
                     (fname(), ex))
         return h
-
-    def __item__(self, k):
-        return getattr(self, k)
-
-    def __getattr__(self, a):
-        fields = _prefixes_in_word(a, self._fields)
-        if len(fields) == 1:
-            attr = fields[0]
-            m = re.match('^%s_(.+)$' % attr, a)
-            if m:
-                return self.conv(attr, m.group(1))
 
     def conv(self, fld, hconv):
         """
@@ -109,56 +137,10 @@ class Header(namedtuple('Header',
         :param str fld:
             which field to convert
         :param str hconv:
-            any non-ambiguous case-insensitive *prefix* from supported formats.
-            See class docstring.
+            any supported format, keys of :attribute:`_htrans_maps`.
         """
-        trans_map = _htrans_maps()[_prefix_matched_hconv(hconv)]
+        trans_map = self._htrans_maps[hconv]
         return apply_trans_list(trans_map[fld], getattr(self, fld))
-
-
-def _hconvs_to_htrans(hconvs_map):
-    """
-    Restructs programmer-speced ordered `hconvs_map` to `htrans_map`, where::
-
-        hconvs_map := [ ( match_field_list, trans_list ), ...]
-        htrans := { field: trans_list }
-    """
-    htrans = defaultdict(list)
-    for fields, trans in hconvs_map:
-        for fld in fields:
-            htrans[fld].extend(trans)
-    return htrans
-
-
-_bin_fields = ('start', 'pub_btc', 'pub_aes', 'iv')
-_hex_fields = ('priv_btc', 'priv_aes')
-
-#: Laxy assigned.
-_htrans_maps_lvar = None
-def _htrans_maps():
-    """See :func:`_hconvs_to_htrans()` for explanation."""
-    global _htrans_maps_lvar
-    if not _htrans_maps_lvar:
-        _htrans_maps_lvar = {name: _hconvs_to_htrans(hconv) for name, hconv in {
-            'raw': ((_hex_fields+_bin_fields,   (bytes, b2esc)),
-                    (('size',),             (i2b, b2esc))),
-            'fix': ((_hex_fields,           (tesla_mul_to_bytes, hexlify, b2esc)),
-                    (_bin_fields,           (b2esc,))),
-            'bin': ((_hex_fields,           (tesla_mul_to_bytes, b2esc)),
-                    (_bin_fields,           (b2esc,)),
-                    (('size',),             (i2b, b2esc))),
-            'xhex': ((_hex_fields,          (tesla_mul_to_bytes, b2x, upp)),
-                     (_bin_fields,          (b2x, upp)),
-                     (('size',),            (i2b, b2x, upp))),
-            'hex': ((_hex_fields,           (tesla_mul_to_bytes, b2x, xs0x)),
-                    (_bin_fields,           (b2x, xs0x)),
-                    (('size',),             (n2h,))),
-            'num': ((_hex_fields,           (tesla_mul_to_bytes, b2n)),
-                    (_bin_fields,           (b2n,))),
-            '64':  ((_hex_fields,           (tesla_mul_to_bytes, b64encode, b2s)),
-                    (_bin_fields,           (b64encode, b2s))),
-        }.items()}
-    return _htrans_maps_lvar
 
 
 def _prefixes_in_word(word, prefixlist):
@@ -175,15 +157,18 @@ def _words_with_substr(substr, wordlist):
     return [n for n in wordlist if substr and substr in n]
 
 
-def _prefix_matched_hconv(hconv, hconvs=None):
-    if hconvs is None:
-        hconvs = _htrans_maps().keys()
-    matched_hconvs = _words_with_prefix(hconv.lower(), hconvs)
-    if len(matched_hconvs) != 1:
+def match_header_conv(conv):
+    """
+    :param str conv:
+        any non-ambiguous case-insensitive *prefix* from supported formats.
+    """
+    convs = Header._htrans_maps.keys()
+    matched_convs = _words_with_prefix(conv.lower(), convs)
+    if len(matched_convs) != 1:
         raise CrackException("Bad Header-conversion(%s)!"
                 "\n  Must be a case-insensitive prefix of: %s"% (
-                        hconv, sorted(hconvs)))
-    return matched_hconvs[0]
+                        conv, sorted(convs)))
+    return matched_convs[0]
 
 
 def match_header_fields(field_substr_list):

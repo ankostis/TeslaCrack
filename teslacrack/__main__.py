@@ -214,14 +214,12 @@ def _crack_key(opts):
 
 def _show_file_headers(opts):
     file = opts['<file>']
-    hconv = opts['-F']
-
+    hconv = teslafile.match_header_conv(opts['-F'])
     fields = teslafile.match_header_fields(opts['<field>'])
-    log.info('Reading header-fields %r for tesla-file: %s', fields, file)
+    log.info('Printing header-fields %r in %r for tesla-file: %s', fields, hconv, file)
     with io.open(file, 'rb') as fd:
         h = teslafile.Header.from_fd(fd)
 
-        h
     if len(fields) == 1:
         res = h.conv(fields[0], hconv)
     else:
