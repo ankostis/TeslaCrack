@@ -130,8 +130,7 @@ def decrypt_file(opts, stats, crypted_fname):
                 if decrypted_exists and backup_ext:
                     backup_fname = decrypted_fname + backup_ext
                     opts.dry_run or shutil.move(decrypted_fname, backup_fname)
-                aes_key_bytes = opts.known_AES_key_pairs.as_bytes(aes_key)
-                print(aes_key, aes_key_bytes)
+                aes_key_bytes = opts.known_AES_key_pairs.conv(aes_mul, 'bin')
                 decryptor = AES.new(aes_key_bytes, AES.MODE_CBC, header.iv)
                 data = decryptor.decrypt(fin.read())[:header.size]
                 if not opts.dry_run:

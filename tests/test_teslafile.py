@@ -99,7 +99,7 @@ _key_fields = ('priv_btc', 'priv_aes', 'pub_btc', 'pub_aes')
 def _all_prefixes(s):
     return (s[:i] for i in range(1, len(s)))
 
-_all_hconv_names = teslafile.Header._htrans_maps.keys()
+_all_hconv_names = teslafile.Header._trans_maps.keys()
 _all_fields = teslafile.Header._fields  # @UndefinedVariable
 
 @ddt.ddt
@@ -169,6 +169,21 @@ class THeader(unittest.TestCase):
         self.assertEqual(len(h.conv(fld, 'xhex')),       len(h.conv(fld, 'bin')) * 2, fld)
         self.assertGreaterEqual(len(h.conv(fld, 'raw')), len(h.conv(fld, 'fix')), fld)
         self.assertGreater(len(h.conv(fld, 'xhex')),     len(h.conv(fld, '64')), fld)
+
+    def test_str(self):
+        h = teslafile.Header(*_sample_header)
+        s = str(h)
+        #print(s)
+        exp_str = """
+                  start: '0x0000000004'
+          btc_ecdsa_key: '0x177a5e0973ea34ffaeba8baba6f88f4ed14d3943559d7b163ddac8d4dfe9e5a892d9286dbdb56f5d8ed16685d5564f62fafd441f7eb40ec62af73e0773d76eb1'
+            btc_mul_key: '0x372ae820bbf2c3475e18f165f46772087effc7d378a3a4d10789ae7633ec09c74578993a2a7104eba577d229f935af77c647f18e113647c25ef19cc7e4ee3c4c'
+          aes_ecdsa_key: '0x0443c3fe0246057d0636d0cabb7d8ee98437e6e6c0fe324a23ee1a4fd8c51dbc06d92e6de53140b057c51850e10d72c5a2ce09818075d412f1dab7729ee4d626fe'
+            aes_mul_key: '0x9b2a14529f5cef649fd0330d15b4e59a9f60484db5d044e44f757521850bc8e1dcdf3cb770fee0dd2b6a7742b99300ed02103027b742bc862110a1765a8b4fc6'
+                     iv: '0x27510abf318d69261778972b987df69f'
+                   size: '0x6db00c'"""
+        self.assertSequenceEqual(s.split(), exp_str.split())
+
 
 _bin_fields = (f for f in _all_fields if f != 'size')
 

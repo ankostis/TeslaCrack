@@ -26,8 +26,8 @@ from future.builtins import str, int, bytes  # @UnusedImport
 
 import itertools as itt
 
-from . import CrackException
-from .keyconv import (apply_trans_list, tesla_mul_to_bytes, b2esc, b2x, b2n,
+from . import CrackException, repr_conv
+from .keyconv import (apply_trans_list, tesla_mul_to_bytes, b2x, b2n,
                   b2s, xs0x, upp, i2b, n2h)
 
 
@@ -61,10 +61,7 @@ _hex_fields = ('priv_btc', 'priv_aes')
 
 class Header(namedtuple('Header', 'start pub_btc priv_btc pub_aes priv_aes iv size')):
     """
-    Header-fields convertible to various formats.
-
-    Use either the :meth:`conv` or an attribute named ``<field-name>_<conv>``.
-    The ``<conv>`` might be any case-insensitive conversion-prefix.
+    Immutable Header-fields convertible to various formats.
 
     Available conversions:
 
@@ -78,14 +75,14 @@ class Header(namedtuple('Header', 'start pub_btc priv_btc pub_aes priv_aes iv si
     """
     __slots__ = ()
 
-    _htrans_maps = _trans_per_field({
-        'raw': ((_hex_fields+_bin_fields,   (bytes, b2esc)),
-                (('size',),             (i2b, b2esc))),
-        'fix': ((_hex_fields,           (tesla_mul_to_bytes, hexlify, b2esc)),
-                (_bin_fields,           (b2esc,))),
-        'bin': ((_hex_fields,           (tesla_mul_to_bytes, b2esc)),
-                (_bin_fields,           (b2esc,)),
-                (('size',),             (i2b, b2esc))),
+    _trans_maps = _trans_per_field({
+        'raw': ((_hex_fields+_bin_fields,   (bytes, )),
+                (('size',),             (i2b, bytes))),
+        'fix': ((_hex_fields,           (tesla_mul_to_bytes, hexlify, bytes)),
+                (_bin_fields,           (bytes,))),
+        'bin': ((_hex_fields,           (tesla_mul_to_bytes, bytes)),
+                (_bin_fields,           (bytes,)),
+                (('size',),             (i2b, bytes))),
         'xhex': ((_hex_fields,          (tesla_mul_to_bytes, b2x, upp)),
                  (_bin_fields,          (b2x, upp)),
                  (('size',),            (i2b, b2x, upp))),
@@ -98,15 +95,18 @@ class Header(namedtuple('Header', 'start pub_btc priv_btc pub_aes priv_aes iv si
                 (_bin_fields,           (b64encode, b2s))),
     })
 
+    # Controls only the ``repr()`` of this instance.
+    internal_conv = repr_conv
+
     @classmethod
     def from_fd(cls, fd):
         """
         Reads a tesla-file's header, checks its validity and converts.
 
         :param fd:
-            a file-descriptor freshly opened in binary mode on a tesla-file.
+                a file-descriptor freshly opened in binary mode on a tesla-file.
         :param str hconv:
-            what transform to apply (see :class:`Header`).
+                what transform to apply (see :class:`Header`).
         :return:
             a :data:`Header` named-tuple
         """
@@ -137,10 +137,15 @@ class Header(namedtuple('Header', 'start pub_btc priv_btc pub_aes priv_aes iv si
         :param str fld:
             which field to convert
         :param str hconv:
-            any supported format, keys of :attribute:`_htrans_maps`.
+            Any supported format, keys of :attribute:`_trans_maps`.
+            See class docstring for explanation.
         """
-        trans_map = self._htrans_maps[hconv]
+        trans_map = self._trans_maps[hconv]
         return apply_trans_list(trans_map[fld], getattr(self, fld))
+
+    def __repr__(self):
+        return '\n'.join('%10.10s: %r' % (k, self.conv(k, self.internal_conv))
+                for k in self._fields)
 
 
 def _prefixes_in_word(word, prefixlist):
@@ -162,7 +167,7 @@ def match_header_conv(conv):
     :param str conv:
         any non-ambiguous case-insensitive *prefix* from supported formats.
     """
-    convs = Header._htrans_maps.keys()
+    convs = Header._trans_maps.keys()
     matched_convs = _words_with_prefix(conv.lower(), convs)
     if len(matched_convs) != 1:
         raise CrackException("Bad Header-conversion(%s)!"

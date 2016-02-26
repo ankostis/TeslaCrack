@@ -37,3 +37,5 @@ class CrackException(Exception):
 
 log = logging.getLogger('teslacrack')
 
+#: Controls the ``repr()`` of :class:`Header` and :class:`PairedKeys` instances.
+repr_conv = 'hex'
