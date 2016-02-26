@@ -25,37 +25,37 @@ Usage:
                                 [(--fix | --overwrite) [--backup=<.ext>]]
                                 [<path>]...
   teslacrack crack-fkey     [-v] [--progress] [--ecdsa | --btc <btc-addr>]  <file>  <prime-factor>...
-  teslacrack crack-key      [-v] [--progress] (--ecdsa <ecdsa-secret> | --btc <btc-addr>)  <pub-key>  <prime-factor>...
+  teslacrack crack-key      [-v] [--progress] (--ecdsa <ecdsa-key> | --btc <btc-addr>)  <ecdsa-key>  <prime-factor>...
   teslacrack file           [-v] [ -F <hconv>] <file>  [<field>]...
   teslacrack -h | --help
   teslacrack -V | --version
 
 Sub-commands:
   decrypt:
-      Decrypt tesla-file(s) in <path> file(s)/folder(s) if their AES private-key
-      already guessed, while reporting any unknown AES & BTC public-key(s) encountered.
+      Decrypt tesla-file(s) in <path> file(s)/folder(s) if their AES key
+      already guessed, while reporting any unknown AES & BTC mul-key(s) encountered.
 
       The (rough) pattern of usage is this:
-        1. Run this cmd on some tesla-files to gather your public-AES keys;
-        2. factorize the public-key(s) reported, first by searching http://factordb.com/
+        1. Run this cmd on some tesla-files to gather your mul-AES keys;
+        2. factorize the mul-key(s) reported, first by searching http://factordb.com/
            and then use *msieve* or *YAFU* external programs to factorize
            any remaining non-prime ones;
-        3. use `crack-XXX` sub-cmds to reconstruct private-keys from public ones;
-        4. add public/private key pairs into `known_AES_key_pairs`, and then
+        3. use `crack-XXX` sub-cmds to reconstruct your cleartext keys;
+        4. add keys from above into `known_AES_key_pairs`, and then
         5. re-run `decrypt` on all infected file/directories.
 
       If no <path> given, current-directory assumed.
 
   crack-fkey:
-      Read public-key(s) from <file> and use the <prime-factor> integers produced by
+      Read mul-key(s) from <file> and use the <prime-factor> integers produced by
       external factorization program (i.e. *msieve*) or found in http://factordb.com/
-      to reconstruct their private-key(s), optionally according to *ECDSA* or *btc* methods
+      to reconstruct their key(s), optionally according to *ECDSA* or *btc* methods
       (explained in respective options).
       When no method specified (the default), the <file> must belong to `known_file_magic`.
 
   crack-key
-      Like the `crack-fkey`, above, but the <pub-key> is explicitly given and the method
-      must be one of *ECDSA* or *btc*.  Use the public-keys reported by `file` or
+      Like the `crack-fkey`, above, but the <ecdsa-key> is explicitly given and the method
+      must be one of *ECDSA* or *btc*.  Use the ecdsa-keys reported by `file` or
       `decrypt` suc-cmds.
 
   file:
@@ -65,20 +65,19 @@ Sub-commands:
 
 Options:
   --ecdsa           A slower key-reconstructor based on Elliptic-Curve-Cryptography which:
-                      - can recover both AES or BTC[1] private-keys;
+                      - can recover both AES or BTC[1] keys;
                       - can recover keys from any file-type (no need for *magic-bytes*);
                       - yields always a single correct key.
-                    For the `crack-fkey` sub-cmd, the <prime-factors> select which public-key
+                    For the `crack-fkey` sub-cmd, the <prime-factors> select which key
                     to crack (AES or BTC).
-  --btc <btc-addr>  Guess BTC private-keys based on the bitcoin-address and BTC[1] public-key.
+  --btc <btc-addr>  Guess BTC key based on the bitcoin-address and BTC[1] ecdsa-key.
                       - The <btc-addr> is typically found in the ransom-note or recovery file
-                      - The <pub-key> is the BTC key reported by `decrypt` sub-cmd.
+                      - The <ecdsa-key> is the `btc-ecdsa-key` reported by `file` sub-cmd.
   -F <hconv>        Specify print-out format for tesla-header fields (keys, addresses, etc),
                     where <hconv> is any non-ambiguous case-insensitive *prefix* from:
-
-                      - raw: all bytes as-is - no conversion (i.e. hex private-keys NOT strip & l-rotate).
-                      - fix: like 'raw', but priv-keys fixed and size:int.
-                      - bin: all bytes (even private-keys), priv-keys: fixed.
+                      - raw: all bytes as-is - no conversion (i.e. hex mul-keys NOT strip & l-rotate).
+                      - fix: like 'raw', but mul-keys fixed and size:int; fail if mul-keys invalid.
+                      - bin: all bytes (even mul-keys), mul-keys: fixed.
                       - xhex: all string-HEX, size:bytes-hexed.
                       - hex: all string-hex prefixed with '0x', size: int-hexed.
                       - num: all natural numbers, size: int.
@@ -190,17 +189,17 @@ def _crack_file_key(opts):
 
 def _crack_key(opts):
     primes = unfactor.validate_primes(opts['<prime-factor>'])
-    pubkey = keyconv.autoconv_to_bytes(opts['<pub-key>'])
+    ecdsa_key = keyconv.autoconv_to_bytes(opts['<ecdsa-key>'])
 
     if opts['--btc']:
         key_name = 'BTC'
         key = unfactor.crack_btc_key_from_btc_address(
-                opts['--btc'], primes, pubkey)
+                opts['--btc'], primes, ecdsa_key)
         msg = key and "Found BTC-key: 0x%0.64X" % key
     elif opts['--ecdsa']:
         key_name = '<AES_or_BTC>'
         ecdsa_secret = keyconv.autoconv_to_bytes(opts['--ecdsa'])
-        key = unfactor.crack_ecdsa_key(ecdsa_secret, pubkey, primes)
+        key = unfactor.crack_ecdsa_key(ecdsa_secret, ecdsa_key, primes)
         msg = key and "Found ECDSA-key: 0x%0.64X" % key
     else:
         msg = "main() miss-matched *docopt* mutual-exclusive opts (--ecdsa|--btc)! \n  %s"
@@ -223,7 +222,7 @@ def _show_file_headers(opts):
     if len(fields) == 1:
         res = h.conv(fields[0], hconv)
     else:
-        res = '\n'.join('%10.10s: %r' % (k, h.conv(k, hconv))
+        res = '\n'.join('%15.15s: %r' % (k, h.conv(k, hconv))
                 for k in h._fields if k in fields)
     return res
 

@@ -55,19 +55,20 @@ _header_fmt     = b'=5s 64s 130s 65s 130s 16s 1I'
 _header_len = struct.calcsize(_header_fmt)
 assert _header_len == 414, _header_len
 
-_bin_fields = ('start', 'pub_btc', 'pub_aes', 'iv')
-_hex_fields = ('priv_btc', 'priv_aes')
+_bin_fields = ('start', 'btc_ecdsa_key', 'aes_ecdsa_key', 'iv')
+_hex_fields = ('btc_mul_key', 'aes_mul_key')
 
 
-class Header(namedtuple('Header', 'start pub_btc priv_btc pub_aes priv_aes iv size')):
+class Header(namedtuple('Header',
+        'start  btc_ecdsa_key  btc_mul_key  aes_ecdsa_key  aes_mul_key  iv  size')):
     """
     Immutable Header-fields convertible to various formats.
 
     Available conversions:
 
-      - raw: all bytes as-is - no conversion (i.e. hex private-keys NOT strip & l-rotate).
-      - fix: like 'raw', but priv-keys fixed and size:int; fail if priv-keys invalid.
-      - bin: all bytes (even private-keys), priv-keys: fixed.
+      - raw: all bytes as-is - no conversion (i.e. hex mul-keys NOT strip & l-rotate).
+      - fix: like 'raw', but mul-keys fixed and size:int; fail if mul-keys invalid.
+      - bin: all bytes (even mul-keys), mul-keys: fixed.
       - xhex: all string-HEX, size:bytes-hexed.
       - hex: all string-hex prefixed with '0x', size: int-hexed.
       - num: all natural numbers, size: int.
@@ -123,8 +124,8 @@ class Header(namedtuple('Header', 'start pub_btc priv_btc pub_aes priv_aes iv si
         try:
             h = cls._make(struct.unpack(_header_fmt, hbytes))
             ## To detect problems in the keys
-            h.conv('priv_btc', 'fix')
-            h.conv('priv_aes', 'fix')
+            h.conv('btc_mul_key', 'fix')
+            h.conv('aes_mul_key', 'fix')
         except Exception as ex:
             raise CrackException("Tesla-file(%r)'s keys might be corrupted: %s" %
                     (fname(), ex))
@@ -144,7 +145,7 @@ class Header(namedtuple('Header', 'start pub_btc priv_btc pub_aes priv_aes iv si
         return apply_trans_list(trans_map[fld], getattr(self, fld))
 
     def __repr__(self):
-        return '\n'.join('%10.10s: %r' % (k, self.conv(k, self.internal_conv))
+        return '\n'.join('%15.15s: %r' % (k, self.conv(k, self.internal_conv))
                 for k in self._fields)
 
 
@@ -182,12 +183,12 @@ def match_header_fields(field_substr_list):
     if not field_substr_list:
         fields_list = all_fields
     else:
-        not_matched = [not _words_with_prefix(f, all_fields) for f in field_substr_list]
+        not_matched = [not _words_with_substr(f, all_fields) for f in field_substr_list]
         if any(not_matched):
             raise CrackException(
                     "Invalid header-field(s): %r! "
                     "\n  Must be a case-insensitive subs-string of: %s" %
                     ([f for f, m in zip(field_substr_list, not_matched) if m], all_fields))
-        fields_list = [_words_with_prefix(f, all_fields) for f in field_substr_list]
+        fields_list = [_words_with_substr(f, all_fields) for f in field_substr_list]
         fields_list = tuple(set(itt.chain(*fields_list)))
     return fields_list

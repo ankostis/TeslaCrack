@@ -105,13 +105,11 @@ def decrypt_file(opts, stats, crypted_fname):
                 stats.badheader_nfiles += 1
                 return
 
-            aes_mul = header.conv('priv_aes', 'fix')
-            try:
-                aes_key = opts.known_AES_key_pairs[aes_mul]
-            except KeyError:
+            aes_mul = header.conv('aes_mul_key', 'fix')
+            if aes_mul not in opts.known_AES_key_pairs:
                 if aes_mul not in unknown_keys:
                     unknown_keys[aes_mul] = crypted_fname
-                btc_mul = header.conv('priv_btc', 'fix')
+                btc_mul = header.conv('btc_mul_key', 'fix')
                 if btc_mul not in unknown_btkeys:
                     unknown_btkeys[btc_mul] = crypted_fname
                 log.warn("Unknown key: %s \n  in file: %s",
