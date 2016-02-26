@@ -18,7 +18,7 @@ of the **TeslaCrypt ransomware** (variously known as "v8" or "v2.2.0").
 
 These versions can be recognized from the extensions ``.vvv, .ccc,  .zzz, .aaa, .abc``
 added to the names of you original files, and/or the filenames of the ransom notes
-being ``Howto_RESTORE_FILES.txt``.
+being ``Howto_RESTORE_FILES.txt`` (see `TeslaCrypt versions`_, at the bottom).
 The tool should may help also ancient versions by reconstructing the Bitcoin private-key,
 which is utilized by *tesladecrypt* or *TeslaDecoder* external programs
 
@@ -50,7 +50,7 @@ The main entry-point of the tool is the ``teslacrack`` console-command::
 
 .. Tip::
     To open a ``cmd.exe`` console, press ``[WinKey + R]`` and type ``cmd + [Enter]``
-    When issuing commands describe here, skip the ``>`` char or the ``##`` lines
+    When issuing commands describe here, skip the ``>`` char or the ``##`` lines.
 
 
 There are more sub-commands available - to receive their usage description, type::
@@ -173,7 +173,7 @@ Step-by-step instructions are given in the `How to decrypt your files`_ section.
 
 How it works?
 -------------
-We recapitulate `how TeslaCrypt ransomware works and explain the weakness
+We recapitulate `how TeslaCrypt ransomware works to explain the weakness
 <https://securelist.com/blog/research/71371/teslacrypt-2-0-disguised-as-cryptowall/>`_
 that is relevant for this cracking tool:
 
@@ -187,10 +187,10 @@ that is relevant for this cracking tool:
 
    - ``aes-ecdh`` field: a proper ecdh ciphetext of your AES-key;
    - ``aes-mul`` field: another ciphetext which is just a "big" (but not big enough!)
-     multiplicative product of your AES key (but not big enough!).
+     multiplicative product of your AES key.
 
-- It uses the same method to generate and store the ``btc-ecdh`` & ``btc-mul``
-  fields into teslafile headers.
+- It uses the same assymetric method to generate and encrypt your ``btc-ecdh``
+  & ``btc-mul`` fields into teslafile headers.
 - Multiple AES-keys are generated if you interrupt the ransomware while it encrypts
   your files (i.e. reboot).
 
@@ -282,13 +282,15 @@ How to decrypt your files
 =========================
 
 1. Check that the extension of your crypted files are one of the known ones,
-   ``.vvv, .ccc, .zzz, .aaa, .abc``; if not, edit ``teslacrack/decrypt.py`` to
-   append it into ``tesla_extensions`` string-list.
+   ``.vvv, .ccc, .zzz, .aaa, .abc``; if your extension is missing, edit
+   ``teslacrack/decrypt.py`` to append it into ``tesla_extensions`` string-list.
 
    .. Note::
         The extensions ``.ttt, .xxx, .micro`` and ``.mp3``(!) have been
         reported for the new variant of TeslaCrypt (3.0+), and this tool cannot
         decrypt them, anyway.
+
+        Read `TeslaCrypt versions`_ at the bottom.
 
 2. Count the number of different AES keys that the ransomware has encrypted
    your files with - the answer to this question will tell you which method
@@ -477,6 +479,137 @@ with *base64* formatted pub-key:
          BEPD/gJGBX0GNtDKu32O6YQ35ubA/jJKI+4aT9jFHbwG2S5t5TFAsFfFGFDhDXLFos4JgYB11BLx2rdynuTWJv4=
          2 2 3 7 11 17 19 139 2311 14278309 465056119273 250220277466967 373463829010805159059 ^
          1261349708817837740609 38505609642285116603442307097561327764453851349351841755789120180499
+
+
+TeslaCrypt versions
+===================
+Infos copied from TeslaDecoder, thanks ;-)
+
+Correspondence of file-extensions to TeslaCrypt/AlphaCrypt versions
+-------------------------------------------------------------------
+::
+
+    .ecc:               0.2.5 - 0.3.6b
+    .ezz:               0.3.7 - 0.3.7b
+    .exx:               0.4.0 - 0.4.1a
+    .xyz:               1.0.0, 1.0.1
+    .zzz:               2.0.0 - 2.0.4a
+    .aaa:               2.0.4b - 2.0.5a
+    .abc:               2.0.5a, 2.0.5b, 2.1.0, and probably as 2.1.1 test-version,
+                        because they went back to version 2.1.0)
+    .ccc:               2.1.0a, 2.1.0b, 2.1.0c, 2.1.0d, 2.2.0
+    .vvv:               2.2.0
+    .xxx|.ttt|.micro:   3.0.0
+    .micro|.mp3:        3.0.0a
+
+
+Version 1:
+----------
+:File extension:                ``.ecc``
+:Data-file on disk:             ``%appdata%\key.dat`` (648 bytes)
+:Data in registry:              not used
+:Location of log file:          ``%appdata%\log.html``
+:Data file protected:           No
+:Decryption key offset:         0x177
+:Partial key offset:            0x136
+
+If decryption key was zeroed out, but partial key was found in ``key.dat``,
+TeslaDecoder can recover original decryption key. This process can take
+several hours on slow computers. Encrypted files are not paired with data file.
+Decryption key can be also obtained from Tesla's request that was sent to server.
+
+
+Version 2:
+----------
+:File extension:                ``.ecc``
+:Data-file on disk:             ``%appdata%\key.dat`` (656 bytes
+:Data in registry:              not used
+:Location of log file:          ``%appdata%\log.html``
+:Data file protected:           No
+:Decryption key offset:         0x177
+:Partial key offset:            0x136
+
+If decryption key was zeroed out, but partial key was found in ``key.dat``,
+Tesladecoder can recover original decryption key. This process can take
+several hours on slow computers. Encrypted files are not paired with data file.
+Decryption key can be also obtained from Tesla's request that was sent to server.
+
+
+Version 3:
+----------
+:File extension:                ``.ecc | .ezz``
+:Data-file on disk:             ``%appdata%\key.dat`` (752 bytes)
+:Data in registry:              ``[HKCU\Software\Microsoft\Windows\CurrentVersion\SET]`` (752 bytes)
+:Location of log file:          ``%appdata%\log.html``
+:Data file protected:           No
+:Decryption key offset:         0x1DB
+
+If decryption key was zeroed out, the decryption key can be recovered
+using prime factorization or using private key of TeslaCrypt's authors.
+Encrypted files are not paired with data file.
+Decryption key can be also obtained from Tesla's request that was sent to server.
+Decryption key can be recovered using prime factorization.
+
+
+Version 4:
+----------
+:File extension:                ``.ezz | .exx``
+:Data-file on disk:             ``%localappdata%\storage.bin`` (752 bytes)
+:Data in registry:              ``[HKCU\Software\Microsoft\Windows\CurrentVersion\Settings\storage]`` (752 bytes)
+:Location of log file:          ``%localappdata%\log.html``
+:Data file protected:           AES 256 can be used
+:Decryption key offset:         between 0x19A and 0x2C0
+
+If decryption key was zeroed out, the decryption key can be recovered
+using prime factorization or using private key of TeslaCrypt's authors.
+Encrypted ``.exx`` files are paired with data file.
+Decryption key can be also obtained from Tesla's request that was sent to server.
+Decryption key can be recovered using prime factorization.
+
+
+Version 5/5+:
+-------------
+:File extension:                ``.xyz | .zzz | .aaa | .abc | .ccc | .vvv``
+:Data-file on disk:             not used
+:Data in registry:              ``[HKCU\Software\%random%]``
+                                (data stored here cannot be used for decryption
+                                without Tesla's private key)
+:Location of log file:          not used
+:Data file protected:           N/A
+:Decryption key offset:         N/A
+
+This version doesn't use any data files and decryption key is not
+stored on computer. Decryption key can be obtained from Tesla's request that
+was sent to server (but not possible since TeslaCrypt v2.1.0).
+Decryption key can be recovered using prime factorization.
+
+
+Version 6: (v2.1.1)
+----------
+:File extension:                original
+:Data-file on disk:             not used
+:Data in registry:              not used
+:Location of log file:          not used
+:Data file protected:           N/A
+:Decryption key offset:         N/A
+
+This version doesn't use any data files and decryption key is not stored on computer.
+Decryption key can be recovered using prime factorization.
+
+
+Version 7:
+----------
+:File extension:                ``.xxx | .ttt | .micro | .mp3``
+:Data-file on disk:             not used
+:Data in registry:              ``[HKCU\Software\%IDhex%]``
+                                (data stored here cannot be used for decryption
+                                without Tesla's private key or RandomPrivateKey1)
+:Location of log file:          not used
+:Data file protected:           N/A
+:Decryption key offset:         N/A
+
+This version doesn't use any data files and decryption key is not stored on computer.
+There is not any know way to recover decryption key (as of Feb-2016).
 
 
 
