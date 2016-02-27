@@ -17,7 +17,7 @@
 # You should have received a copy of the GNU General Public License
 # along with TeslaCrack; if not, write to the Free Software Foundation,
 # Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
-from __future__ import unicode_literals
+from __future__ import print_function, unicode_literals, division
 
 from Crypto.Cipher import AES  # @UnresolvedImport
 import ecdsa

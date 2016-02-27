@@ -21,7 +21,7 @@
 Decrypts TeslaCrypt-ed files.
 """
 
-from __future__ import unicode_literals
+from __future__ import print_function, unicode_literals, division
 
 import argparse
 import os

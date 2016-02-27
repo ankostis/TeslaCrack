@@ -15,7 +15,7 @@
 # along with this program; if not, write to the Free Software Foundation,
 # Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
 """Parse keys from tesla-files headers, impl `file` sub-cmd."""
-from __future__ import unicode_literals
+from __future__ import print_function, unicode_literals, division
 
 from base64 import b64encode
 from binascii import hexlify
