@@ -25,7 +25,7 @@ Usage:
                                 [(--fix | --overwrite) [--backup=<.ext>]]
                                 [<path>]...
   teslacrack crack-fkey     [-v] [--progress] [--ecdsa | --btc <btc-addr>]  <file>  <prime-factor>...
-  teslacrack crack-key      [-v] [--progress] (--ecdsa <ecdsa-key> | --btc <btc-addr>)  <ecdsa-key>  <prime-factor>...
+  teslacrack crack-key      [-v] [--progress] (--ecdsa <pub-key> | --btc <btc-addr>)  <mul-key>  <prime-factor>...
   teslacrack file           [-v] [ -F <hconv>] <file>  [<field>]...
   teslacrack -h | --help
   teslacrack -V | --version
@@ -34,7 +34,6 @@ Sub-commands:
   decrypt:
       Decrypt tesla-file(s) in <path> file(s)/folder(s) if their AES key
       already guessed, while reporting any unknown AES & BTC mul-key(s) encountered.
-
       The (rough) pattern of usage is this:
         1. Run this cmd on some tesla-files to gather your mul-AES keys;
         2. factorize the mul-key(s) reported, first by searching http://factordb.com/
@@ -43,21 +42,17 @@ Sub-commands:
         3. use `crack-XXX` sub-cmds to reconstruct your cleartext keys;
         4. add keys from above into `known_AES_key_pairs`, and then
         5. re-run `decrypt` on all infected file/directories.
-
       If no <path> given, current-directory assumed.
-
   crack-fkey:
       Read mul-key(s) from <file> and use the <prime-factor> integers produced by
       external factorization program (i.e. *msieve*) or found in http://factordb.com/
       to reconstruct their key(s), optionally according to *ECDSA* or *BTC* methods
       (explained in respective options).
       When no method specified (the default), the <file> must belong to `known_file_magic`.
-
-  crack-key
-      Like the `crack-fkey`, above, but the <ecdsa-key> is explicitly given and the method
-      must be one of *ECDSA* or *BTC*.  Use the ecdsa-keys reported by `file` or
-      `decrypt` suc-cmds.
-
+  crack-key:
+      Like the `crack-fkey`, above, but the <mul-key> is explicitly given and
+      the method must be one of *ECDSA* or *BTC*.  Use the `file` or `decrypt` sub-cmds
+      to print the <mul-key>; factorize this to get all <prime-factor>.
   file:
       Print tesla-file's header fields (keys, addresses, etc), or those explicitly
       specified, converted by -F <hconv> option.  Each <field> may be a case-insenstive
@@ -71,8 +66,7 @@ Options:
                     For the `crack-fkey` sub-cmd, the <prime-factors> select which key
                     to crack (AES or BTC).
   --btc <btc-addr>  Guess BTC key based on the bitcoin-address and BTC[1] ecdsa-key.
-                      - The <btc-addr> is typically found in the ransom-note or recovery file
-                      - The <ecdsa-key> in the `crack-key` is the `btc-ecdsa-key` reported by `file` sub-cmd.
+                    The <btc-addr> is typically found in the ransom-note or recovery file
   -F <hconv>        Specify print-out format for tesla-header fields (keys, addresses, etc),
                     where <hconv> is any non-ambiguous case-insensitive *prefix* from:
                       - raw: all bytes as-is - no conversion (i.e. hex mul-keys NOT strip & l-rotate).
@@ -189,17 +183,17 @@ def _crack_file_key(opts):
 
 def _crack_key(opts):
     primes = unfactor.validate_primes(opts['<prime-factor>'])
-    ecdsa_key = keyconv.autoconv_to_bytes(opts['<ecdsa-key>'])
+    mul_key = keyconv.autoconv_to_bytes(opts['<mul-key>'])
 
     if opts['--btc']:
         key_name = 'BTC'
         key = unfactor.crack_btc_key_from_btc_address(
-                opts['--btc'], primes, ecdsa_key)
+                opts['--btc'], primes, mul_key)
         msg = key and "Found BTC-key: 0x%0.64X" % key
     elif opts['--ecdsa']:
         key_name = '<AES_or_BTC>'
-        ecdsa_secret = keyconv.autoconv_to_bytes(opts['--ecdsa'])
-        key = unfactor.crack_ecdsa_key(ecdsa_secret, ecdsa_key, primes)
+        ecdsa_pub = keyconv.autoconv_to_bytes(opts['--ecdsa'])
+        key = unfactor.crack_ecdsa_key(ecdsa_pub, mul_key, primes)
         msg = key and "Found ECDSA-key: 0x%0.64X" % key
     else:
         msg = "main() miss-matched *docopt* mutual-exclusive opts (--ecdsa|--btc)! \n  %s"

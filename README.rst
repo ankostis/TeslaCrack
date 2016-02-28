@@ -14,13 +14,13 @@ TeslaCrack - decrypt files crypted by TeslaCrypt ransomware
 :License:     GNU General Public License v3 (GPLv3)
 
 This is a tool for decrypting files that were encrypted with the versions < 3.0
-of the **TeslaCrypt ransomware** (variously known as "v8" or "v2.2.0").
+of the **TeslaCrypt ransomware** (see `TeslaCrypt versions`_, at the bottom).
 
 These versions can be recognized from the extensions ``.vvv, .ccc,  .zzz, .aaa, .abc``
 added to the names of you original files, and/or the filenames of the ransom notes
-being ``Howto_RESTORE_FILES.txt`` (see `TeslaCrypt versions`_, at the bottom).
+being ``Howto_RESTORE_FILES.txt``.
 The tool should may help also ancient versions by reconstructing the Bitcoin private-key,
-which is utilized by *tesladecrypt* or *TeslaDecoder* external programs
+which is utilized by |TeslaDecrypt|_ or |TeslaDecoder|_ external programs.
 
 
 .. contents:: Table of Contents
@@ -49,6 +49,7 @@ The main entry-point of the tool is the ``teslacrack`` console-command::
     > teslacrack decrypt --progress D:\
 
 .. Tip::
+
     To open a ``cmd.exe`` console, press ``[WinKey + R]`` and type ``cmd + [Enter]``
     When issuing commands describe here, skip the ``>`` char or the ``##`` lines.
 
@@ -63,7 +64,7 @@ There are more sub-commands available - to receive their usage description, type
                                     [(--fix | --overwrite) [--backup=<.ext>]]
                                     [<path>]...
       teslacrack crack-fkey     [-v] [--progress] [--ecdsa | --btc <btc-addr>]  <file>  <prime-factor>...
-      teslacrack crack-key      [-v] [--progress] (--ecdsa <ecdsa-key> | --btc <btc-addr>)  <ecdsa-key>  <prime-factor>...
+      teslacrack crack-key      [-v] [--progress] (--ecdsa <pub-key> | --btc <btc-addr>)  <mul-key>  <prime-factor>...
       teslacrack file           [-v] [ -F <hconv>] <file>  [<field>]...
       teslacrack -h | --help
       teslacrack -V | --version
@@ -81,21 +82,17 @@ There are more sub-commands available - to receive their usage description, type
             3. use `crack-XXX` sub-cmds to reconstruct your cleartext keys;
             4. add keys from above into `known_AES_key_pairs`, and then
             5. re-run `decrypt` on all infected file/directories.
-
           If no <path> given, current-directory assumed.
-
       crack-fkey:
           Read mul-key(s) from <file> and use the <prime-factor> integers produced by
           external factorization program (i.e. *msieve*) or found in http://factordb.com/
           to reconstruct their key(s), optionally according to *ECDSA* or *BTC* methods
           (explained in respective options).
           When no method specified (the default), the <file> must belong to `known_file_magic`.
-
-      crack-key
-          Like the `crack-fkey`, above, but the <ecdsa-key> is explicitly given and the method
-          must be one of *ECDSA* or *BTC*.  Use the ecdsa-keys reported by `file` or
-          `decrypt` suc-cmds.
-
+      crack-key:
+          Like the `crack-fkey`, above, but the <mul-key> is explicitly given and
+          the method must be one of *ECDSA* or *BTC*.  Use the `file` or `decrypt` sub-cmds
+          to print the <mul-key>; factorize this to get all <prime-factor>.
       file:
           Print tesla-file's header fields (keys, addresses, etc), or those explicitly
           specified, converted by -F <hconv> option.  Each <field> may be a case-insenstive
@@ -109,8 +106,7 @@ There are more sub-commands available - to receive their usage description, type
                         For the `crack-fkey` sub-cmd, the <prime-factors> select which key
                         to crack (AES or BTC).
       --btc <btc-addr>  Guess BTC key based on the bitcoin-address and BTC[1] ecdsa-key.
-                          - The <btc-addr> is typically found in the ransom-note or recovery file
-                          - The <ecdsa-key> in the `crack-key` is the `btc-ecdsa-key` reported by `file` sub-cmd.
+                        The <btc-addr> is typically found in the ransom-note or recovery file
       -F <hconv>        Specify print-out format for tesla-header fields (keys, addresses, etc),
                         where <hconv> is any non-ambiguous case-insensitive *prefix* from:
                           - raw: all bytes as-is - no conversion (i.e. hex mul-keys NOT strip & l-rotate).
@@ -253,6 +249,7 @@ Install TeslaCrack
         pip install -e <sources-folder>
 
    .. Warning::
+
         If you get an error like ``'pip' is not recognized as an internal or external command ...``
         then you may execute the following Python-2 code and re-run the commands above::
 
@@ -286,6 +283,7 @@ How to decrypt your files
    ``teslacrack/decrypt.py`` to append it into ``tesla_extensions`` string-list.
 
    .. Note::
+
         The extensions ``.ttt, .xxx, .micro`` and ``.mp3``(!) have been
         reported for the new variant of TeslaCrypt (3.0+), and this tool cannot
         decrypt them, anyway.
@@ -306,18 +304,19 @@ How to decrypt your files
 
    If you got a single AES/BTC key-pair only, you may opt for attacking directly
    the AES key using the plain ``crack-fkey`` sub-cmd, which is usually faster.
-   Otherwise, attack the BTC key and use the *TeslaDecoder* -
-   read the `Break bitcoin-keys for *TeslaDecoder*`_ section, below.
+   Otherwise, attack the BTC key and use the |TeslaDecoder|_ - read the
+   `Break bitcoin-keys for *TeslaDecoder* section, below.
 
 3. Assuming the previous step returned a single AES/BTC key-pair only, you have
    to choose a file with known magic-bytes in its header:
 
-     - *pdf* & *word-doc* files,
-     - images and sounds (*jpg, png, gif, mp3*), and
-     - archive formats: *gzip, bz2, 7z, rar* and of course *zip*, which includes
-       all LibreOffice and newer Microsoft *docs/xlsx* & *ODF* documents.
+   - *pdf* & *word-doc* files,
+   - images and sounds (*jpg, png, gif, mp3*), and
+   - archive formats: *gzip, bz2, 7z, rar* and of course *zip*, which includes
+     all LibreOffice and newer Microsoft *docs/xlsx* & *ODF* documents.
 
    .. Tip::
+
         To view or extend the supported file-types, edit ``teslacrack/unfactor.py``
         and append a new mapping into ``known_file_magics`` dictionary.
         Note that in *python-3*, bytes are given like that: ``b'\xff\xd8'``.
@@ -365,7 +364,7 @@ How to decrypt your files
    It will reconstruct and print any decrypted AES-keys candidates (usually just one).
 
    - Alternatively you may use ``--ecdsa`` option to break either AES or
-     BTC key for the *TeslaDecoder* tool (see section below).  This option requires
+     BTC key for the |TeslaDecoder|_ tool (see section below).  This option requires
      AES or BTC pub-keys, which you may get them as integers from a file with this
      command:
 
@@ -429,8 +428,8 @@ How to decrypt your files
 Break bitcoin-keys for *TeslaDecoder*
 -------------------------------------
 
-The `TeslaDecoder <https://www.google.com/search?q=TeslaDecoder>`_ can decrypt
-files from all(?) versions, assuming you have the *bitcoin private-key*.
+The |TeslaDecoder|_ can decrypt files from all(?) versions, assuming you
+have the *bitcoin private-key*.
 For very old TeslaCrypt versions (i.e. file-extensions ``ECC, .EXX, or .EZZ``)
 *TeslaDecoder* could also extract this BTC private-key.  For later versions, you
 have to manually factorize the BTC public-key reported by ``decrypt`` in step 2,
@@ -440,13 +439,14 @@ This ``crack-key`` sub-cmd requires the *Bitcoin ransom address*,
 as reported on the "ransom note", or obtained from:
 
 - For very old v0.x.x TeslaCrypt versions, get it `from the recovery
- '.dat. file <http://www.bleepingcomputer.com/virus-removal/teslacrypt-alphacrypt-ransomware-information#versions>`_,
+  '.dat. file <http://www.bleepingcomputer.com/virus-removal/teslacrypt-alphacrypt-ransomware-information#versions>`_,
   found in the affected machine's ``%AppData%`` folder; the Bitcoin-address is
   the first line.
 - For v2 infections, get it `from the registry
   <https://securelist.com/blog/research/71371/teslacrypt-2-0-disguised-as-cryptowall/#key-data-saved-in-the-system>`_.
 
 .. Note::
+
    The ``teslacrack decrypt`` can't decode the files encryoted with very old
    TeslaCrypt versions, so you must perform the actual decryption with
    *TeslaDecoder*.
@@ -454,6 +454,7 @@ as reported on the "ransom note", or obtained from:
 Example:
 ~~~~~~~~
 .. Hint::
+
     The ``^`` char at the end of each line is the line-continuation characters
     on ``cmd.exe``/DOS.  The respective char in Linux is ```\``.
 
@@ -466,11 +467,7 @@ To reconstruct a BTC priv-key from a tesla-file::
 
 
 To reconstruct the same BTC priv-key in 2 steps with the ``crack-key`` sub-cmd
-with *base64* formatted pub-key:
-
-.. Note:: Notice that since no file is given, you have to provide
-    the BTC pub-key before the prime-factors.
-::
+with *base64* formatted pub-key::
 
     > teslacrack file <tesla-file>  pub-btc -F64
     BEPD/gJGBX0GNtDKu32O6YQ35ubA/jJKI+4aT9jFHbwG2S5t5TFAsFfFGFDhDXLFos4JgYB11BLx2rdynuTWJv4=
@@ -479,6 +476,10 @@ with *base64* formatted pub-key:
          BEPD/gJGBX0GNtDKu32O6YQ35ubA/jJKI+4aT9jFHbwG2S5t5TFAsFfFGFDhDXLFos4JgYB11BLx2rdynuTWJv4=
          2 2 3 7 11 17 19 139 2311 14278309 465056119273 250220277466967 373463829010805159059 ^
          1261349708817837740609 38505609642285116603442307097561327764453851349351841755789120180499
+
+.. Note::
+
+    Notice that since no file is given, you have to provide the BTC pub-key before the prime-factors.
 
 
 TeslaCrypt versions
@@ -623,6 +624,11 @@ The same day this happened, Kaspersky released this article: https://blog.kasper
 
 |flattr-donate| |btc-donate|
 
+.. |TeslaDecrypt| replace:: *TeslaDecrypt*
+.. _TeslaDecrypt: http://www.bleepingcomputer.com/forums/t/574560/ciscos-talos-group-releases-decryptor-for-teslacrypt/
+
+.. |TeslaDecoder| replace:: *TeslaDecoder*
+.. _TeslaDecoder: http://www.bleepingcomputer.com/forums/t/576600/tesladecoder-released-to-decrypt-exx-ezz-ecc-files-encrypted-by-teslacrypt/
 
 .. |python-ver| image:: https://img.shields.io/badge/python-py27%2Cpy34%2B-blue.svg
     :alt: Supported Python versions
