@@ -30,14 +30,15 @@ from . import CrackException, log, repr_conv
 ###########################
 ### key-transformations ###
 ###########################
-i16 = lambda v: int(v, 16)
-i2b = lambda v: bytes(struct.pack('<1I', v))
-b2n = lambda v: int(hexlify(v), 16)
-b2s = lambda v: v.decode('latin')
-b2x = lambda v: hexlify(v).decode('latin')
-upp = lambda v: v.upper()
-xs0x = lambda v: '0x%s' % v.lower()
-n2h = lambda v: '0x%x' % v
+def i16(v): return int(v, 16)
+def i2b(v): return bytes(struct.pack('<1I', v))
+def b2n(v): return int(hexlify(v), 16)
+def b2s(v): return v.decode('latin')
+def b2x(v): return hexlify(v).decode('latin')
+def upp(v): return v.upper()
+def xs0x(v): return '0x%s' % v.lower()
+def n2h(v): return '0x%x' % v
+
 
 def _lalign_byte_key(byte_key):
     while byte_key[0] == 0:
@@ -56,6 +57,11 @@ def int_to_32or64bytes(int_key):
     nbytes = nbits // 8 + bool(nbits % 8)
     hex_frmt = '%%0%ix' % (64 if nbytes <= 32 else 128)
     return _lalign_byte_key(unhexlify(hex_frmt % int_key))
+
+
+def printable_key(v):
+    """In PY2 bytes printed natively and grables console."""
+    return repr(bytes(v)) if isinstance(v, bytes) else v
 
 
 def str_or_byte(key):

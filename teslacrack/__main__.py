@@ -215,7 +215,7 @@ def _show_file_headers(opts):
     if len(fields) == 1:
         res = h.conv(fields[0], hconv)
     else:
-        res = '\n'.join('%15.15s: %r' % (k, h.conv(k, hconv))
+        res = '\n'.join('%15.15s: %s' % (k, keyconv.printable_key(h.conv(k, hconv)))
                 for k in h._fields if k in fields)
     return res
 
