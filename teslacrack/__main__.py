@@ -22,10 +22,12 @@ TeslaCrack - decryptor for the TeslaCrypt ransomware.
 
 Usage:
   teslacrack decrypt  [-v] [--dry-run] [--delete | --delete-old]  [--progress]
-                                [(--fix | --overwrite) [--backup=<.ext>]]
-                                [<path>]...
-  teslacrack crack-fkey     [-v] [--progress] [--ecdsa | --btc <btc-addr>]  <file>  <prime-factor>...
-  teslacrack crack-key      [-v] [--progress] (--ecdsa <pub-key> | --btc <btc-addr>)  <mul-key>  <prime-factor>...
+                            [(--fix | --overwrite) [--backup=<.ext>]]
+                            [<path>]...
+  teslacrack crack-fkey     [-v] [--progress] [--ecdsa | --btc-addr <btc-addr>]
+                            <file>  <prime-factor>...
+  teslacrack crack-key      [-v] [--progress] (--ecdsa <pub-key> | --btc-addr <btc-addr>)
+                            <mul-key>  <prime-factor>...
   teslacrack file           [-v] [ -F <hconv>] <file>  [<field>]...
   teslacrack -h | --help
   teslacrack -V | --version
@@ -59,51 +61,53 @@ Sub-commands:
       subs-string of fields available.
 
 Options:
-  --ecdsa           A slower key-reconstructor based on Elliptic-Curve-Cryptography which:
-                      - can recover both AES or BTC[1] keys;
-                      - can recover keys from any file-type (no need for *magic-bytes*);
-                      - yields always a single correct key.
-                    For the `crack-fkey` sub-cmd, the <prime-factors> select which key
-                    to crack (AES or BTC).
-  --btc <btc-addr>  Guess BTC key based on the bitcoin-address and BTC[1] ecdsa-key.
-                    The <btc-addr> is typically found in the ransom-note or recovery file
-  -F <hconv>        Specify print-out format for tesla-header fields (keys, addresses, etc),
-                    where <hconv> is any non-ambiguous case-insensitive *prefix* from:
-                      - raw: all bytes as-is - no conversion (i.e. hex mul-keys NOT strip & l-rotate).
-                      - fix: like 'raw', but mul-keys fixed and size:int; fail if mul-keys invalid.
-                      - bin: all bytes (even mul-keys), mul-keys: fixed.
-                      - xhex: all string-HEX, size:bytes-hexed.
-                      - hex: all string-hex prefixed with '0x', size: int-hexed.
-                      - num: all natural numbers, size: int.
-                      - 64: all base64, size(int) - most concise.
-                    [default: 64]
-  --delete          Delete crypted-files after decrypting them.
-  --delete-old      Delete crypted even if decrypted-file created during a
-                    previous run [default: False].
-  -n, --dry-run     Decrypt but don't Write/Delete files, just report
-                    actions performed [default: False].
-  --progress        Before start decrypting files, pre-scan all dirs, to
-                    provide progress-indicator [default: False].
-  --fix             Re-decrypt tesla-files and overwrite crypted-
-                    counterparts if they have unexpected size. If ou enable it,
-                    by default it backs-up existing files with '.BAK' extension
-                    (see `--backup`). Specify empty extension '' for no backups
-                    (e.g. `--backup=`)
-                    WARNING: You may LOOSE FILES that have changed due to
-                    regular use, such as, configuration-files and mailboxes!
-                    [default: False].
-  --overwrite       Re-decrypt ALL tesla-files, overwritting all crypted-
-                    counterparts. Optionally creates backups with the
-                    given extension (see `--backup`).
-                    WARNING: You may LOOSE FILES that have changed due to
-                    regular use, such as, configuration-files and mailboxes!
-                    [default: False].
-  --backup=<.ext>   Sets file-extension (with dot(`.`) included for backup-files
-                    created by `--fix` and `--overwrite` options.
+  --ecdsa [<pub-key>]    A slower key-reconstructor based on Elliptic-Curve-Cryptography which:
+                           - can recover both AES or BTC[1] keys;
+                           - can recover keys from any file-type (no need for *magic-bytes*);
+                           - yields always a single correct key.
+                         For the `crack-fkey` sub-cmd, the <prime-factors> select which key
+                         to crack (AES or BTC).
+                         For the `crack-key` sub-cmd, specify which <mul-key> and
+                         paired <pub-key> to break.
+  --btc-addr <btc-addr>  Guess BTC key based on the bitcoin-address and BTC[1] ecdsa-key.
+                         The <btc-addr> is typically found in the ransom-note or recovery file
+  -F <hconv>             Specify print-out format for tesla-header fields (keys, addresses, etc),
+                         where <hconv> is any non-ambiguous case-insensitive *prefix* from:
+                           - raw: all bytes as-is - no conversion (i.e. hex mul-keys NOT strip & l-rotate).
+                           - fix: like 'raw', but mul-keys fixed and size:int; fail if mul-keys invalid.
+                           - bin: all bytes (even mul-keys), mul-keys: fixed.
+                           - xhex: all string-HEX, size:bytes-hexed.
+                           - hex: all string-hex prefixed with '0x', size: int-hexed.
+                           - num: all natural numbers, size: int.
+                           - 64: all base64, size(int) - most concise.
+                         [default: 64]
+  --delete               Delete crypted-files after decrypting them.
+  --delete-old           Delete crypted even if decrypted-file created during a
+                         previous run [default: False].
+  -n, --dry-run          Decrypt but don't Write/Delete files, just report
+                         actions performed [default: False].
+  --progress             Before start decrypting files, pre-scan all dirs, to
+                         provide progress-indicator [default: False].
+  --fix                  Re-decrypt tesla-files and overwrite crypted-
+                         counterparts if they have unexpected size. If ou enable it,
+                         by default it backs-up existing files with '.BAK' extension
+                         (see `--backup`). Specify empty extension '' for no backups
+                         (e.g. `--backup=`)
+                         WARNING: You may LOOSE FILES that have changed due to
+                         regular use, such as, configuration-files and mailboxes!
+                         [default: False].
+  --overwrite            Re-decrypt ALL tesla-files, overwritting all crypted-
+                         counterparts. Optionally creates backups with the
+                         given extension (see `--backup`).
+                         WARNING: You may LOOSE FILES that have changed due to
+                         regular use, such as, configuration-files and mailboxes!
+                         [default: False].
+  --backup=<.ext>        Sets file-extension (with dot(`.`) included for backup-files
+                         created by `--fix` and `--overwrite` options.
 Other options:
-  -h, --help        Show this help message and exit.
-  -V, --version     Print program's version number and exit.
-  -v, --verbose     Verbosely log(DEBUG) all actions performed.
+  -h, --help             Show this help message and exit.
+  -V, --version          Print program's version number and exit.
+  -v, --verbose          Verbosely log(DEBUG) all actions performed.
 
 Notes:
   [1] Private BTC-key may be used with *TeslaDecoder* external program,
@@ -162,9 +166,9 @@ def _crack_file_key(opts):
     file = opts['<file>']
     log.info('Guessing keys from tesla-file: %s', file)
 
-    if opts['--btc']:
+    if opts['--btc-addr']:
         key_name = 'BTC'
-        key = unfactor.crack_btc_key_from_btc_address(opts['--btc'], primes)
+        key = unfactor.crack_btc_key_from_btc_address(opts['--btc-addr'], primes)
         msg = key and "Found BTC-key: 0x%064X" % key
     elif opts['--ecdsa']:
         key_name, key = unfactor.crack_ecdsa_key_from_file(file, primes)
@@ -184,10 +188,10 @@ def _crack_key(opts):
     primes = unfactor.validate_primes(opts['<prime-factor>'])
     mul_key = keyconv.autoconv_to_bytes(opts['<mul-key>'])
 
-    if opts['--btc']:
+    if opts['--btc-addr']:
         key_name = 'BTC'
         key = unfactor.crack_btc_key_from_btc_address(
-                opts['--btc'], primes, mul_key)
+                opts['--btc-addr'], primes, mul_key)
         msg = key and "Found BTC-key: 0x%064X" % key
     elif opts['--ecdsa']:
         key_name = '<AES_or_BTC>'
@@ -195,7 +199,7 @@ def _crack_key(opts):
         key = unfactor.crack_ecdsa_key(ecdsa_pub, mul_key, primes)
         msg = key and "Found ECDSA private-key: 0x%064X" % key
     else:
-        msg = "main() miss-matched *docopt* mutual-exclusive opts (--ecdsa|--btc)! \n  %s"
+        msg = "main() miss-matched *docopt* mutual-exclusive opts (--ecdsa|--btc-addr)! \n  %s"
         raise AssertionError(msg % opts)
 
     if not msg:

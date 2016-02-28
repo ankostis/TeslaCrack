@@ -30,41 +30,47 @@ which is utilized by |TeslaDecrypt|_ or |TeslaDecoder|_ external programs.
 Quickstart
 ==========
 
-The main entry-point of the tool is the ``teslacrack`` console-command::
+- The main entry-point of the tool is the ``teslacrack`` console-command::
 
     ## Install it.
-    pip install teslacrack
+    > pip install teslacrack
 
-    ## Gather the public-AES keys that have encrypted your files:
+    ## Gather the "mul" key(s) that have encrypted your files:
     > teslacrack decrypt D:\some\infected\folder
 
-    ## Factorize public-AES keys reported by the command above
+    ## Factorize  AES or BTC "mul" keys reported by the command above
     ## or found as factors in http://factordb.com/.
     > msieve -e 0xAD34AD2A32F4EE2...
 
-    ## Guess your decrypted-AES key from a "known" file-type:
+    ## Guess your AES-session-key from a "known" file-type:
     > teslacrack crack-fkey D:\some\infected\folder\foo.pdf
+
+    ## Edit `Add it into teslacrypt/decrypt.py` file and add
+    ##  the key reported above into `known_AES_key_pairs` dict.
 
     ## Now decrypt all your hard-drive:
     > teslacrack decrypt --progress D:\
 
-.. Tip::
+  .. Tip::
 
     To open a ``cmd.exe`` console, press ``[WinKey + R]`` and type ``cmd + [Enter]``
     When issuing commands describe here, skip the ``>`` char or the ``##`` lines.
 
+- More detailed instructions are given in the `How to decrypt your files`_ section.
 
-There are more sub-commands available - to receive their usage description, type::
+- More sub-commands are available - to receive their usage description, type::
 
     > teslacrack --help
     TeslaCrack - decryptor for the TeslaCrypt ransomware.
 
     Usage:
       teslacrack decrypt  [-v] [--dry-run] [--delete | --delete-old]  [--progress]
-                                    [(--fix | --overwrite) [--backup=<.ext>]]
-                                    [<path>]...
-      teslacrack crack-fkey     [-v] [--progress] [--ecdsa | --btc <btc-addr>]  <file>  <prime-factor>...
-      teslacrack crack-key      [-v] [--progress] (--ecdsa <pub-key> | --btc <btc-addr>)  <mul-key>  <prime-factor>...
+                                [(--fix | --overwrite) [--backup=<.ext>]]
+                                [<path>]...
+      teslacrack crack-fkey     [-v] [--progress] [--ecdsa | --btc-addr <btc-addr>]
+                                <file>  <prime-factor>...
+      teslacrack crack-key      [-v] [--progress] (--ecdsa <pub-key> | --btc-addr <btc-addr>)
+                                <mul-key>  <prime-factor>...
       teslacrack file           [-v] [ -F <hconv>] <file>  [<field>]...
       teslacrack -h | --help
       teslacrack -V | --version
@@ -73,7 +79,6 @@ There are more sub-commands available - to receive their usage description, type
       decrypt:
           Decrypt tesla-file(s) in <path> file(s)/folder(s) if their AES key
           already guessed, while reporting any unknown AES & BTC mul-key(s) encountered.
-
           The (rough) pattern of usage is this:
             1. Run this cmd on some tesla-files to gather your mul-AES keys;
             2. factorize the mul-key(s) reported, first by searching http://factordb.com/
@@ -99,51 +104,53 @@ There are more sub-commands available - to receive their usage description, type
           subs-string of fields available.
 
     Options:
-      --ecdsa           A slower key-reconstructor based on Elliptic-Curve-Cryptography which:
-                          - can recover both AES or BTC[1] keys;
-                          - can recover keys from any file-type (no need for *magic-bytes*);
-                          - yields always a single correct key.
-                        For the `crack-fkey` sub-cmd, the <prime-factors> select which key
-                        to crack (AES or BTC).
-      --btc <btc-addr>  Guess BTC key based on the bitcoin-address and BTC[1] ecdsa-key.
-                        The <btc-addr> is typically found in the ransom-note or recovery file
-      -F <hconv>        Specify print-out format for tesla-header fields (keys, addresses, etc),
-                        where <hconv> is any non-ambiguous case-insensitive *prefix* from:
-                          - raw: all bytes as-is - no conversion (i.e. hex mul-keys NOT strip & l-rotate).
-                          - fix: like 'raw', but mul-keys fixed and size:int; fail if mul-keys invalid.
-                          - bin: all bytes (even mul-keys), mul-keys: fixed.
-                          - xhex: all string-HEX, size:bytes-hexed.
-                          - hex: all string-hex prefixed with '0x', size: int-hexed.
-                          - num: all natural numbers, size: int.
-                          - 64: all base64, size(int) - most concise.
-                        [default: 64]
-      --delete          Delete crypted-files after decrypting them.
-      --delete-old      Delete crypted even if decrypted-file created during a
-                        previous run [default: False].
-      -n, --dry-run     Decrypt but don't Write/Delete files, just report
-                        actions performed [default: False].
-      --progress        Before start decrypting files, pre-scan all dirs, to
-                        provide progress-indicator [default: False].
-      --fix             Re-decrypt tesla-files and overwrite crypted-
-                        counterparts if they have unexpected size. If ou enable it,
-                        by default it backs-up existing files with '.BAK' extension
-                        (see `--backup`). Specify empty extension '' for no backups
-                        (e.g. `--backup=`)
-                        WARNING: You may LOOSE FILES that have changed due to
-                        regular use, such as, configuration-files and mailboxes!
-                        [default: False].
-      --overwrite       Re-decrypt ALL tesla-files, overwritting all crypted-
-                        counterparts. Optionally creates backups with the
-                        given extension (see `--backup`).
-                        WARNING: You may LOOSE FILES that have changed due to
-                        regular use, such as, configuration-files and mailboxes!
-                        [default: False].
-      --backup=<.ext>   Sets file-extension (with dot(`.`) included for backup-files
-                        created by `--fix` and `--overwrite` options.
+      --ecdsa [<pub-key>]    A slower key-reconstructor based on Elliptic-Curve-Cryptography which:
+                               - can recover both AES or BTC[1] keys;
+                               - can recover keys from any file-type (no need for *magic-bytes*);
+                               - yields always a single correct key.
+                             For the `crack-fkey` sub-cmd, the <prime-factors> select which key
+                             to crack (AES or BTC).
+                             For the `crack-key` sub-cmd, specify which <mul-key> and
+                             paired <pub-key> to break.
+      --btc-addr <btc-addr>  Guess BTC key based on the bitcoin-address and BTC[1] ecdsa-key.
+                             The <btc-addr> is typically found in the ransom-note or recovery file
+      -F <hconv>             Specify print-out format for tesla-header fields (keys, addresses, etc),
+                             where <hconv> is any non-ambiguous case-insensitive *prefix* from:
+                               - raw: all bytes as-is - no conversion (i.e. hex mul-keys NOT strip & l-rotate).
+                               - fix: like 'raw', but mul-keys fixed and size:int; fail if mul-keys invalid.
+                               - bin: all bytes (even mul-keys), mul-keys: fixed.
+                               - xhex: all string-HEX, size:bytes-hexed.
+                               - hex: all string-hex prefixed with '0x', size: int-hexed.
+                               - num: all natural numbers, size: int.
+                               - 64: all base64, size(int) - most concise.
+                             [default: 64]
+      --delete               Delete crypted-files after decrypting them.
+      --delete-old           Delete crypted even if decrypted-file created during a
+                             previous run [default: False].
+      -n, --dry-run          Decrypt but don't Write/Delete files, just report
+                             actions performed [default: False].
+      --progress             Before start decrypting files, pre-scan all dirs, to
+                             provide progress-indicator [default: False].
+      --fix                  Re-decrypt tesla-files and overwrite crypted-
+                             counterparts if they have unexpected size. If ou enable it,
+                             by default it backs-up existing files with '.BAK' extension
+                             (see `--backup`). Specify empty extension '' for no backups
+                             (e.g. `--backup=`)
+                             WARNING: You may LOOSE FILES that have changed due to
+                             regular use, such as, configuration-files and mailboxes!
+                             [default: False].
+      --overwrite            Re-decrypt ALL tesla-files, overwritting all crypted-
+                             counterparts. Optionally creates backups with the
+                             given extension (see `--backup`).
+                             WARNING: You may LOOSE FILES that have changed due to
+                             regular use, such as, configuration-files and mailboxes!
+                             [default: False].
+      --backup=<.ext>        Sets file-extension (with dot(`.`) included for backup-files
+                             created by `--fix` and `--overwrite` options.
     Other options:
-      -h, --help        Show this help message and exit.
-      -V, --version     Print program's version number and exit.
-      -v, --verbose     Verbosely log(DEBUG) all actions performed.
+      -h, --help             Show this help message and exit.
+      -V, --version          Print program's version number and exit.
+      -v, --verbose          Verbosely log(DEBUG) all actions performed.
 
     Notes:
       [1] Private BTC-key may be used with *TeslaDecoder* external program,
@@ -164,42 +171,52 @@ There are more sub-commands available - to receive their usage description, type
     Enjoy! ;)
 
 
-Step-by-step instructions are given in the `How to decrypt your files`_ section.
-
 
 How it works?
 -------------
-We recapitulate `how TeslaCrypt ransomware works to explain the weakness
+We recapitulate `how TeslaCrypt ransomware \< v3.0 works to explain the weakness
 <https://securelist.com/blog/research/71371/teslacrypt-2-0-disguised-as-cryptowall/>`_
 that is relevant for this cracking tool:
 
-1. *TeslaCrypt* creates a symmetrical AES-session-key that will be used to
-   encrypt your files,
-2. it then asymmetrically encrypts that AES-key with a "semi-baked" ECDH method,
-   and transmits the unlocking keys to the operators of the ransomware
-   (but that is irrelevant here), and finally
-3. it starts encrypting your files one-by-one, attaching your semi-encrypted
-   AES key into the headers of your encrypted files, spread out in two fields:
+1. *TeslaCrypt* creates a random **AES session-key** that will be used to symmetrically[1]_
+   encrypt your files - it is immediately transmitted to the operators of the ransomware
+   (but that is irrelevant here);
 
-   - ``aes-ecdh`` field: a proper ecdh ciphetext of your AES-key;
-   - ``aes-mul`` field: another ciphetext which is just a "big" (but not big enough!)
-     multiplicative product of your AES key.
+2. an "improvised" Elliptic Cryptography (EC) asymmetrical method is then applied
+   to store securely the above AES-key into your computer - it is taken to be as
+   the ECDH "private" (or ECDSA "signing") key, and from that,
+   2 ciphered keys are produced:
 
-- It uses the same assymetric method to generate and encrypt your ``btc-ecdh``
-  & ``btc-mul`` fields into teslafile headers.
+   - **AES ECDH public-key** (or simply ``aes_ecdh_key``): this is the "public"
+     (or ECDSA "verifying") counterpart of your AES-key above - note that it is
+     impossible to derive your AES-key from that, it can only check the validity
+     of a candidate AES-key;
+   - **AES multiple** (or ``aes_mul_key``): another "ciphetext" which is just
+     a "big" (but not big enough!) multiplicative product of your AES key
+     with the ECDSA XXX.
+
+3. it then starts to encrypt your files one-by-one, attaching these 2 fields
+   into the headers of those files.
+
+- Actually *TeslaCrypt* applies the method above to generate another pair of
+  ciphered keys from the "master" **Bitcoin private -key** - ``btc_ecdh_key``
+  & ``btc_mul_key`` - those are also stored into your tesla-file headers.
+
 - Multiple AES-keys are generated if you interrupt the ransomware while it encrypts
-  your files (i.e. reboot).
+  your files (i.e. reboot), but only a single *btc* pair.
 
 *TeslaCrack* implements (primarily) an integer factorization attack against
-the ``aes_mul`` field, recovering the original  AES-key by just
-trying all factor combinations, and using some method of validating that the
-tested-key is the correct one.
+the ``aes_mul_key`` and ``btc_mul_key`` fields, recovering the original AES-key by just
+trying all factor combinations, and using some method for validating that the
+tested-key is the correct one (e.g. ECDSA schema, BTC address validation).
 
-The actual factorization is not implemented within *TeslaCrack*, instead,
-it just extracts the numbers to be factored, and you have to feed them into
-3rd party factoring tools, such as `YAFU or msieve
+The actual factorization is not implemented within *TeslaCrack* - it only extracts
+the numbers to be factored, and you have to feed them into 3rd party factoring tools,
+such as `YAFU or msieve
 <https://www.google.com/search?q=msieve+factorization>`_.
 
+.. [1] A **symmetrical** encryption-scheme uses the same *key* for both
+   encrypting and decrypting a document.
 
 
 Installation
@@ -278,152 +295,180 @@ Install TeslaCrack
 How to decrypt your files
 =========================
 
-1. Check that the extension of your crypted files are one of the known ones,
-   ``.vvv, .ccc, .zzz, .aaa, .abc``; if your extension is missing, edit
-   ``teslacrack/decrypt.py`` to append it into ``tesla_extensions`` string-list.
+1. Check if this tool can crack you *TeslaCrypt* version:
+---------------------------------------------------------
+Check that the extension of your crypted files belongs to the known ones (i.e.
+``.vvv, .ccc, .zzz, .aaa, .abc``); if your extension is missing, edit
+``teslacrack/decrypt.py`` and append it into ``tesla_extensions`` string-list.
+For al list of all extensions, read `TeslaCrypt versions`_ at the bottom.
 
-   .. Note::
+.. Note::
 
-        The extensions ``.ttt, .xxx, .micro`` and ``.mp3``(!) have been
-        reported for the new variant of TeslaCrypt (3.0+), and this tool cannot
-        decrypt them, anyway.
-
-        Read `TeslaCrypt versions`_ at the bottom.
-
-2. Count the number of different AES keys that the ransomware has encrypted
-   your files with - the answer to this question will tell you which method
-   of attack to use against the ransomware.
-
-   To gather all encryption keys used, attempt to decrypt all your files and
-   check the output of this command::
-
-       teslacrack decrypt <path-to-your-crypted-files>
-
-   This command will fail to decrypt your files, but it will print out all
-   encountered encrypted AES and BTC keys.
-
-   If you got a single AES/BTC key-pair only, you may opt for attacking directly
-   the AES key using the plain ``crack-fkey`` sub-cmd, which is usually faster.
-   Otherwise, attack the BTC key and use the |TeslaDecoder|_ - read the
-   `Break bitcoin-keys for *TeslaDecoder* section, below.
-
-3. Assuming the previous step returned a single AES/BTC key-pair only, you have
-   to choose a file with known magic-bytes in its header:
-
-   - *pdf* & *word-doc* files,
-   - images and sounds (*jpg, png, gif, mp3*), and
-   - archive formats: *gzip, bz2, 7z, rar* and of course *zip*, which includes
-     all LibreOffice and newer Microsoft *docs/xlsx* & *ODF* documents.
-
-   .. Tip::
-
-        To view or extend the supported file-types, edit ``teslacrack/unfactor.py``
-        and append a new mapping into ``known_file_magics`` dictionary.
-        Note that in *python-3*, bytes are given like that: ``b'\xff\xd8'``.
+     The extensions ``.ttt, .xxx, .micro`` and ``.mp3``(!) have been
+     reported for the new variant of TeslaCrypt >= v3.0, which this tool cannot
+     decrypt.
 
 
-4. Convert your hexadecimal AES or BTC key chosen in the previous step
-   to decimal, e.g. in python use ``int('ae1b015a', 16)``, and search
-   `factordb.com <http://factordb.com/>`_ for this number. If you are lucky,
-   it may have been already factored, and you can skip the next step :-)
+2. Decide which Key to attack:  *BTC* or *AES*?
+-----------------------------------------------
+Count how many different "mul" AES-keys the ransomware has used to encrypt
+your files - the answer to this question will tell you which key to attack.
 
-   You may view the keys contained in a file converted as integers, issue this::
+.. Tip::
 
-        teslacrack file <your-tesla-file> -Fnum
+     To understand the various names of keys mentioned in these instructions,
+     read the `How it works?`_ section.
 
+To gather all "mul" keys, attempt to decrypt your files and check the output
+of this command::
 
-5. Factorize the AES or BTC keys or any composite-factors (marked as "CF")
-   fecthed from *factordb.com* (this step might take considerable time):
+    teslacrack decrypt <folder-to-your-crypted-files>
 
-   - For instance, using *msieve*::
+This command should fail to decrypt your files, but will print all unknown
+``aes_mul_key`` encountered, as hexadecimal numbers (note that it should report
+the same ``btc_mul_key`` for all your files).
 
-         msieve -v -e <encrypted-key>
-
-   - If your key is in hexadecimal form (as printed by ``decrypt``), prepend it
-     with a ``0x`` prefix.
-
-   - The ``-e`` switch is needed to do a "deep" elliptic curve search,
-     which speeds up *msieve* for numbers with many factors (by default,
-     *msieve* is optimized for semiprimes such as RSA moduli)
-
-   - Alternatively, you can use *YAFU*, which is multithreaded, but
-     tends to crash often (at least for me)
-     If you use *YAFU*, make sure to run it from command line using
-     the ``-threads`` option!
-
-   - For numbers with few factors (where ``-e`` is ineffective, and *msieve/YAFU*
-     run slow), use ``factmsieve.py`` (downloaded optionally above), which is
-     more complicated, but also faster, multithreaded, and doesn't tend to crash.
+If you get a single unknown AES "mul" key, you may opt for attacking
+directly this, using the plain ``crack-fkey`` sub-cmd, which is usually faster.
+Otherwise, attack the BTC key and use the |TeslaDecoder|_ to decrypt files, as
+described by the `Break bitcoin-keys for TeslaDecoder`_ section, below.
 
 
-6. To reconstruct the AES-key that has crypted your files, add the primes from
-   previous step, separated by spaces, into this command::
+3. Factorize your "mul" Key:
+----------------------------
+Factorize the "mul" keys or any composite-factors discovered from `factordb.com
+<http://factordb.com/>`_ (those marked as "CF"). If you are lucky, your key may
+have been already factorized, and you can skip the next step :-)
+
+- Use one of the *external* factorization programs.
+  For instance, using *msieve*::
+
+     msieve -v -e <encrypted-key>
+
+- If your key is in hexadecimal form (as printed by ``decrypt``), prepend it
+  with a ``0x`` prefix.
+
+- To convert a key to decimal, e.g. the hex value ``'ae1b015a'``, in Python use
+  ``int('ae1b015a', 16)``.
+  Alternatively you may view all keys contained in a tesla-file converted as integers
+  with this command::
+
+     teslacrack file <your-tesla-file> -Fnum
+
+- The ``-e`` switch is needed to do a "deep" elliptic curve search,
+  which speeds up *msieve* for numbers with many factors (by default,
+  *msieve* is optimized for semi-primes such as RSA moduli)
+
+- Alternatively, you can use *YAFU*, which is multithreaded, but
+  tends to crash often (at least for me)
+  If you use *YAFU*, make sure to run it from command line using
+  the ``-threads`` option!
+
+- For numbers with few factors (where ``-e`` is ineffective, and *msieve/YAFU*
+  run slow), use ``factmsieve.py`` (downloaded optionally above), which is
+  more complicated, but also faster, multithreaded, and doesn't tend to crash.
+
+- This step might take considerable time - days is not uncommon.
+
+4. Reconstruct your Key:
+------------------------
+- Assuming you found a single unknown ``aes_mul_key`` key, you may choose
+  the default key-reconstructor which is bit faster - but you must choose a file
+  with known magic-bytes in its header:
+
+  - *pdf* & *word-doc* files,
+  - images and sounds (*jpg, png, gif, mp3*), and
+  - archive formats: *gzip, bz2, 7z, rar* and of course *zip*, which includes
+    all LibreOffice and newer Microsoft *docs/xlsx* & *ODF* documents.
+
+  .. Tip::
+
+       To view or extend the supported file-types, edit ``teslacrack/unfactor.py``
+       and append a new mapping into ``known_file_magics`` dictionary.
+       Note that in *python-3*, bytes are given like that: ``b'\xff\xd8'``.
+
+  Add the primes from previous step, separated by spaces, into this command::
 
        teslacrack crack-fkey <crypted-file>  <factor-1>  <factor-2> ...
 
-   It will reconstruct and print any decrypted AES-keys candidates (usually just one).
+  It will reconstruct and print any decrypted AES-keys candidates (usually just one).
 
-   - Alternatively you may use ``--ecdsa`` option to break either AES or
-     BTC key for the |TeslaDecoder|_ tool (see section below).  This option requires
-     AES or BTC pub-keys, which you may get them as integers from a file with this
-     command:
+- Alternatively you may use ``--ecdsa`` option to break either the AES or the
+  BTC key for the |TeslaDecoder|_ tool (see section below).  This option requires
+  AES or BTC public keys, which you may get them  also with the ``file`` sub-cmd
+  (see previous step on how)::
 
-       teslacrack crack-fkey --edcsa <crypted-file>  <factor-1>  <factor-2> ...
+       teslacrack crack-fkey --ecdsa <crypted-file>  <factor-1>  <factor-2> ...
 
-     Which key to break gets to be deduced from the factors you provide.
+  Which key to break (BTC or AES) gets to be deduced from the factors you provide.
+
+- A 3rd reconstructor is based on *Bitcoin-addresses* and is enacted with the
+  ``--btc-addr`` option - read `Break bitcoin-keys for TeslaDecoder`_ section
+  below for this.
+
+- As utility, the ``crack-key`` sub-command provides for reconstructing a key
+  without the tesla-file that originated from::
+
+      teslacrack crack-key --ecdsa <pub-key> <mul-key> <prime-factors>...
+
+  Notice that it requires both types of keys:
+  - the ECDH-public AES or BTC key with the ``--ecdsa`` option, and
+  - the paired "mul" key as its 1st positional argument, before listing the usual
+    prime-factors.
 
 
-7. Edit ``teslacrack.py`` to add a new key-pair into the ``known_AES_key_pairs``
-   dictionary, like that::
+5. Register and Test the reconstructed AES key:
+-----------------------------------------------
+Assuming above you reconstructed your AES key, you may now edit ``teslacrack.py``
+and add a new key-pair into the ``known_AES_key_pairs`` dictionary, like that::
 
-      <encrypted-AES-key>: <1st decrypted-AES-key candidate>,
+    <encrypted-AES-key>: <1st decrypted-AES-key candidate>,
 
-8. Repeat step 3. A decrypted file should now appear next to the crypted one
-   (``.vvv`` or ``.ccc``, etc) - verify that the contents of the decrypted-file
-   do make sense.
+The program accepts hex, integer, base64 or bytes.
 
-   - If not, redo step 7, replacing every time a new candidate decrypted AES-key
-     in the pair.
+To test it, repeat the command from step 2. A decrypted file should now appear
+next to the crypted one (``.vvv`` or ``.ccc``, etc) - verify that the contents
+of the decrypted-file do make sense.
 
-9. To decrypt all of your files run from an administrator command prompt::
 
-        teslacrack decrypt --progress D:\
+6. Decrypt all your files:
+--------------------------
+To decrypt all of your files run from an administrator command prompt::
 
-   - In some cases you may start receiving error-messages, saying
-     ``"Unknown key in file: some/file"``.
-     This means that some of your files have been crypted with different
-     AES-keys (i.e. the ransomware had been restarted due to a reboot).
-     ``teslacrack decrypt`` will print at the end any new encrypted AES-key(s)
-     encountered - repeat the procedure from step 4 for all newly discovered
-     key(s) :-(
+    teslacrack decrypt --progress D:\
 
-   - ``decrypt`` sub-command accepts an optional ``--delete`` and ``--delete-old``
-     parameters, which will delete the crypted-files of any cleartext file it
-     successfully generates (or already has generated, for the 2nd option).
-     Before using this option, make sure that your files have been indeed
-     decrypted correctly!
+- In some cases you may start receiving error-messages, saying
+  ``"Unknown key in file: some/file"``.
+  This means that some of your files have been crypted with different
+  AES-keys (i.e. the ransomware had been restarted due to a reboot).
+  ``teslacrack decrypt`` will print at the end any new encrypted AES-key(s)
+  encountered - repeat the procedure from step 4 for all newly discovered
+  key(s) :-(
 
-   - By skipping this time the ``-v`` option (verbose logging) you avoid listing
-     every file being visited - only failures and totals are reported.
+- ``decrypt`` sub-command accepts an optional ``--delete`` and ``--delete-old``
+  parameters, which will delete the crypted-files of any cleartext file it
+  successfully generates (or already has generated, for the 2nd option).
+  Before using this option, make sure that your files have been indeed
+  decrypted correctly!
 
-   - Use ``--overwrite`` or the more "selective" ``--fix`` option to
-     re-generate all cleartext files or just those that had previously failed to
-     decrypt, respectively.  They both accept an optional *file-extension*
-     to construct the backup filename.
-     Note that by default ``--overwrite`` does not make backups, while the
-     ``-fix`` option, does.
+- By skipping this time the ``-v`` option (verbose logging) you avoid listing
+  every file being visited - only failures and totals are reported.
 
-   - If you are going to decrypt 1000s of file (i.e ``D:\``), it's worth
-     using the ``--precount`` option; it will consume some initial time to
-     pre-calculate directories to be visited, and then a progress-indicator
-     will be printed while decrypting.
+- Use ``--overwrite`` or the more "selective" ``--fix`` option to
+  re-generate all cleartext files or just those that had previously failed to
+  decrypt, respectively.  They both accept an optional *file-extension*
+  to construct the backup filename.
+  Note that by default ``--overwrite`` does not make backups, while the
+  ``-fix`` option, does.
 
-   - Finally, You can "dry-run" all of the above (decrypting, deletion and backup)
-     with the ``-n`` option.
+- If you are going to decrypt 1000s of file (i.e ``D:\``), it's worth
+  using the ``--precount`` option; it will consume some initial time to
+  pre-calculate directories to be visited, and then a progress-indicator
+  will be printed while decrypting.
 
-   - Read decriptions for available options with::
+- Finally, You can "dry-run" all of the above (decrypting, deletion and backup)
+  with the ``-n`` option.
 
-        teslacrack --help
 
 Break bitcoin-keys for *TeslaDecoder*
 -------------------------------------
