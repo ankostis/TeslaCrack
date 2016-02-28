@@ -19,6 +19,8 @@
 # Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
 from __future__ import print_function, unicode_literals, division
 
+import logging
+
 from Crypto.Cipher import AES  # @UnresolvedImport
 import ecdsa
 from future.builtins import bytes
@@ -77,22 +79,28 @@ def _gen_product_combinations(factors):
                 (grand_prod//prod).bit_length() <= 256 and
                 prod not in prods):
             prods.add(prod)
-            yield prod
+            yield prod, i
 
 
-def _crack_key(primes, key_ok_predicate):
+def _guess_key(primes, key_ok_predicate):
     """Returns the 1st key satisfying the predicate, or None."""
-    for key in _gen_product_combinations(primes):
+    for key, combid in _gen_product_combinations(primes):
         if key_ok_predicate(key):
+            if log.isEnabledFor(logging.DEBUG):
+                log.debug('Winning factors: %s',
+                        [f for (j, f) in enumerate(primes) if combid & 1<<j])
             return key
 
 
 def _guess_all_keys(primes, key_ok_predicate):
     """Returns the 1st or all candidate keys satisfying the predicate, or None."""
     keys = set()
-    for key in _gen_product_combinations(primes):
+    for key, combid in _gen_product_combinations(primes):
         if key not in keys and key_ok_predicate(key):
             keys.add(key)
+            if log.isEnabledFor(logging.DEBUG):
+                log.debug('Winning factors: %s',
+                        [f for (j, f) in enumerate(primes) if combid & 1<<j])
     if keys:
         return list(keys)
 
@@ -139,7 +147,7 @@ def crack_btc_key_from_btc_address(btc_address, primes, btc_mul_key=None):
         test_addr = btckey.Key(btc_test_key).address(use_uncompressed=True)
         return test_addr == btc_address
 
-    return _crack_key(primes, key_ok_predicate=does_key_gen_my_btc_address)
+    return _guess_key(primes, key_ok_predicate=does_key_gen_my_btc_address)
 
 
 def crack_ecdsa_key(ecdsa_key, mul_key, primes):
@@ -150,7 +158,7 @@ def crack_ecdsa_key(ecdsa_key, mul_key, primes):
                 curve=ecdsa.SECP256k1).verifying_key.to_string()
         return ecdsa_key.startswith(gen_ecdsa)
 
-    return _crack_key(primes, key_ok_predicate=does_key_gen_my_ecdsa)
+    return _guess_key(primes, key_ok_predicate=does_key_gen_my_ecdsa)
 
 
 def _decide_which_key(primes, aes_mul, btc_mul, file):
@@ -195,5 +203,5 @@ def crack_ecdsa_key_from_file(file, primes):
         gen_ecdsa = bytes(gen_ecdsa.to_string())
         return aes_ecdsa.startswith(gen_ecdsa) or btc_ecdsa.startswith(gen_ecdsa)
 
-    key = _crack_key(primes, key_ok_predicate=does_key_gen_my_ecdsa)
+    key = _guess_key(primes, key_ok_predicate=does_key_gen_my_ecdsa)
     return (key_name, key) if key else (None, None)

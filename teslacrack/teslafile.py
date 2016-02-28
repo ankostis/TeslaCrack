@@ -51,7 +51,7 @@ def _trans_per_field(trans_per_conv):
 
 tesla_magics = [b'\xde\xad\xbe\xef\x04', b'\x00\x00\x00\x00\x04']
 
-_header_fmt     = b'=5s 64s 130s 65s 130s 16s 1I'
+_header_fmt     = b'=5s 64s 130s 1x 64s 130s 16s 1I'
 _header_len = struct.calcsize(_header_fmt)
 assert _header_len == 414, _header_len
 

@@ -25,6 +25,7 @@ to make files/dirs inaccessible, needed for TCs.
 """
 from __future__ import print_function, unicode_literals, division
 
+import logging
 from os import path as osp
 import os
 from teslacrack import __main__ as tcm
@@ -36,14 +37,14 @@ import ddt
 import yaml
 
 
-tcm.init_logging()
+tcm.init_logging(level=logging.DEBUG)
 
 
 app_db_txt = r"""
 keys:
     - name     : ankostis
       type     : AES
-      encrypted: 7097DDB2E5DD08950D18C263A41FF5700E7F2A01874B20F402680752268E43F4C5B7B26AF2642AE37BD64AB65B6426711A9DC44EA47FC220814E88009C90EA
+      mul_key: 7097DDB2E5DD08950D18C263A41FF5700E7F2A01874B20F402680752268E43F4C5B7B26AF2642AE37BD64AB65B6426711A9DC44EA47FC220814E88009C90EA
       decrypted: 017B1647D4242BC67CE8A6AAEC4D8B493F35519BD82775623D86182167148DD9
       factors  :
         - 2
@@ -63,7 +64,7 @@ keys:
 
     - name     : hermanndp
       type     : AES
-      encrypted: 07E18921C536C112A14966D4EAAD01F10537F77984ADAAE398048F12685E2870CD1968FE3317319693DA16FFECF6A78EDBC325DDA2EE78A3F9DF8EEFD40299D9
+      mul_key: 07E18921C536C112A14966D4EAAD01F10537F77984ADAAE398048F12685E2870CD1968FE3317319693DA16FFECF6A78EDBC325DDA2EE78A3F9DF8EEFD40299D9
       decrypted: 1b5c52aafcffda2e71001cf1880fe45cb93dea4c71328df595cb5eb882a3979f
       factors  :
         - 13
@@ -79,7 +80,7 @@ keys:
 
     - name     : gh-14
       type     : BTC
-      encrypted: 372AE820BBF2C3475E18F165F46772087EFFC7D378A3A4D10789AE7633EC09C74578993A2A7104EBA577D229F935AF77C647F18E113647C25EF19CC7E4EE3C4C
+      mul_key: 372AE820BBF2C3475E18F165F46772087EFFC7D378A3A4D10789AE7633EC09C74578993A2A7104EBA577D229F935AF77C647F18E113647C25EF19CC7E4EE3C4C
       decrypted: 38F47CB4BB4B0E2DA4AF771D618E9575520781F17E5785480F51B7955216D71F
       btc_addr : 1GSswEGHysnASUwNEKNjWXCW9vRCy57qA4
       factors  :
@@ -92,6 +93,7 @@ keys:
         - 19
         - 139
         - 2311
+        #- 1141326637
         - 14278309
         - 465056119273
         - 250220277466967
@@ -103,13 +105,13 @@ keys:
 
     - name     : unknown1
       type     : AES
-      encrypted: 5942f9a9aff
+      mul_key: 5942f9a9aff
       factors  : [13, 3631, 129949621, 999999]
       error    : Extra factors given
 
     - name     : unknown2
       type     : AES
-      encrypted: 5942f9a9aff
+      mul_key: 5942f9a9aff
       factors  : [3631, 129949621]
       error    : Failed reconstructing AES-key!
       warning  : Incomplete factorization  ## UNUSED
@@ -145,7 +147,7 @@ class TUnfactor(unittest.TestCase):
 #         factors = [int(fc) for fc in key_rec['factors']]
 #         exp_aes_key = key_rec.get('decrypted')
 #         if not exp_aes_key:
-#             crypted_aes_key = int(key_rec['encrypted'], 16)
+#             crypted_aes_key = int(key_rec['mul_key'], 16)
 #             unfactor.crack_aes_keys_from_file('<fpath>', factors, crypted_aes_key,
 #                     lambda *args: b'')
 #             err_msg = cm.exception.args[0]
@@ -172,4 +174,5 @@ class TUnfactor(unittest.TestCase):
             factors = [int(fc) for fc in key_rec['factors']]
             btc_key = unfactor.crack_btc_key_from_btc_address(btc_addr, factors)
             #print(key_rec['name'], btc_addr, dec_key)
+            self.assertIsNotNone(btc_key, msg=key_rec)
             self.assertIn(dec_key.upper(), '0x%0.64X' % btc_key, msg=key_rec)
