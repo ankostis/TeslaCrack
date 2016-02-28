@@ -53,7 +53,7 @@ The main entry-point of the tool is the ``teslacrack`` console-command::
     When issuing commands describe here, skip the ``>`` char or the ``##`` lines
 
 
-There are more sub-commands available - to receive usage description, type::
+There are more sub-commands available - to receive their usage description, type::
 
     > teslacrack --help
     TeslaCrack - decryptor for the TeslaCrypt ransomware.
@@ -87,13 +87,13 @@ There are more sub-commands available - to receive usage description, type::
       crack-fkey:
           Read mul-key(s) from <file> and use the <prime-factor> integers produced by
           external factorization program (i.e. *msieve*) or found in http://factordb.com/
-          to reconstruct their key(s), optionally according to *ECDSA* or *btc* methods
+          to reconstruct their key(s), optionally according to *ECDSA* or *BTC* methods
           (explained in respective options).
           When no method specified (the default), the <file> must belong to `known_file_magic`.
 
       crack-key
           Like the `crack-fkey`, above, but the <ecdsa-key> is explicitly given and the method
-          must be one of *ECDSA* or *btc*.  Use the ecdsa-keys reported by `file` or
+          must be one of *ECDSA* or *BTC*.  Use the ecdsa-keys reported by `file` or
           `decrypt` suc-cmds.
 
       file:
@@ -110,7 +110,7 @@ There are more sub-commands available - to receive usage description, type::
                         to crack (AES or BTC).
       --btc <btc-addr>  Guess BTC key based on the bitcoin-address and BTC[1] ecdsa-key.
                           - The <btc-addr> is typically found in the ransom-note or recovery file
-                          - The <ecdsa-key> is the `btc-ecdsa-key` reported by `file` sub-cmd.
+                          - The <ecdsa-key> in the `crack-key` is the `btc-ecdsa-key` reported by `file` sub-cmd.
       -F <hconv>        Specify print-out format for tesla-header fields (keys, addresses, etc),
                         where <hconv> is any non-ambiguous case-insensitive *prefix* from:
                           - raw: all bytes as-is - no conversion (i.e. hex mul-keys NOT strip & l-rotate).
@@ -167,29 +167,38 @@ There are more sub-commands available - to receive usage description, type::
 
     Enjoy! ;)
 
+
 Step-by-step instructions are given in the `How to decrypt your files`_ section.
 
 
 How it works?
 -------------
 We recapitulate `how TeslaCrypt ransomware works and explain the weakness
-<http://www.bleepingcomputer.com/news/security/teslacrypt-decrypted-flaw-in-teslacrypt-allows-victims-to-recover-their-files/>`_
+<https://securelist.com/blog/research/71371/teslacrypt-2-0-disguised-as-cryptowall/>`_
 that is relevant for this cracking tool:
 
 1. *TeslaCrypt* creates a symmetrical AES-session-key that will be used to
    encrypt your files,
 2. it then asymmetrically encrypts that AES-key with a "semi-baked" ECDH method,
-   splits the ciphered-AES-key in 2 parts and transmits one part
-   to the operators of the ransomware (but that is irrelevant here), and finally
-3. it starts encrypting your files one-by-one, attaching the other part of the
-   encrypted-AES-key into the headers of all files.
+   and transmits the unlocking keys to the operators of the ransomware
+   (but that is irrelevant here), and finally
+3. it starts encrypting your files one-by-one, attaching your semi-encrypted
+   AES key into the headers of your encrypted files, spread out in two fields:
 
+   - ``aes-ecdh`` field: a proper ecdh ciphetext of your AES-key;
+   - ``aes-mul`` field: another ciphetext which is just a "big" (but not big enough!)
+     multiplicative product of your AES key (but not big enough!).
+
+- It uses the same method to generate and store the ``btc-ecdh`` & ``btc-mul``
+  fields into teslafile headers.
 - Multiple AES-keys are generated if you interrupt the ransomware while it encrypts
   your files (i.e. reboot).
 
 *TeslaCrack* implements (primarily) an integer factorization attack against
-the asymmetric "semi-baked" scheme, recovering the original  AES-key from part
-that is stored on the file headers.
+the ``aes_mul`` field, recovering the original  AES-key by just
+trying all factor combinations, and using some method of validating that the
+tested-key is the correct one.
+
 The actual factorization is not implemented within *TeslaCrack*, instead,
 it just extracts the numbers to be factored, and you have to feed them into
 3rd party factoring tools, such as `YAFU or msieve

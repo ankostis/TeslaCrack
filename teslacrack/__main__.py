@@ -49,13 +49,13 @@ Sub-commands:
   crack-fkey:
       Read mul-key(s) from <file> and use the <prime-factor> integers produced by
       external factorization program (i.e. *msieve*) or found in http://factordb.com/
-      to reconstruct their key(s), optionally according to *ECDSA* or *btc* methods
+      to reconstruct their key(s), optionally according to *ECDSA* or *BTC* methods
       (explained in respective options).
       When no method specified (the default), the <file> must belong to `known_file_magic`.
 
   crack-key
       Like the `crack-fkey`, above, but the <ecdsa-key> is explicitly given and the method
-      must be one of *ECDSA* or *btc*.  Use the ecdsa-keys reported by `file` or
+      must be one of *ECDSA* or *BTC*.  Use the ecdsa-keys reported by `file` or
       `decrypt` suc-cmds.
 
   file:
@@ -72,7 +72,7 @@ Options:
                     to crack (AES or BTC).
   --btc <btc-addr>  Guess BTC key based on the bitcoin-address and BTC[1] ecdsa-key.
                       - The <btc-addr> is typically found in the ransom-note or recovery file
-                      - The <ecdsa-key> is the `btc-ecdsa-key` reported by `file` sub-cmd.
+                      - The <ecdsa-key> in the `crack-key` is the `btc-ecdsa-key` reported by `file` sub-cmd.
   -F <hconv>        Specify print-out format for tesla-header fields (keys, addresses, etc),
                     where <hconv> is any non-ambiguous case-insensitive *prefix* from:
                       - raw: all bytes as-is - no conversion (i.e. hex mul-keys NOT strip & l-rotate).
