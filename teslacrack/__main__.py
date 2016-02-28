@@ -165,15 +165,14 @@ def _crack_file_key(opts):
     if opts['--btc']:
         key_name = 'BTC'
         key = unfactor.crack_btc_key_from_btc_address(opts['--btc'], primes)
-        msg = key and "Found BTC-key: 0x%0.64X" % key
+        msg = key and "Found BTC-key: 0x%064X" % key
     elif opts['--ecdsa']:
         key_name, key = unfactor.crack_ecdsa_key_from_file(file, primes)
-        msg = key and "Found %s-key: 0x%0.64X" % (key_name, key)
+        msg = key and "Found %s-key: 0x%064X" % (key_name, key)
     else:
         key_name = 'AES'
-        keys = unfactor.crack_aes_keys_from_file(file, primes)
-        msg = keys and "Candidate AES-key(s): \n  %s" % '\n  '.join(
-                    '0x%0.64X' % key for key in keys)
+        key = unfactor.crack_aes_key_from_file(file, primes)
+        msg = key and "AES-key: %s" % key
         advice_msg = "\n  Re-validate prime-factors and/or try another file-type."
 
     if not msg:
@@ -189,12 +188,12 @@ def _crack_key(opts):
         key_name = 'BTC'
         key = unfactor.crack_btc_key_from_btc_address(
                 opts['--btc'], primes, mul_key)
-        msg = key and "Found BTC-key: 0x%0.64X" % key
+        msg = key and "Found BTC-key: 0x%064X" % key
     elif opts['--ecdsa']:
         key_name = '<AES_or_BTC>'
         ecdsa_pub = keyconv.autoconv_to_bytes(opts['--ecdsa'])
         key = unfactor.crack_ecdsa_key(ecdsa_pub, mul_key, primes)
-        msg = key and "Found ECDSA-key: 0x%0.64X" % key
+        msg = key and "Found ECDSA private-key: 0x%064X" % key
     else:
         msg = "main() miss-matched *docopt* mutual-exclusive opts (--ecdsa|--btc)! \n  %s"
         raise AssertionError(msg % opts)

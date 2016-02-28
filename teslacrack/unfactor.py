@@ -127,7 +127,12 @@ def _is_known_file(fname, fbytes):
             return True
 
 
-def crack_aes_keys_from_file(fpath, primes):
+def _make_ecdsa_pub_bkey(ecdh_sec_exponent):
+    return bytes(ecdsa.SigningKey.from_secret_exponent(ecdh_sec_exponent,
+                curve=ecdsa.SECP256k1).verifying_key.to_string())
+
+
+def crack_aes_key_from_file(fpath, primes):
     with open(fpath, "rb") as f:
         header = Header.from_fd(f)
         data = f.read(16)
@@ -137,7 +142,14 @@ def crack_aes_keys_from_file(fpath, primes):
         file_bytes = AES.new(int_to_32or64bytes(aes_test_key), AES.MODE_CBC, header.iv).decrypt(data)
         return _is_known_file(fpath, file_bytes)
 
-    return _guess_all_keys(primes, key_ok_predicate=did_AES_produced_known_file)
+    candidate_keys = _guess_all_keys(primes, key_ok_predicate=did_AES_produced_known_file)
+    log.debug('Candidate AES-keys: %s', candidate_keys)
+
+    file_pub = header.conv('aes_ecdsa_key', 'bin')
+    for test_priv in candidate_keys:
+        gen_pub = _make_ecdsa_pub_bkey(test_priv)
+        if file_pub.startswith(gen_pub):
+            return test_priv
 
 
 def crack_btc_key_from_btc_address(btc_address, primes, btc_mul_key=None):
@@ -150,13 +162,12 @@ def crack_btc_key_from_btc_address(btc_address, primes, btc_mul_key=None):
     return _guess_key(primes, key_ok_predicate=does_key_gen_my_btc_address)
 
 
-def crack_ecdsa_key(ecdsa_key, mul_key, primes):
+def crack_ecdsa_key(ecdsa_pub_key, mul_key, primes):
     primes = _validate_factors_product(primes, mul_key, allow_cofactor=True)
 
     def does_key_gen_my_ecdsa(test_key):
-        gen_ecdsa = ecdsa.SigningKey.from_secret_exponent(test_key,
-                curve=ecdsa.SECP256k1).verifying_key.to_string()
-        return ecdsa_key.startswith(gen_ecdsa)
+        gen_pub = _make_ecdsa_pub_bkey(test_key)
+        return ecdsa_pub_key.startswith(gen_pub)
 
     return _guess_key(primes, key_ok_predicate=does_key_gen_my_ecdsa)
 

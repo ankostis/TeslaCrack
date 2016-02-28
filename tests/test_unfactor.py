@@ -137,10 +137,10 @@ class TUnfactor(unittest.TestCase):
             if not exp_aes_key:
                 continue
             factors = [int(fc) for fc in key_rec['factors']]
-            aes_keys = unfactor.crack_aes_keys_from_file(f, factors)
+            aes_key = unfactor.crack_aes_key_from_file(f, factors)
             #print(key_rec['name'], f, aes_keys, exp_aes_key)
-            self.assertIn(exp_aes_key.upper(),
-                    ['%0.64X' % k for k in aes_keys], msg=key_rec)
+            self.assertIsNotNone(aes_key, msg=key_rec)
+            self.assertIn(exp_aes_key.upper(), '%064X' % aes_key, msg=key_rec)
 
 #     @ddt.data(*[k for k in app_db['keys'] if k['type'] == 'AES'])
 #     def test_unfactor_key_failures(self, key_rec):
@@ -148,7 +148,7 @@ class TUnfactor(unittest.TestCase):
 #         exp_aes_key = key_rec.get('decrypted')
 #         if not exp_aes_key:
 #             crypted_aes_key = int(key_rec['mul_key'], 16)
-#             unfactor.crack_aes_keys_from_file('<fpath>', factors, crypted_aes_key,
+#             unfactor.crack_aes_key_from_file('<fpath>', factors, crypted_aes_key,
 #                     lambda *args: b'')
 #             err_msg = cm.exception.args[0]
 #             self.assertIn(key_rec['error'], err_msg, msg=key_rec)
@@ -163,7 +163,7 @@ class TUnfactor(unittest.TestCase):
             key_name, key = unfactor.crack_ecdsa_key_from_file(f, factors)
             #print(key_rec['name'], f, aes_keys, exp_aes_key)
             self.assertEqual('BTC', key_name, msg=key_rec)
-            self.assertIn(exp_aes_key.upper(), '0x%0.64X'%key, msg=key_rec)
+            self.assertIn(exp_aes_key.upper(), '0x%064X'%key, msg=key_rec)
 
 
     @ddt.data(*[k for k in app_db['keys'] if k['type'] == 'BTC'])
@@ -175,4 +175,4 @@ class TUnfactor(unittest.TestCase):
             btc_key = unfactor.crack_btc_key_from_btc_address(btc_addr, factors)
             #print(key_rec['name'], btc_addr, dec_key)
             self.assertIsNotNone(btc_key, msg=key_rec)
-            self.assertIn(dec_key.upper(), '0x%0.64X' % btc_key, msg=key_rec)
+            self.assertIn(dec_key.upper(), '0x%064X' % btc_key, msg=key_rec)
