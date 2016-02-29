@@ -14,6 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software Foundation,
 # Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
+"""Convert and parse keys to/from various formats (binary/hex/numeric, quoted, etc)."""
 from __future__ import print_function, unicode_literals, division
 
 from base64 import b64decode, b64encode
