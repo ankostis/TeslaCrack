@@ -103,6 +103,9 @@ setup(
         'pycryptodome<=3.3', # 3.4 needs fairly recent 1.8+ pip`.
         'ecdsa',
         'pycoin',
+        'toolz',
+        'lxml',
+        'requests',
     ],
     tests_require=tests_deps,
     #entry_points={'console_scripts': ['teslacrack = teslacrack.__main__:main']},
