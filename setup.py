@@ -106,6 +106,7 @@ setup(
         'toolz',
         'lxml',
         'requests',
+        'pyyaml',
     ],
     tests_require=tests_deps,
     #entry_points={'console_scripts': ['teslacrack = teslacrack.__main__:main']},
