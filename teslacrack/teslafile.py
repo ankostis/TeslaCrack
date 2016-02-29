@@ -55,12 +55,12 @@ _header_fmt     = b'=5s 64s 130s 1x 64s 130s 16s 1I'
 _header_len = struct.calcsize(_header_fmt)
 assert _header_len == 414, _header_len
 
-_bin_fields = ('start', 'btc_ecdsa_key', 'aes_ecdsa_key', 'iv')
+_bin_fields = ('start', 'btc_pub_key', 'aes_pub_key', 'iv')
 _hex_fields = ('btc_mul_key', 'aes_mul_key')
 
 
 class Header(namedtuple('Header',
-        'start  btc_ecdsa_key  btc_mul_key  aes_ecdsa_key  aes_mul_key  iv  size')):
+        'start  btc_pub_key  btc_mul_key  aes_pub_key  aes_mul_key  iv  size')):
     """
     Immutable Header-fields convertible to various formats.
 

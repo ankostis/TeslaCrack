@@ -67,9 +67,9 @@ Quickstart
       teslacrack decrypt  [-v] [--dry-run] [--delete | --delete-old]  [--progress]
                                 [(--fix | --overwrite) [--backup=<.ext>]]
                                 [<path>]...
-      teslacrack crack-fkey     [-v] [--progress] [--ecdsa | --btc-addr <btc-addr>]
+      teslacrack crack-fkey     [-v] [--progress] [--ecdh | --btc-addr <btc-addr>]
                                 <file>  <prime-factor>...
-      teslacrack crack-key      [-v] [--progress] (--ecdsa <pub-key> | --btc-addr <btc-addr>)
+      teslacrack crack-key      [-v] [--progress] (--ecdh <pub-key> | --btc-addr <btc-addr>)
                                 <mul-key>  <prime-factor>...
       teslacrack file           [-v] [ -F <hconv>] <file>  [<field>]...
       teslacrack -h | --help
@@ -91,12 +91,12 @@ Quickstart
       crack-fkey:
           Read mul-key(s) from <file> and use the <prime-factor> integers produced by
           external factorization program (i.e. *msieve*) or found in http://factordb.com/
-          to reconstruct their key(s), optionally according to *ECDSA* or *BTC* methods
+          to reconstruct their key(s), optionally according to *ECDH* or *BTC* methods
           (explained in respective options).
           When no method specified (the default), the <file> must belong to `known_file_magic`.
       crack-key:
           Like the `crack-fkey`, above, but the <mul-key> is explicitly given and
-          the method must be one of *ECDSA* or *BTC*.  Use the `file` or `decrypt` sub-cmds
+          the method must be one of *ECDH* or *BTC*.  Use the `file` or `decrypt` sub-cmds
           to print the <mul-key>; factorize this to get all <prime-factor>.
       file:
           Print tesla-file's header fields (keys, addresses, etc), or those explicitly
@@ -104,15 +104,14 @@ Quickstart
           subs-string of fields available.
 
     Options:
-      --ecdsa [<pub-key>]    A slower key-reconstructor based on Elliptic-Curve-Cryptography which:
+      --ecdh [<pub-key>]     A slower key-reconstructor based on Elliptic-Curve-Cryptography which:
                                - can recover both AES or BTC[1] keys;
                                - can recover keys from any file-type (no need for *magic-bytes*);
                                - yields always a single correct key.
                              For the `crack-fkey` sub-cmd, the <prime-factors> select which key
-                             to crack (AES or BTC).
-                             For the `crack-key` sub-cmd, specify which <mul-key> and
-                             paired <pub-key> to break.
-      --btc-addr <btc-addr>  Guess BTC key based on the bitcoin-address and BTC[1] ecdsa-key.
+                             to crack (AES or BTC). For the `crack-key` sub-cmd, specify
+                             which <mul-key> and paired <pub-key> to break.
+      --btc-addr <btc-addr>  Guess BTC key based on the bitcoin-address and BTC[1] pub-key.
                              The <btc-addr> is typically found in the ransom-note or recovery file
       -F <hconv>             Specify print-out format for tesla-header fields (keys, addresses, etc),
                              where <hconv> is any non-ambiguous case-insensitive *prefix* from:
@@ -125,23 +124,21 @@ Quickstart
                                - 64: all base64, size(int) - most concise.
                              [default: 64]
       --delete               Delete crypted-files after decrypting them.
-      --delete-old           Delete crypted even if decrypted-file created during a
-                             previous run [default: False].
-      -n, --dry-run          Decrypt but don't Write/Delete files, just report
-                             actions performed [default: False].
+      --delete-old           Delete crypted even if decrypted-file created during a previous run
+                             [default: False].
+      -n, --dry-run          Decrypt but don't Write/Delete files, just report actions performed
+                             [default: False].
       --progress             Before start decrypting files, pre-scan all dirs, to
                              provide progress-indicator [default: False].
-      --fix                  Re-decrypt tesla-files and overwrite crypted-
-                             counterparts if they have unexpected size. If ou enable it,
-                             by default it backs-up existing files with '.BAK' extension
-                             (see `--backup`). Specify empty extension '' for no backups
-                             (e.g. `--backup=`)
+      --fix                  Re-decrypt tesla-files and overwrite crypted-counterparts if they have
+                             unexpected size. If you enable it, by default it backs-up existing files
+                             with '.BAK' extension (see `--backup`). Specify empty extension ''
+                             for no backups (e.g. `--backup=`)
                              WARNING: You may LOOSE FILES that have changed due to
                              regular use, such as, configuration-files and mailboxes!
                              [default: False].
-      --overwrite            Re-decrypt ALL tesla-files, overwritting all crypted-
-                             counterparts. Optionally creates backups with the
-                             given extension (see `--backup`).
+      --overwrite            Re-decrypt ALL tesla-files, overwritting all crypted-counterparts.
+                             Optionally creates backups with the given extension (see `--backup`).
                              WARNING: You may LOOSE FILES that have changed due to
                              regular use, such as, configuration-files and mailboxes!
                              [default: False].
@@ -184,16 +181,16 @@ that is relevant for this cracking tool:
 
 2. an "improvised" Elliptic Cryptography (EC) asymmetrical method is then applied
    to store securely the above AES-key into your computer - it is taken to be as
-   the ECDH "private" (or ECDSA "signing") key, and from that,
+   the ECDH "private" (or ECDSA "signing") key[2]_, and from that,
    2 ciphered keys are produced:
 
-   - **AES ECDH public-key** (or simply ``aes_ecdh_key``): this is the "public"
+   - **AES ECDH public-key** (or simply ``aes_pub_key``): this is the ECDH "public"
      (or ECDSA "verifying") counterpart of your AES-key above - note that it is
      impossible to derive your AES-key from that, it can only check the validity
      of a candidate AES-key;
    - **AES multiple** (or ``aes_mul_key``): another "ciphetext" which is just
      a "big" (but not big enough!) multiplicative product of your AES key
-     with the ECDSA XXX.
+     with the ECDH "shared-secret" derived from the above keys.
 
 3. it then starts to encrypt your files one-by-one, attaching these 2 fields
    into the headers of those files.
@@ -208,7 +205,7 @@ that is relevant for this cracking tool:
 *TeslaCrack* implements (primarily) an integer factorization attack against
 the ``aes_mul_key`` and ``btc_mul_key`` fields, recovering the original AES-key by just
 trying all factor combinations, and using some method for validating that the
-tested-key is the correct one (e.g. ECDSA schema, BTC address validation).
+tested-key is the correct one (e.g. ECDH schema, BTC address validation).
 
 The actual factorization is not implemented within *TeslaCrack* - it only extracts
 the numbers to be factored, and you have to feed them into 3rd party factoring tools,
@@ -217,7 +214,8 @@ such as `YAFU or msieve
 
 .. [1] A **symmetrical** encryption-scheme uses the same *key* for both
    encrypting and decrypting a document.
-
+.. [2] A nice overview of the Elliptic Cryptography terms used here is given
+   in http://andrea.corbellini.name/2015/05/30/elliptic-curve-cryptography-ecdh-and-ecdsa/
 
 Installation
 ============
@@ -393,12 +391,12 @@ have been already factorized, and you can skip the next step :-)
 
   It will reconstruct and print any decrypted AES-keys candidates (usually just one).
 
-- Alternatively you may use ``--ecdsa`` option to break either the AES or the
+- Alternatively you may use ``--ecdh`` option to break either the AES or the
   BTC key for the |TeslaDecoder|_ tool (see section below).  This option requires
   AES or BTC public keys, which you may get them  also with the ``file`` sub-cmd
   (see previous step on how)::
 
-       teslacrack crack-fkey --ecdsa <crypted-file>  <factor-1>  <factor-2> ...
+       teslacrack crack-fkey --ecdh <crypted-file>  <factor-1>  <factor-2> ...
 
   Which key to break (BTC or AES) gets to be deduced from the factors you provide.
 
@@ -409,10 +407,10 @@ have been already factorized, and you can skip the next step :-)
 - As utility, the ``crack-key`` sub-command provides for reconstructing a key
   without the tesla-file that originated from::
 
-      teslacrack crack-key --ecdsa <pub-key> <mul-key> <prime-factors>...
+      teslacrack crack-key --ecdh <pub-key> <mul-key> <prime-factors>...
 
   Notice that it requires both types of keys:
-  - the ECDH-public AES or BTC key with the ``--ecdsa`` option, and
+  - the ECDH-public AES or BTC key with the ``--ecdh`` option, and
   - the paired "mul" key as its 1st positional argument, before listing the usual
     prime-factors.
 

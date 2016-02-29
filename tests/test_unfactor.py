@@ -154,24 +154,24 @@ class TUnfactor(unittest.TestCase):
 #             self.assertIn(key_rec['error'], err_msg, msg=key_rec)
 
     @ddt.data(*[k for k in app_db['keys'] if k['type'] == 'BTC'])
-    def test_unfactor_ecdsa_BTC_from_file(self, key_rec):
+    def test_unfactor_ecdh_BTC_from_file(self, key_rec):
         for f in key_rec.get('crypted_files', ()):
             exp_aes_key = key_rec.get('decrypted')
             if not exp_aes_key:
                 continue
             factors = [int(fc) for fc in key_rec['factors']]
-            key_name, key = unfactor.crack_ecdsa_key_from_file(f, factors)
+            key_name, key = unfactor.crack_ecdh_key_from_file(f, factors)
             #print(key_rec['name'], f, aes_keys, exp_aes_key)
             self.assertIn(exp_aes_key.upper(), '0x%064X'%key, msg=key_rec)
 
     @ddt.data(*[k for k in app_db['keys'] if k['type'] == 'AES'])
-    def test_unfactor_ecdsa_AES_from_file(self, key_rec):
+    def test_unfactor_ecdh_AES_from_file(self, key_rec):
         for f in key_rec.get('crypted_files', ()):
             exp_aes_key = key_rec.get('decrypted')
             if not exp_aes_key:
                 continue
             factors = [int(fc) for fc in key_rec['factors']]
-            key_name, key = unfactor.crack_ecdsa_key_from_file(f, factors)
+            key_name, key = unfactor.crack_ecdh_key_from_file(f, factors)
             #print(key_rec['name'], f, aes_keys, exp_aes_key)
             self.assertIn(exp_aes_key.upper(), '0x%064X'%key, msg=key_rec)
 

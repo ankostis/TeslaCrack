@@ -1,6 +1,6 @@
-#########
-CHANGES
-#########
+##################
+TeslaCrack CHANGES
+##################
 
 v0.1.0: XX Feb 2016: Package distribution as cmd-line tool
 ==========================================================

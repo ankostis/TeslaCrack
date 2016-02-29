@@ -87,15 +87,15 @@ mydir = os.path.dirname(__file__)
 
 _sample_header = teslafile.Header( # From file: tesla_key14.jpg.vvv
     start=b'\0\0\0\0\x04',
-    btc_ecdsa_key=b'\x17z^\ts\xea4\xff\xae\xba\x8b\xab\xa6\xf8\x8fN\xd1M9CU\x9d{\x16=\xda\xc8\xd4\xdf\xe9\xe5\xa8\x92\xd9(m\xbd\xb5o]\x8e\xd1f\x85\xd5VOb\xfa\xfdD\x1f~\xb4\x0e\xc6*\xf7>\x07s\xd7n\xb1',
+    btc_pub_key=b'\x17z^\ts\xea4\xff\xae\xba\x8b\xab\xa6\xf8\x8fN\xd1M9CU\x9d{\x16=\xda\xc8\xd4\xdf\xe9\xe5\xa8\x92\xd9(m\xbd\xb5o]\x8e\xd1f\x85\xd5VOb\xfa\xfdD\x1f~\xb4\x0e\xc6*\xf7>\x07s\xd7n\xb1',
     btc_mul_key=b'372AE820BBF2C3475E18F165F46772087EFFC7D378A3A4D10789AE7633EC09C74578993A2A7104EBA577D229F935AF77C647F18E113647C25EF19CC7E4EE3C4C\x00\x00',
-    aes_ecdsa_key=b'\x04C\xc3\xfe\x02F\x05}\x066\xd0\xca\xbb}\x8e\xe9\x847\xe6\xe6\xc0\xfe2J#\xee\x1aO\xd8\xc5\x1d\xbc\x06\xd9.m\xe51@\xb0W\xc5\x18P\xe1\rr\xc5\xa2\xce\t\x81\x80u\xd4\x12\xf1\xda\xb7r\x9e\xe4\xd6&\xfe',
+    aes_pub_key=b'\x04C\xc3\xfe\x02F\x05}\x066\xd0\xca\xbb}\x8e\xe9\x847\xe6\xe6\xc0\xfe2J#\xee\x1aO\xd8\xc5\x1d\xbc\x06\xd9.m\xe51@\xb0W\xc5\x18P\xe1\rr\xc5\xa2\xce\t\x81\x80u\xd4\x12\xf1\xda\xb7r\x9e\xe4\xd6&\xfe',
     aes_mul_key=b'9B2A14529F5CEF649FD0330D15B4E59A9F60484DB5D044E44F757521850BC8E1DCDF3CB770FEE0DD2B6A7742B99300ED02103027B742BC862110A1765A8B4FC6\x00\x00',
     iv=b"'Q\n\xbf1\x8di&\x17x\x97+\x98}\xf6\x9f",
     size=7188492
 )
 _sample_size = _sample_header.size
-_key_fields = ('btc_ecdsa_key', 'aes_ecdsa_key') + teslafile._hex_fields
+_key_fields = ('btc_pub_key', 'aes_pub_key') + teslafile._hex_fields
 
 
 def _all_prefixes(s):
@@ -178,13 +178,13 @@ class THeader(unittest.TestCase):
         s = str(h)
         #print(s)
         exp_str = """
-                  start: '0x0000000004'
-          btc_ecdsa_key: '0x177a5e0973ea34ffaeba8baba6f88f4ed14d3943559d7b163ddac8d4dfe9e5a892d9286dbdb56f5d8ed16685d5564f62fafd441f7eb40ec62af73e0773d76eb1'
-            btc_mul_key: '0x372ae820bbf2c3475e18f165f46772087effc7d378a3a4d10789ae7633ec09c74578993a2a7104eba577d229f935af77c647f18e113647c25ef19cc7e4ee3c4c'
-          aes_ecdsa_key: '0x0443c3fe0246057d0636d0cabb7d8ee98437e6e6c0fe324a23ee1a4fd8c51dbc06d92e6de53140b057c51850e10d72c5a2ce09818075d412f1dab7729ee4d626fe'
-            aes_mul_key: '0x9b2a14529f5cef649fd0330d15b4e59a9f60484db5d044e44f757521850bc8e1dcdf3cb770fee0dd2b6a7742b99300ed02103027b742bc862110a1765a8b4fc6'
-                     iv: '0x27510abf318d69261778972b987df69f'
-                   size: '0x6db00c'"""
+                start: '0x0000000004'
+          btc_pub_key: '0x177a5e0973ea34ffaeba8baba6f88f4ed14d3943559d7b163ddac8d4dfe9e5a892d9286dbdb56f5d8ed16685d5564f62fafd441f7eb40ec62af73e0773d76eb1'
+          btc_mul_key: '0x372ae820bbf2c3475e18f165f46772087effc7d378a3a4d10789ae7633ec09c74578993a2a7104eba577d229f935af77c647f18e113647c25ef19cc7e4ee3c4c'
+          aes_pub_key: '0x0443c3fe0246057d0636d0cabb7d8ee98437e6e6c0fe324a23ee1a4fd8c51dbc06d92e6de53140b057c51850e10d72c5a2ce09818075d412f1dab7729ee4d626fe'
+          aes_mul_key: '0x9b2a14529f5cef649fd0330d15b4e59a9f60484db5d044e44f757521850bc8e1dcdf3cb770fee0dd2b6a7742b99300ed02103027b742bc862110a1765a8b4fc6'
+                   iv: '0x27510abf318d69261778972b987df69f'
+                 size: '0x6db00c'"""
         self.assertSequenceEqual(s.split(), exp_str.split())
 
 

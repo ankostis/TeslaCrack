@@ -127,7 +127,7 @@ def _is_known_file(fname, fbytes):
             return True
 
 
-def _make_ecdsa_pub_bkey(ecdh_sec_exponent):
+def _make_ecdh_pub_bkey(ecdh_sec_exponent):
     return bytes(ecdsa.SigningKey.from_secret_exponent(ecdh_sec_exponent,
                 curve=ecdsa.SECP256k1).verifying_key.to_string())
 
@@ -145,9 +145,9 @@ def crack_aes_key_from_file(fpath, primes):
     candidate_keys = _guess_all_keys(primes, key_ok_predicate=did_AES_produced_known_file)
     log.debug('Candidate AES-keys: %s', candidate_keys)
 
-    file_pub = header.conv('aes_ecdsa_key', 'bin')
+    file_pub = header.conv('aes_pub_key', 'bin')
     for test_priv in candidate_keys:
-        gen_pub = _make_ecdsa_pub_bkey(test_priv)
+        gen_pub = _make_ecdh_pub_bkey(test_priv)
         if file_pub.startswith(gen_pub):
             return test_priv
 
@@ -162,14 +162,14 @@ def crack_btc_key_from_btc_address(btc_address, primes, btc_mul_key=None):
     return _guess_key(primes, key_ok_predicate=does_key_gen_my_btc_address)
 
 
-def crack_ecdsa_key(ecdsa_pub_key, mul_key, primes):
+def crack_ecdh_key(ecdsa_pub_key, mul_key, primes):
     primes = _validate_factors_product(primes, mul_key, allow_cofactor=True)
 
-    def does_key_gen_my_ecdsa(test_key):
-        gen_pub = _make_ecdsa_pub_bkey(test_key)
+    def does_key_gen_my_ecdh(test_key):
+        gen_pub = _make_ecdh_pub_bkey(test_key)
         return ecdsa_pub_key.startswith(gen_pub)
 
-    return _guess_key(primes, key_ok_predicate=does_key_gen_my_ecdsa)
+    return _guess_key(primes, key_ok_predicate=does_key_gen_my_ecdh)
 
 
 def _decide_which_key(primes, aes_mul, btc_mul, file):
@@ -199,20 +199,20 @@ def _decide_which_key(primes, aes_mul, btc_mul, file):
     return sorted(primes), key_name
 
 
-def crack_ecdsa_key_from_file(file, primes):
+def crack_ecdh_key_from_file(file, primes):
     with open(file, "rb") as f:
         header = Header.from_fd(f)
     aes_mul = int(header.conv('aes_mul_key', 'fix'), 16)
-    aes_ecdsa = header.aes_ecdsa_key
+    aes_ecdh = header.aes_pub_key
     btc_mul = int(header.conv('btc_mul_key', 'fix'), 16)
-    btc_ecdsa = header.btc_ecdsa_key
+    btc_ecdh = header.btc_pub_key
     primes, key_name = _decide_which_key(primes, aes_mul, btc_mul, file)
 
-    def does_key_gen_my_ecdsa(key):
-        gen_ecdsa = ecdsa.SigningKey.from_secret_exponent(
+    def does_key_gen_my_ecdh(key):
+        gen_ecdh = ecdsa.SigningKey.from_secret_exponent(
                 key, curve=ecdsa.SECP256k1).verifying_key
-        gen_ecdsa = bytes(gen_ecdsa.to_string())
-        return aes_ecdsa.startswith(gen_ecdsa) or btc_ecdsa.startswith(gen_ecdsa)
+        gen_ecdh = bytes(gen_ecdh.to_string())
+        return aes_ecdh.startswith(gen_ecdh) or btc_ecdh.startswith(gen_ecdh)
 
-    key = _guess_key(primes, key_ok_predicate=does_key_gen_my_ecdsa)
+    key = _guess_key(primes, key_ok_predicate=does_key_gen_my_ecdh)
     return (key_name, key) if key else (None, None)
