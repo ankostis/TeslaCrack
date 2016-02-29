@@ -8,7 +8,7 @@
 from __future__ import print_function, unicode_literals, division
 
 import logging
-from teslacrack import __main__ as tcm, keydb
+from teslacrack import __main__ as tcm, factordb
 import unittest
 try:
     from unittest.mock import patch
@@ -25,12 +25,14 @@ import itertools as itt
 tcm.init_logging(level=logging.DEBUG)
 
 _factorized_num = 2118716315081944071154463906483768844885801576547629834952739116332490288727711150774189198852837304785074169499127916918462675640932594243139970187254480
-_factorized_num_factors = [
-         2, 2, 2, 2, 5, 7, 13, 23, 103,
-        122850342280668807673432007899874804879290282016547868470070085463593989252647008218227958129782893091689947159691338031444544438519788235585328939
+_big_factor = 122850342280668807673432007899874804879290282016547868470070085463593989252647008218227958129782893091689947159691338031444544438519788235585328939
+_factorized_num_primes = [2, 2, 2, 2, 5, 7, 13, 23, 103]
+_factorized_num_composites = [(
+        122850342280668807673432007899874804879290282016547868470070085463593989252647008218227958129782893091689947159691338031444544438519788235585328939,
+        'C',),
 ]
 
-_factordb_search = {
+_search = {
     _factorized_num: b"""<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
         <form action="index.php" method="get">
         <center>
@@ -38,14 +40,24 @@ _factordb_search = {
         <input type="submit" value="Factorize!"> &nbsp; (<a href="help.php?page=0">?</a>)
         </center>
         <br /><br />
-        </form><table border=0 width="98%"><tr><td align="center" colspan=3 bgcolor="#BBBBBB"><b>Result:</b></td>
-        </tr><tr><td bgcolor="#DDDDDD">status <a href="status.html" target="_blank">(?)</a></td>
-        <td bgcolor="#DDDDDD">digits</td>
-        <td bgcolor="#DDDDDD">number</td>
-        </tr><tr><td>CF</td>
-        <td>154 <a href="index.php?showid=1100000000820004790">(show)</a></td>
-        <td><a href="index.php?id=1100000000820004790"><font color="#002099">2118716315...80</font></a><sub>&lt;154&gt;</sub> = <a href="index.php?id=2"><font color="#000000">2^4</font></a> &middot; <a href="index.php?id=5"><font color="#000000">5</font></a> &middot; <a href="index.php?id=7"><font color="#000000">7</font></a> &middot; <a href="index.php?id=13"><font color="#000000">13</font></a> &middot; <a href="index.php?id=23"><font color="#000000">23</font></a> &middot; <a href="index.php?id=103"><font color="#000000">103</font></a> &middot; <a href="index.php?id=1100000000820004792"><font color="#002099">1228503422...39</font></a><sub>&lt;147&gt;</sub></td>
-        </tr></table><br><br><div id="moreinfo"><table border=0 width="98%"><tr><td align="center" bgcolor="#BBBBBB"><b>More information</b> <a onclick="getdata('moreinfo','frame_moreinfo.php?id=1100000000820004790')"><img src="expand.png" border=0></a></td>
+        </form>
+        <table border=0 width="98%">
+            <tr>
+                <td align="center" colspan=3 bgcolor="#BBBBBB"><b>Result:</b></td>
+            </tr>
+            <tr>
+                <td bgcolor="#DDDDDD">status <a href="status.html" target="_blank">(?)</a></td>
+                <td bgcolor="#DDDDDD">digits</td> <td bgcolor="#DDDDDD">number</td>
+            </tr>
+            <tr>
+                <td>CF</td>
+                <td>154 <a href="index.php?showid=1100000000820004790">(show)</a></td>
+                <td>
+                    <a href="index.php?id=1100000000820004790"><font color="#002099">2118716315...80</font></a><sub>&lt;154&gt;</sub> = <a href="index.php?id=2"><font color="#000000">2^4</font></a> &middot; <a href="index.php?id=5"><font color="#000000">5</font></a> &middot; <a href="index.php?id=7"><font color="#000000">7</font></a> &middot; <a href="index.php?id=13"><font color="#000000">13</font></a> &middot; <a href="index.php?id=23"><font color="#000000">23</font></a> &middot; <a href="index.php?id=103"><font color="#000000">103</font></a> &middot; <a href="index.php?id=1100000000820004792"><font color="#002099">1228503422...39</font></a><sub>&lt;147&gt;</sub>
+                </td>
+            </tr>
+        </table>
+        <br><br><div id="moreinfo"><table border=0 width="98%"><tr><td align="center" bgcolor="#BBBBBB"><b>More information</b> <a onclick="getdata('moreinfo','frame_moreinfo.php?id=1100000000820004790')"><img src="expand.png" border=0></a></td>
         </tr></table></div><br /><div id="ecm"><table border=0 width="98%"><tr><td align="center" bgcolor="#BBBBBB"><b>ECM</b> <a onclick="getdata('ecm','frame_ecm.php?id=1100000000820004790')"><img src="expand.png" border=0></a></td>
         </tr></table></div><br /><form action="index.php?id=1100000000820004790" method="POST"><center><table border=0 width="800"><tr><td align="center" bgcolor="#BBBBBB"><b>Report factors</b></td>
         </tr><tr><td align="center" bgcolor="#DDDDDD"><textarea name="report" rows=4 cols=110></textarea></td>
@@ -66,9 +78,43 @@ _factordb_search = {
         </tr><tr><td align="center" bgcolor="#DDDDDD"><input type="submit" value="Report"></td>
         </tr></table></center></form>
     """,
+    _big_factor: b"""
+        <form action="index.php" method="get">
+        <center>
+        <input type="text" size=100 name="query" value="122850342280668807673432007899874804879290282016547868470070085463593989252647008218227958129782893091689947159691338031444544438519788235585328939">
+        <input type="submit" value="Factorize!"> &nbsp; (<a href="help.php?page=0">?</a>)
+        </center>
+        <br /><br />
+        </form><table border=0 width="98%"><tr><td align="center" colspan=3 bgcolor="#BBBBBB"><b>Result:</b></td>
+        </tr><tr><td bgcolor="#DDDDDD">status <a href="status.html" target="_blank">(?)</a></td>
+        <td bgcolor="#DDDDDD">digits</td>
+        <td bgcolor="#DDDDDD">number</td>
+        </tr><tr><td>C</td>
+        <td>147 <a href="index.php?showid=1100000000820004792">(show)</a></td>
+        <td><a href="index.php?id=1100000000820004792"><font color="#002099">1228503422...39</font></a><sub>&lt;147&gt;</sub> = <a href="index.php?id=1100000000820004792"><font color="#002099">1228503422...39</font></a><sub>&lt;147&gt;</sub></td>
+        </tr></table><br><br><div id="moreinfo"><table border=0 width="98%"><tr><td align="center" bgcolor="#BBBBBB"><b>More information</b> <a onclick="getdata('moreinfo','frame_moreinfo.php?id=1100000000820004792')"><img src="expand.png" border=0></a></td>
+        </tr></table></div><br /><form action="index.php?id=1100000000820004792" method="POST"><center><table border=0 width="800"><tr><td align="center" bgcolor="#BBBBBB"><b>Report factors</b></td>
+        </tr><tr><td align="center" bgcolor="#DDDDDD"><textarea name="report" rows=4 cols=110></textarea></td>
+        </tr><tr><td align="center">Format: <select name="format" size=1>
+        <option value="0">Auto detect (slow)
+        <option value="1">One factor per line, base 2
+        <option value="2">One factor per line, base 8
+        <option value="3">One factor per line, base 10 (accepts terms)
+        <option value="4">One factor per line, base 16
+        <option value="5">Multiple factors per line, base 2
+        <option value="6">Multiple factors per line, base 8
+        <option value="7">Multiple factors per line, base 10
+        <option value="8">Multiple factors per line, base 16
+        <option value="9">GMP-ECM output
+        <option value="10">Msieve output
+        <option value="11">Yafu output
+        </select></td>
+        </tr><tr><td align="center" bgcolor="#DDDDDD"><input type="submit" value="Report"></td>
+        </tr></table></center></form>
+    """
 }
 
-_factordb_showid = {
+_showid = {
     1100000000820004790: b"""<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
   "http://www.w3.org/TR/html4/loose.dtd">
         <html>
@@ -133,24 +179,32 @@ _factordb_showid = {
 }
 
 
-def _static_fetch_factordb_factors(num):
-    page_bytes = _factordb_search[num]
-    return keydb._parse_factordb_factors(page_bytes)
+def _static_fetch_num_by_id(num):
+    page_bytes = _showid[num]
+    return factordb._parse_showid(page_bytes)
+
+def _static_fetch_factors(num, primes, composites):
+    page_bytes = _search[num]
+    factordb._parse_factors(page_bytes, primes, composites, num)
 
 
-def _static_fetch_factordb_showid(num):
-    page_bytes = _factordb_showid[num]
-    return keydb._parse_factordb_showid(page_bytes)
-
-
-#@ddt.ddt
-@patch('teslacrack.keydb.fetch_factordb_factors', _static_fetch_factordb_factors)
-@patch('teslacrack.keydb._fetch_factordb_showid', _static_fetch_factordb_showid)
 class TFactordb(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.longMessage = True ## Print also original assertion msg on PY2.
 
-    def test_factordb(self):
-        factors = keydb.fetch_factordb_factors(_factorized_num)
-        self.assertSequenceEqual(factors, _factorized_num_factors)
+    @patch('teslacrack.factordb._fetch_num_by_id', _static_fetch_num_by_id)
+    @patch('teslacrack.factordb.fetch_factors', _static_fetch_factors)
+    def test_factordb_OFFLINE(self):
+        primes, comps = [], []
+        factordb.fetch_factors(_factorized_num, primes, comps)
+        self.assertSequenceEqual(primes, _factorized_num_primes)
+
+    def test_factor_db_online_teslafile_key33(self):
+        num = 123486295568968972840605497001245359771736341657817854253434479070094846239806722032868366333337657823471502950485647659533188690254579694501399448815375
+        exp_primes = [5, 5, 5, 31, 59, 1506317, 1615181, 32339941, 122098624903,
+          521215182980524891501, 790355274904991699508542726894030536679239,
+          136479699905329522235449077339883560021814719121773623]
+        primes, comps = factordb.fetch_factors(num)
+        self.assertSequenceEqual(primes, exp_primes)
+        self.assertEqual(comps, [])

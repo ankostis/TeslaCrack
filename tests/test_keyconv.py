@@ -57,7 +57,7 @@ class TAutonvertKey(unittest.TestCase):
     def test_unquote_str_regex(self, case):
         quoted, unquoted = case
         quoted %= unquoted
-        m = keyconv._unquote_str_regex.match(quoted)
+        m = keyconv._unquote_str_regex.match(quoted)  # @UndefinedVariable
         self.assertIsNotNone(m, quoted)
         self.assertEqual(m.group(2), unquoted)
 
