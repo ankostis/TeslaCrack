@@ -13,13 +13,13 @@ TeslaCrack - decrypt files crypted by TeslaCrypt ransomware
 :Author:      Googulator
 :License:     GNU General Public License v3 (GPLv3)
 
-This is a tool for decrypting files that were encrypted with the versions < 3.0
-of the **TeslaCrypt ransomware** (see `TeslaCrypt versions`_, at the bottom).
-
+This tool mainly decrypts files from **TeslaCrypt ransomware** < v3.x
+(see `TeslaCrypt versions`_, at the bottom).
 These versions can be recognized from the extensions ``.vvv, .ccc,  .zzz, .aaa, .abc``
 added to the names of you original files, and/or the filenames of the ransom notes
 being ``Howto_RESTORE_FILES.txt``.
-The tool should may help also ancient versions by reconstructing the Bitcoin private-key,
+
+The tool should may help also ancient versions by reconstructing the *Bitcoin private-key*,
 which is utilized by |TeslaDecrypt|_ or |TeslaDecoder|_ external programs.
 
 
@@ -168,6 +168,72 @@ Quickstart
     Enjoy! ;)
 
 
+Terminology
+-----------
+Elliptic Cryptography (EC):
+    *TeslaCrypt* v2 applies a "amateurish" EC-sheme twice, first on the "Bitcoin" keys,
+    and then on the "AES" ones.  During encryption/decryption, for both key-sets, a series of
+    different key-types are generated, in the order that are described below.
+
+    There is a nice overview of the `Elliptic Cryptography terms used throughout
+    <http://andrea.corbellini.name/2015/05/30/elliptic-curve-cryptography-ecdh-and-ecdsa/>`_
+    along with a `simple introduction into the EC "curves"
+    <https://blog.cloudflare.com/a-relatively-easy-to-understand-primer-on-elliptic-curve-cryptography/>`_.
+    It suffices to know that it is based on a "geometry" defined by "special" multiplications of
+    *private-numbers* with x-y *public-points*;  contrary to the Euclidean geometry,
+    when given a starting point and the multiplication result, it is infeasible(!)
+    to derive the number factor.
+
+EC *Private* Keys:
+    These are the keys we try to reconstruct: one *BTC* and one or more *AES* keys.
+    In addition to being *EC private numbers*, they have additional functionalities,
+    explained below; but above all, they can decrypt directly or inderectly some (or all) files.
+    They are not stored anywhere in your computer.
+
+    Bitcoin Private key (other names: ``btc_prv``):
+        It is generated during encryption, once per PC, and sent to cyber-criminals.
+        It has 2 uses:
+
+        1. It is the "master" EC *EC private number* able to derive all *AES session keys* that have
+           encrypted your files.
+        2. It makes the *private BTC address*, so if you had sent the money and you recover it before
+           the cyber-criminals "spend" them, you may get them back. Read more about BTC calculation
+           `here <https://en.bitcoin.it/wiki/Technical_background_of_version_1_Bitcoin_addresses>`_.
+
+        This is the first key to try to recover.
+
+    AES private key(s) (other names: *AES-session-key*, ``aes_prv``):
+        A new such key is randomly generated whenever an infected PC boots.
+        Your files are encrypted with this number using `AES symmetric method
+        <https://en.wikipedia.org/wiki/Advanced_Encryption_Standard>`_.
+        It is "symmetrical" in the sense that the same number also decrypts your files.
+        This is you 2nd chance, assuming the *BTC private key* above is too long.
+
+
+EC *Public* keys (other names: ``btc_pub``, ``aes_pub``):
+    There are 2 *EC public point* keys, one for each corresponding *EC private key*, above.
+    They are needed during regular decryption to derive the next key-type, the *shared secrets*.
+    They are both stored in the header of your encrypted-files.
+
+
+ECDH Shared *Secrets* (other names: *shared-key*, ``btc_sec``, ``aes_sec``):
+    During regular encryption & decryption these 2 keys are temporarily calculated
+    according to the *EC Diffie–Hellman* key-exchange protocol: by EC-multiplying
+    one *public* key (i.e. BTC) with the opposite *private* one (i.e. AES),
+    or vice-versa, since both operations arrive to the same *shared-secret*.
+    In the Teslacrypt case, the *private-key* is *SHA256-hashed* first.
+    They allow to derive the *AES* key from the *BTC*.
+    They are not stored anywhere in your computer.
+
+ *Multiplicative* keys(other names: *"mul"*, ``btc_mul``, ``aes_mul``):
+    These 2 keys are the factorization targets; when factorized, the *private-keys*
+    are easily derived, since::
+
+      mul := secret * private
+
+    The "weakness" lies in their size (just 128bits)
+    They are both stored in the header of your encrypted-files.
+
 
 How it works?
 -------------
@@ -175,47 +241,33 @@ We recapitulate `how TeslaCrypt ransomware \< v3.0 works to explain the weakness
 <https://securelist.com/blog/research/71371/teslacrypt-2-0-disguised-as-cryptowall/>`_
 that is relevant for this cracking tool:
 
-1. *TeslaCrypt* creates a random **AES session-key** that will be used to symmetrically[1]_
-   encrypt your files - it is immediately transmitted to the operators of the ransomware
-   (but that is irrelevant here);
+1. *TeslaCrypt* creates 2 random **AES** and **BTC** private keys - the AES will
+   symmetrically[1]_ encrypt your files, the BTC will accept your money - and
+   immediately transmits them to the operators of the ransomware (irrelevant here);
 
-2. an "improvised" Elliptic Cryptography (EC) asymmetrical method is then applied
-   to store securely the above AES-key into your computer - it is taken to be as
-   the ECDH "private" (or ECDSA "signing") key[2]_, and from that,
-   2 ciphered keys are produced:
-
-   - **AES ECDH public-key** (or simply ``aes_pub_key``): this is the ECDH "public"
-     (or ECDSA "verifying") counterpart of your AES-key above - note that it is
-     impossible to derive your AES-key from that, it can only check the validity
-     of a candidate AES-key;
-   - **AES multiple** (or ``aes_mul_key``): another "ciphetext" which is just
-     a "big" (but not big enough!) multiplicative product of your AES key
-     with the ECDH "shared-secret" derived from the above keys.
+2. an "improvised" asymmetrical EC scheme is then used to to encrypt these AES & BTC keys
+   within your computer; for redundancy (in case some of the keys are lost during transmission)
+   they crypto-criminals employed an additional "big" multiplicative ciphetext (``XXX_mul_key``)
+   which unfortunately for them, is not big enough(!).
 
 3. it then starts to encrypt your files one-by-one, attaching these 2 fields
    into the headers of those files.
 
-- Actually *TeslaCrypt* applies the method above to generate another pair of
-  ciphered keys from the "master" **Bitcoin private -key** - ``btc_ecdh_key``
-  & ``btc_mul_key`` - those are also stored into your tesla-file headers.
-
-- Multiple AES-keys are generated if you interrupt the ransomware while it encrypts
-  your files (i.e. reboot), but only a single *btc* pair.
+   Multiple *AES* keys will be generated if you interrupt the ransomware while it encrypts
+   your files (i.e. reboot), but only a single *btc* pair is ever created.
 
 *TeslaCrack* implements (primarily) an integer factorization attack against
 the ``aes_mul_key`` and ``btc_mul_key`` fields, recovering the original AES-key by just
 trying all factor combinations, and using some method for validating that the
 tested-key is the correct one (e.g. ECDH schema, BTC address validation).
 
+Additionally it can derive the *AES private key* from the *BTC private key*.
+
 The actual factorization is not implemented within *TeslaCrack* - it only extracts
 the numbers to be factored, and you have to feed them into 3rd party factoring tools,
 such as `YAFU or msieve
 <https://www.google.com/search?q=msieve+factorization>`_.
 
-.. [1] A **symmetrical** encryption-scheme uses the same *key* for both
-   encrypting and decrypting a document.
-.. [2] A nice overview of the Elliptic Cryptography terms used here is given
-   in http://andrea.corbellini.name/2015/05/30/elliptic-curve-cryptography-ecdh-and-ecdsa/
 
 Installation
 ============
@@ -309,13 +361,14 @@ For al list of all extensions, read `TeslaCrypt versions`_ at the bottom.
 
 2. Decide which Key to attack:  *BTC* or *AES*?
 -----------------------------------------------
-Count how many different "mul" AES-keys the ransomware has used to encrypt
-your files - the answer to this question will tell you which key to attack.
+You should definetely attempt to factorize your *"mul" BTC* key - but you may be unlucky
+and it may be too long. So if you count how many different *"mul"* AES-keys have encrypted
+your files, you will know better your road ahead.
 
 .. Tip::
 
      To understand the various names of keys mentioned in these instructions,
-     read the `How it works?`_ section.
+     read the Terminology`_ section.
 
 To gather all "mul" keys, attempt to decrypt your files and check the output
 of this command::
@@ -326,10 +379,9 @@ This command should fail to decrypt your files, but will print all unknown
 ``aes_mul_key`` encountered, as hexadecimal numbers (note that it should report
 the same ``btc_mul_key`` for all your files).
 
-If you get a single unknown AES "mul" key, you may opt for attacking
-directly this, using the plain ``crack-fkey`` sub-cmd, which is usually faster.
-Otherwise, attack the BTC key and use the |TeslaDecoder|_ to decrypt files, as
-described by the `Break bitcoin-keys for TeslaDecoder`_ section, below.
+If you get a single unknown AES "mul" key, you may also attack it using
+the plain ``crack-fkey`` sub-cmd, which is slightly faster. But in any case,
+the time-consuming step is no 3, "factorization", not the key-reconstruction.
 
 
 3. Factorize your "mul" Key:
