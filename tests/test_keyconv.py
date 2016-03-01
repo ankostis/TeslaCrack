@@ -31,16 +31,15 @@ _key_variations = [
 
 def _gen_key_variations():
     for k in _key_variations:
-        if isinstance(k, int):
-            yield k
-        else:
-            yield k
-#             yield (k ,'%s'%k,
-#                 'b"%s"' % k , b'b"%s"' % k,
-#                 'u"%s"' % k , b'u"%s"' % k,
-#                 "b'%s'" % k , b"b'%s'" % k,
-#                 "u'%s'" % k , b"u'%s'" % k,
-#                 )
+        yield k
+        if not isinstance(k, int):
+            for frmt in ('%s', 'b"%s"', b'b"%s"', 'u"%s"', b'u"%s"',
+                    "b'%s'", b"b'%s'", "u'%s'", b"u'%s'"):
+                try:
+                    print(frmt, k)
+                    yield frmt % k
+                except (TypeError, UnicodeError):
+                    pass
 
 @ddt.ddt
 class TAutonvertKey(unittest.TestCase):
@@ -80,3 +79,10 @@ class TAutonvertKey(unittest.TestCase):
         exp_bytes= b'\x07\xe1\x89!\xc56\xc1\x12\xa1If\xd4\xea\xad\x01\xf1\x057\xf7y\x84\xad\xaa\xe3\x98\x04\x8f\x12h^(p\xcd\x19h\xfe3\x171\x96\x93\xda\x16\xff\xec\xf6\xa7\x8e\xdb\xc3%\xdd\xa2\xeex\xa3\xf9\xdf\x8e\xef\xd4\x02\x99\xd9'
         autokey = keyconv.autoconv_to_bytes(key)
         self.assertEqual(autokey, exp_bytes)
+
+    def test_autoconv_to_bytes_plainbytes(self):
+        key = b'\xae~\x9a\xf9)\x84\xa7\x955\x15$\xc3$>\xb6A\xcd\x03\x13F\xa7\xa9\xd4tK+\x1b"\xfdn\xf4\xe1S\xfa\x81\x17\x04\x8c\x11R+\xa4\xa0\xb9\t\xc3k=AF\xcbo\x13x\x82\xdf\xa2\xb2\xdeo&\xf0Y\x8d'
+        exp_bytes = key
+        autokey = keyconv.autoconv_to_bytes(key)
+        self.assertEqual(autokey, exp_bytes)
+

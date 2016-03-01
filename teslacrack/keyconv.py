@@ -17,13 +17,17 @@
 """Convert and parse keys to/from various formats (binary/hex/numeric, quoted, etc)."""
 from __future__ import print_function, unicode_literals, division
 
-from base64 import b64decode, b64encode
+from base64 import b64decode as b64dec, b64encode
 from binascii import hexlify, unhexlify
 import re
 import struct
+import codecs
 
 from future.builtins import str, int, bytes  # @UnusedImport
 from future.moves.collections import UserDict
+import future.utils as futils
+
+import functools as ft
 
 from . import CrackException, log, repr_conv
 
@@ -39,6 +43,17 @@ def b2x(v): return hexlify(v).decode('latin')
 def upp(v): return v.upper()
 def xs0x(v): return '0x%s' % v.lower()
 def n2h(v): return '0x%x' % v
+def esc_bbytes_2b(v): return  codecs.escape_decode(v)[0]
+def esc_sbytes_2b(v): return  codecs.escape_encode(v)[0]
+
+
+if futils.PY2:
+    _py2_base64_check_regex = re.compile('^[\w+/=]+$')
+    def b64decode(v):
+        _py2_base64_check_regex.match(v).groups
+        return b64dec(v)
+else:
+    b64decode = ft.partial(b64dec, validate=True)
 
 
 def _lalign_byte_key(byte_key):
@@ -85,7 +100,7 @@ _unquote_str_regex = re.compile('^(?:[bu]?(?P<quote>[\'"]))(.*)(?P=quote)$')
 _unquote_byt_regex = re.compile(b'^(?:[bu]?(?P<quote>[\'"]))(.*)(?P=quote)$')
 
 def _unquote(key):
-    regex = _unquote_str_regex if isinstance(key, str) else _unquote_byt_regex
+    regex = _unquote_byt_regex if isinstance(key, bytes) else _unquote_str_regex
     m = regex.match(key)
     return m and m.group(2) or key
 
@@ -104,6 +119,8 @@ def autoconv_to_bytes(key):
         funcs = (('num',    (_unquote, int, int_to_32or64bytes, bytes)),
                  ('hex',    (_unquote, i16, int_to_32or64bytes, bytes)),
                  ('64',     (_unquote, b64decode, bytes)),
+                 ('bin',    (_unquote, esc_bbytes_2b, _unquote, str_or_byte)),
+                 ('bin',    (_unquote, esc_sbytes_2b, _unquote, str_or_byte)),
                  ('bin',    (_unquote, str_or_byte))
         )
     for conv, trans_list in funcs:
