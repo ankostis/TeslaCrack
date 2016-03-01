@@ -20,7 +20,9 @@
 """Reconstruct TeslaCrypt keys from their prime-factors."""
 from __future__ import print_function, unicode_literals, division
 
+import hashlib
 import logging
+from teslacrack import keyconv
 
 from Crypto.Cipher import AES  # @UnresolvedImport
 import ecdsa
@@ -217,3 +219,33 @@ def crack_ecdh_key_from_file(file, primes):
 
     key = _guess_key(primes, key_ok_predicate=does_key_gen_my_ecdh)
     return (key_name, key) if key else (None, None)
+
+
+def _ECDH(pubB, prvN):
+    """:return: shared-secret as `int`"""
+    C = ecdsa.curves.SECP256k1
+    pubP = ecdsa.VerifyingKey.from_string(pubB, curve=C).pubkey.point
+    sharedP = pubP * prvN
+    return sharedP.x()
+
+
+def aes_priv_from_btc_priv(aes_pub, btc_priv, aes_mul):
+    """
+    Derive AES-session-key from BTC-priv-key.
+
+    :return: AES-private-key as `int`
+    """
+    ecdsa.util
+    aes_pubB, btc_privB, aes_mulB = [keyconv.autoconv_to_bytes(k)
+            for k in (aes_pub, btc_priv, aes_mul)]
+    btc_priv_h256N = keyconv.b2n(hashlib.sha256(btc_privB).digest())
+    aes_sharedN = _ECDH(aes_pubB, btc_priv_h256N)
+
+    aes_mulN = keyconv.b2n(aes_mulB)
+    rem = aes_mulN % aes_sharedN
+    if rem != 0:
+        raise CrackException("AES-shared-secret does not divide mul-key! "
+            "\n     rem: %i \n  shared: %s \n     mul: %s" % (
+                    rem, aes_mulN, aes_sharedN))
+    return aes_mulN // aes_sharedN
+

@@ -10,11 +10,15 @@ To be released in *PyPi*, recfactored as a cmd-line tool.
   + Use pypi to distribute tool.
   + Single entry-point (console-command ``teslacrack``) with 4 sub-commands:
 
-+ ``unfactor.py`` produces a SINGLE candidate AES key, by validating candidates
++ ``unfactor.py``:
+  + Produce a SINGLE candidate AES key, by validating candidates.
+  + Recover AES-session-key if BTC-private-key known.
+
 + Refactor core functionality:
-  + Unify all unfactor-doce into ``unfactor.py``.
-  + Add 2 more source-files for key conversion, tesla-file parsing, generation
-    of candidate keys, and other utilities.
+  + Unify all unfactor-XXX sources into ``unfactor.py``.
+  + Add 2 more source-files for key conversion: tesla-file parsing, generation
+    of candidate keys &other utilities.
+  + Pythonify loops, PY2/P3 meticulously.
   + KeyConversions:
     + Accept keys in ANY format: bytes, hex, integers, b64, as string or bytes, with or without quotes.
     + PairedKeys class: Maintain keys internally in configurable format.
