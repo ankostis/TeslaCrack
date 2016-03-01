@@ -168,6 +168,53 @@ Quickstart
     Enjoy! ;)
 
 
+Terminology
+-----------
+Elliptic Cryptography:
+    There is a nice overview of the `Elliptic Cryptography terms used throughout
+    <http://andrea.corbellini.name/2015/05/30/elliptic-curve-cryptography-ecdh-and-ecdsa/>`_
+    along with a `simple introduction into the EC "curves"
+    <https://blog.cloudflare.com/a-relatively-easy-to-understand-primer-on-elliptic-curve-cryptography/>`_.
+    It suffices to know that it is a "geometry" defined by "multiplying" *private-numbers* with
+    x-y *public-points*;  but contrary to the Euclidean geometry, when given a starting point
+    and the multiplication result, it is infeasible(!) to derive the number factor.
+    and an .
+Tesla Private Key:
+    Any of the 3 key-types used by *TeslaCrypt* so far that if known, they can decrypt
+    every file encrypted by the corresponding version of TeslaCrypt.
+Bitcoin Private key:
+    The *private-number* used by TeslaCrypt as the "master" key - all files encrypted in a computer
+    can be decrypted by this number. It is also the receiving address of your ransom BTCs,
+    so if you had sent the money and you recover it before the cyber-criminals "spend" them,
+    you may get them back.  This is should be the first key to try to recover.
+Bitcoin Public key:
+    The *public-point* stored in the header of your encrypted-files key and calculated
+    from the BTC-address.
+    More about BTC calculation can be found
+    `here <https://en.bitcoin.it/wiki/Technical_background_of_version_1_Bitcoin_addresses>`_.
+SharedSecretBC:
+    Shared secret computed from PrivateKeyBC, PublicKeyBC and TeslaPublicKey.
+    I named it SharedSecert1 in TeslaViewer.
+PrivateKeyFile
+    A number used to directly AES key for file encryption/ecryption.
+    This number is changed everytime TeslaCrypt is executed on infected computer.
+    This number can decrypt files encrypted only in "current" session.
+    If you are not able to get PrivateKeyBC in reasonable time you can try
+    to use ``SharedSecret2 * PrivateKeyFile`` and PublicKeyFile to recover this key.
+PublicKeyFile:
+    Public key of PrivateKeyFile.
+ECDH Shared Secret:
+    A *Diffie–Hellman* secret is calculated by EC-multiplying any *public* point
+    with the opposite *private* number (i.e. ``btc_pub * aes_priv == aes_pub * btc_priv``.
+    During regular encryption/decryption, 2 shared-secret are computed (for BTC and AES
+    respectively) but they are never stored or transmitted.
+    They are not used by this tool.
+SharedSecretFile:
+    Shared secret computed from PrivateKeyFile, PublicKeyFile and PublicKeyBC or
+    PublicKeySHA256BC. I named it SharedSecret2 in TeslaViewer.
+PrivateKeySHA256BC:
+    Hashed PrivateKeyBC using SHA256 algorithm
+
 
 How it works?
 -------------
@@ -181,7 +228,7 @@ that is relevant for this cracking tool:
 
 2. an "improvised" Elliptic Cryptography (EC) asymmetrical method is then applied
    to store securely the above AES-key into your computer - it is taken to be as
-   the ECDH "private" (or ECDSA "signing") key[2]_, and from that,
+   the ECDH "private" (or ECDSA "signing") key_, and from that,
    2 ciphered keys are produced:
 
    - **AES ECDH public-key** (or simply ``aes_pub_key``): this is the ECDH "public"
@@ -214,8 +261,6 @@ such as `YAFU or msieve
 
 .. [1] A **symmetrical** encryption-scheme uses the same *key* for both
    encrypting and decrypting a document.
-.. [2] A nice overview of the Elliptic Cryptography terms used here is given
-   in http://andrea.corbellini.name/2015/05/30/elliptic-curve-cryptography-ecdh-and-ecdsa/
 
 Installation
 ============
@@ -315,7 +360,7 @@ your files - the answer to this question will tell you which key to attack.
 .. Tip::
 
      To understand the various names of keys mentioned in these instructions,
-     read the `How it works?`_ section.
+     read the Terminology`_ section.
 
 To gather all "mul" keys, attempt to decrypt your files and check the output
 of this command::
