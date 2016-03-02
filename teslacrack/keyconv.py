@@ -14,7 +14,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software Foundation,
 # Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
-"""Convert and parse keys to/from various formats (binary/hex/numeric, quoted, etc)."""
+#
+## Convert and parse keys to/from various formats (binary/hex/numeric, quoted, etc).
 from __future__ import print_function, unicode_literals, division
 
 from base64 import b64decode as b64dec, b64encode
@@ -29,7 +30,7 @@ import future.utils as futils
 
 import functools as ft
 
-from . import CrackException, log, repr_conv
+from . import CrackException, log, repr_conv, utils
 
 
 ###########################
@@ -96,13 +97,24 @@ def apply_trans_list(trans_list, v):
 
 ##################################
 
-_unquote_str_regex = re.compile('^(?:[bu]?(?P<quote>[\'"]))(.*)(?P=quote)$')
-_unquote_byt_regex = re.compile(b'^(?:[bu]?(?P<quote>[\'"]))(.*)(?P=quote)$')
+_unquote_str_regex    = re.compile('^(?:u?(?P<quote>[\'"]))(.*)(?P=quote)$')
+_unquote_byt_regex    = re.compile(b'^(?:u?(?P<quote>[\'"]))(.*)(?P=quote)$')
+_unquote_b_str_regex = re.compile('^(?:[bu]?(?P<quote>[\'"]))(.*)(?P=quote)$')
+_unquote_b_byt_regex = re.compile(b'^(?:[bu]?(?P<quote>[\'"]))(.*)(?P=quote)$')
 
-def _unquote(key):
-    regex = _unquote_byt_regex if isinstance(key, bytes) else _unquote_str_regex
-    m = regex.match(key)
-    return m and m.group(2) or key
+def _unquote_str(key, byt_regex, str_regex):
+    try:
+        regex = byt_regex if isinstance(key, bytes) else str_regex
+        m = regex.match(key)
+        key = m and m.group(2) or key
+    except:
+        pass
+    return key
+
+_unquote = ft.partial(_unquote_str,
+        byt_regex=_unquote_byt_regex, str_regex=_unquote_str_regex)
+_unquote_bu = ft.partial(_unquote_str,
+        byt_regex=_unquote_b_byt_regex, str_regex=_unquote_b_str_regex)
 
 
 def autoconv_to_bytes(key):
@@ -113,15 +125,16 @@ def autoconv_to_bytes(key):
     elif not isinstance(key, (bytes, str)):
             raise CrackException("Unknown key-type(%s) for key: %r", type(key), key)
     else:
-        if len(key) < 30: # Less probable all-number hexs assumed as ints.
-            raise CrackException('Soft Key-length(%i < 30) to autoconvert to binary: %s'
-                    % (len(key), key))
+        min_len = 8
+        if len(key) < min_len: # Less probable all-number hexs assumed as ints.
+            log.warning('Short Key-length(%i < %i) to autoconvert to binary: %s',
+                    len(key), min_len, key)
         funcs = (('num',    (_unquote, int, int_to_32or64bytes, bytes)),
                  ('hex',    (_unquote, i16, int_to_32or64bytes, bytes)),
                  ('64',     (_unquote, b64decode, bytes)),
-                 ('bin',    (_unquote, esc_bbytes_2b, _unquote, str_or_byte)),
-                 ('bin',    (_unquote, esc_sbytes_2b, _unquote, str_or_byte)),
-                 ('bin',    (_unquote, str_or_byte))
+                 ('bin',    (_unquote_bu, esc_bbytes_2b, _unquote_bu, str_or_byte)),
+                 ('bin',    (_unquote_bu, esc_sbytes_2b, _unquote_bu, str_or_byte)),
+                 ('bin',    (_unquote_bu, str_or_byte))
         )
     for conv, trans_list in funcs:
         try:
@@ -130,9 +143,103 @@ def autoconv_to_bytes(key):
         except:
             pass
     if res:
-        log.debug("Assumed %s-data(%r) --> %r", res[0], key, b64encode(res[1]))
+        log.debug("Assumed %s-data(%r) --> %r", res[0], key, res[1])
         return res[1]
-    raise CrackException('Cannot autoconvert to binary: %s' % key)
+    raise CrackException('Cannot     autoconvert to binary: %s' % key)
+
+
+def _safe_autoconv(v):
+    try:
+        v = autoconv_to_bytes(v)
+    except Exception:
+        pass
+    return v
+
+
+_convs_map = {
+    ##      FROM BYTES           TO_BYTES
+    'bin':  ((lambda v: v, ),   (lambda v: v, )),
+    'hex':  ((b2x, xs0x),       (i16, int_to_32or64bytes, bytes)),
+    'num':  ((b2n,),            (int, int_to_32or64bytes, bytes)),
+    'asc':   ((b64encode, b2s),  (b64decode, bytes)),
+}
+
+
+def _convid(conv_prefix):
+    convs = utils.words_with_prefix(conv_prefix, _convs_map)
+    if len(convs) != 1:
+        raise KeyError('Conversion-prefix %r not in %s!' %
+                (conv_prefix, list(_convs_map)))
+    return convs[0]
+
+
+def conv_bytes(b, conv):
+    trans = _convs_map[_convid(conv)][0]
+    return apply_trans_list(trans, b)
+
+
+class AKey(object):
+    """
+    AutoKeys stored internally in bytes.
+
+    - Consumes
+    - Integers converted to big-endian, left-aligned, 64 or 128 bytes.
+    - Use ``int(ak)`` or ``bytes(ak)`` for the most common formats,
+      or :meth:`conv()` mthod.
+
+    """
+
+    dconv = repr_conv
+
+    def __init__(self, key, conv=None):
+        if isinstance(key, AKey):
+            self._key = key._key
+        else:
+            self._key = autoconv_to_bytes(key)
+        if conv:
+            self.dconv = _convid(conv)
+
+    def conv(self, conv_prefix):
+        return conv_bytes(self._key, conv_prefix)
+
+    def __bytes__(self):    return self._key
+
+    def __int__(self):
+        return self.conv('bin')
+
+    def __eq__(self, o):
+        if o is self:
+            return True
+        try:
+            return o._key == self._key
+        except Exception:
+            try:
+                return self._key == autoconv_to_bytes(o)
+            except Exception:
+                return False
+
+    def __hash__(self): return hash(self._key)
+
+    def __repr__(self):
+        me = self.conv(self.dconv)
+        if 'dconv' not in vars(self):
+            return '%s(%r)' % (type(self).__name__, me)
+        return '%s(%s, %r)' % (type(self).__name__, me, self.dconv)
+
+    def __str__(self):
+        return self.conv(self.dconv)
+
+    def __len__(self):          return len(self._key)
+    def __getitem__(self, i):   return self._key[i]
+    def __iter__(self):         return iter(self._key)
+    def __reversed__(self):     return reversed(self._key)
+
+    def __contains__(self, v):
+        return _safe_autoconv(v) in self._key
+    def startswith(self, prefix):
+        return self._key.startswith(_safe_autoconv(prefix))
+    def enddswith(self, prefix):
+        return self._key.startswith(_safe_autoconv(prefix))
 
 
 class PairedKeys(UserDict):
