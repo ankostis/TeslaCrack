@@ -14,7 +14,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software Foundation,
 # Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
-"""Parse keys from tesla-files headers, impl `file` sub-cmd."""
+#
+## Parse keys from tesla-files headers, impl `file` sub-cmd.
 from __future__ import print_function, unicode_literals, division
 
 from base64 import b64encode
@@ -26,7 +27,7 @@ from future.builtins import str, int, bytes  # @UnusedImport
 
 import itertools as itt
 
-from . import CrackException, repr_conv
+from . import CrackException, repr_conv, utils
 from .keyconv import (apply_trans_list, tesla_mul_to_bytes, b2x, b2n,
                   b2s, xs0x, upp, i2b, n2h)
 
@@ -149,27 +150,13 @@ class Header(namedtuple('Header',
                 for k in self._fields)
 
 
-def _prefixes_in_word(word, prefixlist):
-    """Word `'abc'` is matched only by the 1st from ``['ab', 'bc', 'abcd', '']``"""
-    return [prefix for prefix in prefixlist if word and word.startswith(prefix)]
-
-
-def _words_with_prefix(prefix, wordlist):
-    """Word `'abc'` matches only the 3rd from  ``['ab', 'bc', 'abcd', '']``"""
-    return [n for n in wordlist if prefix and n.startswith(prefix)]
-
-
-def _words_with_substr(substr, wordlist):
-    return [n for n in wordlist if substr and substr in n]
-
-
 def match_header_conv(conv):
     """
     :param str conv:
         any non-ambiguous case-insensitive *prefix* from supported formats.
     """
     convs = Header._trans_maps.keys()
-    matched_convs = _words_with_prefix(conv.lower(), convs)
+    matched_convs = utils.words_with_prefix(conv.lower(), convs)
     if len(matched_convs) != 1:
         raise CrackException("Bad Header-conversion(%s)!"
                 "\n  Must be a case-insensitive prefix of: %s"% (
@@ -183,12 +170,12 @@ def match_header_fields(field_substr_list):
     if not field_substr_list:
         fields_list = all_fields
     else:
-        not_matched = [not _words_with_substr(f, all_fields) for f in field_substr_list]
+        not_matched = [not utils.words_with_substr(f, all_fields) for f in field_substr_list]
         if any(not_matched):
             raise CrackException(
                     "Invalid header-field(s): %r! "
                     "\n  Must be a case-insensitive subs-string of: %s" %
                     ([f for f, m in zip(field_substr_list, not_matched) if m], all_fields))
-        fields_list = [_words_with_substr(f, all_fields) for f in field_substr_list]
+        fields_list = [utils.words_with_substr(f, all_fields) for f in field_substr_list]
         fields_list = tuple(set(itt.chain(*fields_list)))
     return fields_list

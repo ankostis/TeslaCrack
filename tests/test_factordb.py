@@ -10,16 +10,10 @@ from __future__ import print_function, unicode_literals, division
 import logging
 from teslacrack import __main__ as tcm, factordb
 import unittest
-try:
-    from unittest.mock import patch
-except ImportError:
-    from mock import patch
 
-
-import ddt
 from future.builtins import str, int, bytes  # @UnusedImport
 
-import itertools as itt
+from _tutils import patch
 
 
 tcm.init_logging(level=logging.DEBUG)

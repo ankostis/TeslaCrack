@@ -17,37 +17,25 @@
 # You should have received a copy of the GNU General Public License
 # along with TeslaCrack; if not, write to the Free Software Foundation,
 # Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
-"""
-TestCases for teslacrack.
-
-It needs a `bash` (cygwin or git-for-windows) because that was an easy way
-to make files/dirs inaccessible, needed for TCs.
-"""
+#
+## TestCases for teslacrack.
+##
+## It needs a `bash` (cygwin or git-for-windows) because that was an easy way
+## to make files/dirs inaccessible, needed for TCs.
 from __future__ import print_function, unicode_literals, division
 
 from os import path as osp
 import os
-from textwrap import dedent
+from teslacrack import __main__ as tcm
+from teslacrack import teslafile, CrackException
 import unittest
 
 import ddt
 from future.builtins import str, int, bytes  # @UnusedImport
 from future.utils import PY2
 
+from _tutils import assertRaisesRegex, assertRegex
 import itertools as itt
-from teslacrack import __main__ as tcm
-from teslacrack import teslafile, CrackException
-
-
-try:
-    assertRegex = unittest.TestCase.assertRegex
-    assertNotRegex = unittest.TestCase.assertNotRegex
-    assertRaisesRegex = unittest.TestCase.assertRaisesRegex
-except AttributeError:
-    ## PY2
-    assertRegex = unittest.TestCase.assertRegexpMatches
-    assertNotRegex = unittest.TestCase.assertNotRegexpMatches  # @UndefinedVariable
-    assertRaisesRegex = unittest.TestCase.assertRaisesRegexp
 
 
 tcm.init_logging()
