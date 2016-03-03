@@ -60,7 +60,7 @@ class TDoctest(unittest.TestCase):
             with patch('sys.stdout', new=io.StringIO()) as stdout:
                 try:
                     tcm.main(str('--version'))
-                except SystemExit as ex:
+                except SystemExit:
                     pass ## Cancel docopt's exit()
             ver_str = stdout.getvalue().strip()
             assert ver_str

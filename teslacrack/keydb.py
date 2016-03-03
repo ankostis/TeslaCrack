@@ -238,8 +238,8 @@ class _KeyDb(OrderedDict):
                 try:
                     shutil.copy(dbpath, bak_dbpath)
                 except Exception as ex:
-                    log.warning('Failed backing-up old self: %r-->%r',
-                            dbpath, tmp_dbpath)
+                    log.warning("Failed backing-up old KeyDB due to: %s \n  %r-->%r",
+                            ex, dbpath, tmp_dbpath)
             shutil.move(tmp_dbpath, dbpath)
             ok = True
         finally:
@@ -252,7 +252,7 @@ class _KeyDb(OrderedDict):
             keys = self['keys'] = []
         return keys
 
-    def add_key(self, type=None, master=None, name=None, desc=None,
+    def add_key(self, type=None, master=None, name=None, desc=None,  # @ReservedAssignment
             pub=None, mul=None, prv=None, primes=None, composites=None):
         """Use the return value as a "master" for a subsequent key."""
         key_rec = OrderedDict((k, v) for k, v in zip(

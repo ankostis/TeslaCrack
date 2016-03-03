@@ -21,6 +21,7 @@ import re
 
 from future import utils as futils
 from future.builtins import str, int, bytes
+from future.standard_library import install_aliases
 
 from ._version import __version__, __updated__
 
@@ -39,3 +40,4 @@ log = logging.getLogger('teslacrack')
 
 #: Controls the ``repr()`` of :class:`Header` and :class:`PairedKeys` instances.
 repr_conv = 'hex'
+install_aliases()

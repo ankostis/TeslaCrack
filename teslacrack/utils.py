@@ -83,7 +83,7 @@ class PrefixMatched(object):
     """
     Mixin for accessing dict-keys by their prefixes, and/or fail when none or more matched.
 
-    - Use the ``XXXall()`` or :meth:`containany` methods to return/act-upon a list
+    - Use the ``XXXall()`` or :method:`containany` methods to return/act-upon a list
       of prefix-matched items; they may return/act-upon an empty list.
     - Use the ``XXXone()`` methods to return/act-upon a prefix-matched single item
       or fail otherwise.
@@ -94,24 +94,24 @@ class PrefixMatched(object):
         mkeys = exact_or_words_with_prefix(prefix, self)
         if len(mkeys) != 1:
             raise KeyError('Prefix %r matched %i items!' % (prefix, len(mkeys)))
-        return super(PrefixMatched, self).__getitem__(mkeys[0])
+        return self[mkeys[0]]
 
     def delone(self, prefix):
         mkeys = exact_or_words_with_prefix(prefix, self)
         if len(mkeys) != 1:
             raise KeyError('Prefix %r matched %i keys: \n  %s' %
                     (prefix, len(mkeys), '\n  '.join(mkeys)))
-        super(PrefixMatched, self).__delitem__(mkeys[0])
+        del self[mkeys[0]]
 
     def containsany(self, prefix):
         return any(words_with_prefix(prefix, self))
 
     def getall(self, prefix):
-        return [super(PrefixMatched, self).__getitem__(mkey)
+        return [self[mkey]
                 for mkey in words_with_prefix(prefix, self)]
 
     def delall(self, prefix):
         mkeys = words_with_prefix(prefix, self)
         for mkey in mkeys:
-            super(PrefixMatched, self).__delitem__(mkey)
+            del self[mkey]
         return len(mkeys)

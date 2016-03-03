@@ -30,7 +30,7 @@ import time
 from Crypto.Cipher import AES  # @UnresolvedImport
 
 from . import CrackException, log
-from .keyconv import PairedKeys
+from .keyconv import PairedKeys, AKey
 from .teslafile import Header
 
 
@@ -57,6 +57,7 @@ filenames_encoding = sys.getfilesystemencoding()
 
 unknown_keys = {}
 unknown_btkeys = {}
+
 
 PROGRESS_INTERVAL_SEC = 3 # Log stats every that many files processed.
 _last_progress_time = 0#time.time()
@@ -103,11 +104,12 @@ def decrypt_file(opts, stats, crypted_fname):
                 stats.badheader_nfiles += 1
                 return
 
-            aes_mul = header.conv('aes_mul_key', 'fix')
-            if aes_mul not in opts.known_AES_key_pairs:
+            aes_mul = AKey(header.conv('aes_mul_key', 'fix')) ## TODO: FIX Header fix.
+            aes_key = opts.known_AES_key_pairs.get(aes_mul)
+            if not aes_key:
                 if aes_mul not in unknown_keys:
                     unknown_keys[aes_mul] = crypted_fname
-                btc_mul = header.conv('btc_mul_key', 'fix')
+                btc_mul = AKey(header.conv('btc_mul_key', 'fix')) ## TODO: FIX Header fix.
                 if btc_mul not in unknown_btkeys:
                     unknown_btkeys[btc_mul] = crypted_fname
                 log.warn("Unknown key: %s \n  in file: %s",
@@ -126,8 +128,7 @@ def decrypt_file(opts, stats, crypted_fname):
                 if decrypted_exists and backup_ext:
                     backup_fname = decrypted_fname + backup_ext
                     opts.dry_run or shutil.move(decrypted_fname, backup_fname)
-                aes_key_bytes = opts.known_AES_key_pairs.conv(aes_mul, 'bin')
-                decryptor = AES.new(aes_key_bytes, AES.MODE_CBC, header.iv)
+                decryptor = AES.new(aes_key.bin, AES.MODE_CBC, header.iv)
                 data = decryptor.decrypt(fin.read())[:header.size]
                 if not opts.dry_run:
                     with open(decrypted_fname, 'wb') as fout:
@@ -208,11 +209,11 @@ def count_subdirs(opts, stats):
 
 
 def log_unknown_keys():
-    if unknown_keys:
+    if unknown_keys: ## TODO: FIX keys reporting.
         aes_keys = dict((fpath, key) for key, fpath in unknown_keys.items())
         btc_keys = dict((fpath, key) for key, fpath in unknown_btkeys.items())
         key_msgs = ["     AES: %r\n     BTC: %r\n    File: %r" %
-                (aes_key.decode(), btc_keys.get(fpath, b'').decode(), fpath)
+                (aes_key.asc, btc_keys.get(fpath, b'').asc, fpath)
                 for fpath, aes_key in aes_keys.items()]
         log.info("+++Unknown key(s) encountered: %i \n%s\n"
                 "  Use `msieve` on AES-key(s), or `msieve` + `TeslaDecoder` on Bitcoin-key(s) to crack them!",

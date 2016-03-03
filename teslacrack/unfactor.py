@@ -22,7 +22,6 @@ from __future__ import print_function, unicode_literals, division
 
 import hashlib
 import logging
-from teslacrack import keyconv
 
 from Crypto.Cipher import AES  # @UnresolvedImport
 import ecdsa
@@ -33,7 +32,7 @@ import functools as ft
 import operator as op
 
 from . import CrackException, log
-from .keyconv import int_to_32or64bytes
+from .keyconv import AKey
 from .teslafile import Header
 
 
@@ -88,6 +87,7 @@ def _gen_product_combinations(factors):
 def _guess_key(primes, key_ok_predicate):
     """Returns the 1st key satisfying the predicate, or None."""
     for key, combid in _gen_product_combinations(primes):
+        key = AKey(key)
         if key_ok_predicate(key):
             if log.isEnabledFor(logging.DEBUG):
                 log.debug('Winning factors: %s',
@@ -99,6 +99,7 @@ def _guess_all_keys(primes, key_ok_predicate):
     """Returns the 1st or all candidate keys satisfying the predicate, or None."""
     keys = set()
     for key, combid in _gen_product_combinations(primes):
+        key = AKey(key)
         if key not in keys and key_ok_predicate(key):
             keys.add(key)
             if log.isEnabledFor(logging.DEBUG):
@@ -139,18 +140,18 @@ def crack_aes_key_from_file(fpath, primes):
     with open(fpath, "rb") as f:
         header = Header.from_fd(f)
         data = f.read(16)
-    primes = _validate_factors_product(primes, header.conv('aes_mul_key', 'num'), allow_cofactor=True)
+    primes = _validate_factors_product(primes, header.conv('aes_mul_key', 'num'), allow_cofactor=True) ## TODO: FIX Header fix.
 
     def did_AES_produced_known_file(aes_test_key):
-        file_bytes = AES.new(int_to_32or64bytes(aes_test_key), AES.MODE_CBC, header.iv).decrypt(data)
+        file_bytes = AES.new(aes_test_key.bin, AES.MODE_CBC, header.iv).decrypt(data)
         return _is_known_file(fpath, file_bytes)
 
     candidate_keys = _guess_all_keys(primes, key_ok_predicate=did_AES_produced_known_file)
     log.debug('Candidate AES-keys: %s', candidate_keys)
 
-    file_pub = header.conv('aes_pub_key', 'bin')
+    file_pub = header.conv('aes_pub_key', 'bin') ## TODO: FIX Header fix.
     for test_priv in candidate_keys:
-        gen_pub = _make_ecdh_pub_bkey(test_priv)
+        gen_pub = _make_ecdh_pub_bkey(test_priv.num)
         if file_pub.startswith(gen_pub):
             return test_priv
 
@@ -159,7 +160,7 @@ def crack_btc_key_from_btc_address(btc_address, primes, btc_mul_key=None):
     primes = _validate_factors_product(primes, btc_mul_key, allow_cofactor=True)
 
     def does_key_gen_my_btc_address(btc_test_key):
-        test_addr = btckey.Key(btc_test_key).address(use_uncompressed=True)
+        test_addr = btckey.Key(btc_test_key.num).address(use_uncompressed=True)
         return test_addr == btc_address
 
     return _guess_key(primes, key_ok_predicate=does_key_gen_my_btc_address)
@@ -169,7 +170,7 @@ def crack_ecdh_key(ecdsa_pub_key, mul_key, primes):
     primes = _validate_factors_product(primes, mul_key, allow_cofactor=True)
 
     def does_key_gen_my_ecdh(test_key):
-        gen_pub = _make_ecdh_pub_bkey(test_key)
+        gen_pub = _make_ecdh_pub_bkey(test_key.num)
         return ecdsa_pub_key.startswith(gen_pub)
 
     return _guess_key(primes, key_ok_predicate=does_key_gen_my_ecdh)
@@ -178,8 +179,8 @@ def crack_ecdh_key(ecdsa_pub_key, mul_key, primes):
 def _decide_which_key(primes, aes_mul, btc_mul, file):
     primes = _validate_factors_product(primes)
     prod = product(primes)
-    is_aes = prod % aes_mul == 0
-    is_btc = prod % btc_mul == 0
+    is_aes = prod % aes_mul.num == 0
+    is_btc = prod % btc_mul.num == 0
     if not (is_aes ^ is_btc):
         raise CrackException("Factors divide both or none AES and BTC mul-keys!"
                 "\n  Either too few factors or bad factors given."
@@ -191,7 +192,7 @@ def _decide_which_key(primes, aes_mul, btc_mul, file):
     else:
         key_name = 'BTC'
         mul_key = btc_mul
-    cofactor = mul_key // prod
+    cofactor = mul_key.num // prod
     if cofactor != 1:
         primes.append(cofactor)
         log.warning("Incomplete factorization for %s mul-key on file(%s), found cofactor(%d)!",
@@ -205,15 +206,15 @@ def _decide_which_key(primes, aes_mul, btc_mul, file):
 def crack_ecdh_key_from_file(file, primes):
     with open(file, "rb") as f:
         header = Header.from_fd(f)
-    aes_mul = int(header.conv('aes_mul_key', 'fix'), 16)
-    aes_ecdh = header.aes_pub_key
-    btc_mul = int(header.conv('btc_mul_key', 'fix'), 16)
-    btc_ecdh = header.btc_pub_key
+    aes_mul = AKey(header.conv('aes_mul_key', 'bin'))  ## TODO: FIX Header fix.
+    aes_ecdh = AKey(header.aes_pub_key)
+    btc_mul = AKey(header.conv('btc_mul_key', 'bin'))
+    btc_ecdh = AKey(header.btc_pub_key)
     primes, key_name = _decide_which_key(primes, aes_mul, btc_mul, file)
 
     def does_key_gen_my_ecdh(key):
         gen_ecdh = ecdsa.SigningKey.from_secret_exponent(
-                key, curve=ecdsa.SECP256k1).verifying_key
+                key.num, curve=ecdsa.SECP256k1).verifying_key
         gen_ecdh = bytes(gen_ecdh.to_string())
         return aes_ecdh.startswith(gen_ecdh) or btc_ecdh.startswith(gen_ecdh)
 
@@ -221,31 +222,23 @@ def crack_ecdh_key_from_file(file, primes):
     return (key_name, key) if key else (None, None)
 
 
-def _ECDH(pubB, prvN):
+def _ECDH(pub, prv):
     """:return: shared-secret as `int`"""
     C = ecdsa.curves.SECP256k1
-    pubP = ecdsa.VerifyingKey.from_string(pubB, curve=C).pubkey.point
-    sharedP = pubP * prvN
-    return sharedP.x()
+    pubP = ecdsa.VerifyingKey.from_string(pub.bin, curve=C).pubkey.point
+    sharedP = pubP * prv.num
+    return AKey(sharedP.x())
 
 
 def aes_priv_from_btc_priv(aes_pub, btc_priv, aes_mul):
-    """
-    Derive AES-session-key from BTC-priv-key.
+    """Derive AES-session-key from BTC-priv-key (all as :class:`AKey`). """
+    btc_priv_h256 = AKey(hashlib.sha256(btc_priv.bin).digest())
+    aes_shared = _ECDH(aes_pub, btc_priv_h256)
 
-    :return: AES-private-key as `int`
-    """
-    ecdsa.util
-    aes_pubB, btc_privB, aes_mulB = [keyconv.autoconv_to_bytes(k)
-            for k in (aes_pub, btc_priv, aes_mul)]
-    btc_priv_h256N = keyconv.b2n(hashlib.sha256(btc_privB).digest())
-    aes_sharedN = _ECDH(aes_pubB, btc_priv_h256N)
-
-    aes_mulN = keyconv.b2n(aes_mulB)
-    rem = aes_mulN % aes_sharedN
+    rem = aes_mul.num % aes_shared.num
     if rem != 0:
         raise CrackException("AES-shared-secret does not divide mul-key! "
             "\n     rem: %i \n  shared: %s \n     mul: %s" % (
-                    rem, aes_mulN, aes_sharedN))
-    return aes_mulN // aes_sharedN
+                    rem, aes_mul.num, aes_shared.num))
+    return AKey(aes_mul.num // aes_shared.num)
 

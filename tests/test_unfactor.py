@@ -28,13 +28,14 @@ from __future__ import print_function, unicode_literals, division
 import logging
 from os import path as osp
 import os
-from teslacrack import __main__ as tcm
-from teslacrack import unfactor
+from teslacrack import __main__ as tcm, unfactor, keyconv
 import textwrap
 import unittest
 
 import ddt
 import yaml
+
+
 
 
 tcm.init_logging(level=logging.DEBUG)
@@ -140,7 +141,7 @@ class TUnfactor(unittest.TestCase):
             aes_key = unfactor.crack_aes_key_from_file(f, factors)
             #print(key_rec['name'], f, aes_keys, exp_aes_key)
             self.assertIsNotNone(aes_key, msg=key_rec)
-            self.assertIn(exp_aes_key.upper(), '%064X' % aes_key, msg=key_rec)
+            self.assertIn(exp_aes_key.upper(), '%064X' % aes_key.num, msg=key_rec) ##TOD: Fix key comparisons and prints!
 
 #     @ddt.data(*[k for k in app_db['keys'] if k['type'] == 'AES'])
 #     def test_unfactor_key_failures(self, key_rec):
@@ -162,7 +163,7 @@ class TUnfactor(unittest.TestCase):
             factors = [int(fc) for fc in key_rec['primes']]
             _, key = unfactor.crack_ecdh_key_from_file(f, factors)
             #print(key_rec['name'], f, aes_keys, exp_aes_key)
-            self.assertIn(exp_aes_key.upper(), '0x%064X'%key, msg=key_rec)
+            self.assertIn(exp_aes_key.upper(), '0x%064X'%key.num, msg=key_rec)
 
     @ddt.data(*[k for k in app_db['keys'] if k['type'] == 'AES'])
     def test_unfactor_ecdh_AES_from_file(self, key_rec):
@@ -173,7 +174,7 @@ class TUnfactor(unittest.TestCase):
             factors = [int(fc) for fc in key_rec['primes']]
             _, key = unfactor.crack_ecdh_key_from_file(f, factors)
             #print(key_rec['name'], f, aes_keys, exp_aes_key)
-            self.assertIn(exp_aes_key.upper(), '0x%064X'%key, msg=key_rec)
+            self.assertIn(exp_aes_key.upper(), '0x%064X'%key.num, msg=key_rec)
 
     @ddt.data(*[k for k in app_db['keys'] if k['type'] == 'BTC'])
     def test_unfactor_btc_address(self, key_rec):
@@ -184,12 +185,12 @@ class TUnfactor(unittest.TestCase):
             btc_key = unfactor.crack_btc_key_from_btc_address(btc_addr, factors)
             #print(key_rec['name'], btc_addr, dec_key)
             self.assertIsNotNone(btc_key, msg=key_rec)
-            self.assertIn(dec_key.upper(), '0x%064X' % btc_key, msg=key_rec)
+            self.assertIn(dec_key.upper(), '0x%064X' % btc_key.num, msg=key_rec)
 
     def test_aes_from_btc(self):
-        aes_pub = b'\xae~\x9a\xf9)\x84\xa7\x955\x15$\xc3$>\xb6A\xcd\x03\x13F\xa7\xa9\xd4tK+\x1b"\xfdn\xf4\xe1S\xfa\x81\x17\x04\x8c\x11R+\xa4\xa0\xb9\t\xc3k=AF\xcbo\x13x\x82\xdf\xa2\xb2\xdeo&\xf0Y\x8d'
-        aes_mul = '025B96A3F9AB13753ED84694034422216C03FD0298E67D87E9B1ACE8027D6C50F02CFD14724768AEA2BE2D53707661B554A8D5EAFA0D5CF3C3F2F299E614870F'
-        btc_priv = b'\x9f\x0el`\x8a\xffw\x7f\x121\xd1\xd6\x91\xfb\x0f\xfe\x8b\xf2\x0c\xec\x13\xec\xbb\xcb\xa4\x99.Q4\x84b\xf2'
+        aes_pub = keyconv.AKey(b'\xae~\x9a\xf9)\x84\xa7\x955\x15$\xc3$>\xb6A\xcd\x03\x13F\xa7\xa9\xd4tK+\x1b"\xfdn\xf4\xe1S\xfa\x81\x17\x04\x8c\x11R+\xa4\xa0\xb9\t\xc3k=AF\xcbo\x13x\x82\xdf\xa2\xb2\xdeo&\xf0Y\x8d')
+        aes_mul = keyconv.AKey('025B96A3F9AB13753ED84694034422216C03FD0298E67D87E9B1ACE8027D6C50F02CFD14724768AEA2BE2D53707661B554A8D5EAFA0D5CF3C3F2F299E614870F')
+        btc_priv = keyconv.AKey(b'\x9f\x0el`\x8a\xffw\x7f\x121\xd1\xd6\x91\xfb\x0f\xfe\x8b\xf2\x0c\xec\x13\xec\xbb\xcb\xa4\x99.Q4\x84b\xf2')
 
         exp_aes_priv = 55129851113444675798855803280729153325965425345465653744428349716537975545325
         gen_aes_priv = unfactor.aes_priv_from_btc_priv(aes_pub, btc_priv, aes_mul)
