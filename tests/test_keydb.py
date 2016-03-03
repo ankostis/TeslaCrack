@@ -7,24 +7,16 @@
 # You may obtain a copy of the Licence at: http://ec.europa.eu/idabc/eupl
 from __future__ import print_function, unicode_literals, division
 
-import logging
-from teslacrack import __main__ as tcm, factordb
-import unittest
-import tempfile
-from os import path as osp
 from collections import OrderedDict
-try:
-    from unittest.mock import patch
-except ImportError:
-    from mock import patch
-
-
-import ddt
-from future.builtins import str, int, bytes  # @UnusedImport
-from future import utils as futils
-
-import itertools as itt
+import logging
+from os import path as osp
+import tempfile
+from teslacrack import __main__ as tcm
 from teslacrack import keydb
+import unittest
+
+from future import utils as futils
+from future.builtins import str, int, bytes  # @UnusedImport
 
 
 tcm.init_logging(level=logging.DEBUG)

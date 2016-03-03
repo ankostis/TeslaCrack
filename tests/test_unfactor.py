@@ -160,7 +160,7 @@ class TUnfactor(unittest.TestCase):
             if not exp_aes_key:
                 continue
             factors = [int(fc) for fc in key_rec['primes']]
-            key_name, key = unfactor.crack_ecdh_key_from_file(f, factors)
+            _, key = unfactor.crack_ecdh_key_from_file(f, factors)
             #print(key_rec['name'], f, aes_keys, exp_aes_key)
             self.assertIn(exp_aes_key.upper(), '0x%064X'%key, msg=key_rec)
 
@@ -171,7 +171,7 @@ class TUnfactor(unittest.TestCase):
             if not exp_aes_key:
                 continue
             factors = [int(fc) for fc in key_rec['primes']]
-            key_name, key = unfactor.crack_ecdh_key_from_file(f, factors)
+            _, key = unfactor.crack_ecdh_key_from_file(f, factors)
             #print(key_rec['name'], f, aes_keys, exp_aes_key)
             self.assertIn(exp_aes_key.upper(), '0x%064X'%key, msg=key_rec)
 

@@ -34,8 +34,10 @@ import ddt
 from future.builtins import str, int, bytes  # @UnusedImport
 from future.utils import PY2
 
-from _tutils import assertRaisesRegex, assertRegex
 import itertools as itt
+
+
+from _tutils import assertRaisesRegex, assertRegex  # @NoMove
 
 
 tcm.init_logging()

@@ -18,10 +18,19 @@
 ## Generic utils.
 from __future__ import print_function, unicode_literals, division
 
+from boltons.setutils import IndexedSet
 
-def prefixes_in_word(word, prefixlist):
-    """Word `'abc'` is matched only by the 1st from ``['ab', 'bc', 'abcd', '']``"""
-    return [prefix for prefix in prefixlist if word and word.startswith(prefix)]
+def longest_prefix_in_word(word, prefixlist):
+    """
+    >>> longest_prefix_in_word('abcd', ['ab','def', 'abc', 'abc'])
+    'abc'
+    >>> longest_prefix_in_word('', ['ab','def']) is None
+    True
+
+    """
+    wl = [prefix for prefix in IndexedSet(prefixlist) if word.startswith(prefix)]
+    if wl:
+        return max(wl, key=len)
 
 
 def _safe_startswith(o, prefix):
@@ -31,15 +40,20 @@ def _safe_startswith(o, prefix):
         pass
 
 def words_with_prefix(prefix, wordlist):
-    """Word `'abc'` matches only the 3rd from  ``['ab', 'bc', 'abcd', '']``"""
-    return [w for w in wordlist
+    """
+    >>> words_with_prefix('ab', ['ab','def', 'abc', 'abc'])
+    ['ab', 'abc']
+    >>> words_with_prefix('', list('abbbccc')) == list('abc')
+    True
+    """
+    return [w for w in IndexedSet(wordlist)
             if w == prefix or _safe_startswith(w, prefix)]
 
 
 def exact_or_words_with_prefix(prefix, wordlist):
     """Word `'abc'` matches only the 3rd from  ``['ab', 'bc', 'abcd', '']``"""
     l = []
-    for w in wordlist:
+    for w in IndexedSet(wordlist):
         if w == prefix:
             return [prefix]
         if _safe_startswith(w, prefix):
@@ -48,37 +62,56 @@ def exact_or_words_with_prefix(prefix, wordlist):
 
 
 def words_with_substr(substr, wordlist):
-    return [n for n in wordlist if substr and substr in n]
+    """
+    >>> words_with_substr('bc', ['ab','def', 'abc', 'abc'])
+    ['abc']
+    >>> words_with_substr('', list('abbcccc')) == list('abc')
+    True
+    """
+    return [n for n in IndexedSet(wordlist) if substr and substr in n]
 
 
-class PrefixDictMixin(object):
-
+class Item2Attr(object):
+    """Mixin that can dress a NamedTuple as a dictionary."""
     __slots__ = ()
 
-    def __getitem__(self, prefix):
+    def __getitem__(self, key):
+        return getattr(self, key)
+
+
+class PrefixMatched(object):
+    """
+    Mixin for accessing dict-keys by their prefixes, and/or fail when none or more matched.
+
+    - Use the ``XXXall()`` or :meth:`containany` methods to return/act-upon a list
+      of prefix-matched items; they may return/act-upon an empty list.
+    - Use the ``XXXone()`` methods to return/act-upon a prefix-matched single item
+      or fail otherwise.
+    """
+    __slots__ = ()
+
+    def getone(self, prefix, default=None):
         mkeys = exact_or_words_with_prefix(prefix, self)
         if len(mkeys) != 1:
             raise KeyError('Prefix %r matched %i items!' % (prefix, len(mkeys)))
-        return super(PrefixDictMixin, self).__getitem__(mkeys[0])
+        return super(PrefixMatched, self).__getitem__(mkeys[0])
 
-    def __delitem__(self, prefix):
+    def delone(self, prefix):
         mkeys = exact_or_words_with_prefix(prefix, self)
         if len(mkeys) != 1:
             raise KeyError('Prefix %r matched %i keys: \n  %s' %
                     (prefix, len(mkeys), '\n  '.join(mkeys)))
-        super(PrefixDictMixin, self).__delitem__(mkeys[0])
+        super(PrefixMatched, self).__delitem__(mkeys[0])
 
-    def __contains__(self, prefix):
+    def containsany(self, prefix):
         return any(words_with_prefix(prefix, self))
 
     def getall(self, prefix):
-        return [super(PrefixDictMixin, self).__getitem__(mkey)
+        return [super(PrefixMatched, self).__getitem__(mkey)
                 for mkey in words_with_prefix(prefix, self)]
 
     def delall(self, prefix):
         mkeys = words_with_prefix(prefix, self)
         for mkey in mkeys:
-            super(PrefixDictMixin, self).__delitem__(mkey)
+            super(PrefixMatched, self).__delitem__(mkey)
         return len(mkeys)
-
-

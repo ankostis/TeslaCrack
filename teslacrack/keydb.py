@@ -47,7 +47,7 @@ import yaml
 
 import functools as ft
 
-from . import CrackException, keyconv
+from . import CrackException
 
 
 log = logging.getLogger(__name__)
