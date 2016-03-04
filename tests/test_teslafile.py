@@ -47,10 +47,6 @@ def _tf_fpath(fname):
 
 
 class TTeslafile(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.longMessage = True ## Print also original assertion msg.
-
 
     def test_reading_invalid_tesla_file_smaller(self):
         f = 'tesla_smaller_size.jpg.vvv'
@@ -96,11 +92,6 @@ _all_fields = teslafile.Header._fields  # @UndefinedVariable
 
 @ddt.ddt
 class THeader(unittest.TestCase):
-
-    @classmethod
-    def setUpClass(cls):
-        cls.longMessage = True ## Print also original assertion msg on PY2.
-
 
     @ddt.data(*itt.product(['raw', 'fix', 'bin'], _all_fields))  # @UndefinedVariable
     def test_hconv_bytes(self, case):
@@ -182,10 +173,6 @@ _bin_fields = (f for f in _all_fields if f != 'size')
 
 @ddt.ddt
 class TFileSubcmd(unittest.TestCase):
-
-    @classmethod
-    def setUpClass(cls):
-        cls.longMessage = True ## Print also original assertion msg on PY2.
 
     @ddt.data(*[(conv, pref) for conv in _all_hconv_names for pref in _all_prefixes(conv)])
     def test_hconv_prefixmatch(self, case):

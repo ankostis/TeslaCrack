@@ -10,12 +10,13 @@ from __future__ import unicode_literals
 import io
 import os
 import re
+from teslacrack import __main__ as tcm
 import unittest
 
 from future.builtins import str, int, bytes  # @UnusedImport
 from future.utils import PY2
 
-from teslacrack import __main__ as tcm
+import _tutils  # @UnusedImport
 import teslacrack as tc
 
 
@@ -33,11 +34,6 @@ tcm.init_logging()
 
 
 class TDoctest(unittest.TestCase):
-
-    @classmethod
-    def setUpClass(cls):
-        cls.longMessage = True ## Print also original assertion msg.
-
 
     def test_README_version_opening(self):
         ver = tc.__version__

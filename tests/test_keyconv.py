@@ -8,13 +8,15 @@
 from __future__ import print_function, unicode_literals, division
 
 import logging
+from teslacrack import __main__ as tcm, keyconv
+from teslacrack.keyconv import AKey
 import unittest
 
 import ddt
 from future.builtins import str, int, bytes  # @UnusedImport
 
+import _tutils  # @UnusedImport
 import itertools as itt
-from teslacrack import __main__ as tcm, keyconv
 
 
 tcm.init_logging(level=logging.DEBUG)
@@ -56,9 +58,6 @@ def _gen_byte_keys():
 
 @ddt.ddt
 class TAutonvertKey(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.longMessage = True ## Print also original assertion msg on PY2.
 
     @ddt.data(*itt.product(
             ["b'%s'", 'b"%s"', "u'%s'", 'u"%s"', '"%s"', "'%s'"],
@@ -123,3 +122,44 @@ class TAutonvertKey(unittest.TestCase):
         autokey = keyconv._autoconv_to_bytes(key)[1]
         self.assertEqual(autokey, exp_bytes)
 
+
+@ddt.ddt
+class TAKey(unittest.TestCase):
+
+    @ddt.data(b'', b'\0', b'\x00123456')
+    def test_byte_equality(self, b):
+        self.assertEqual(b, AKey(b), b)
+        self.assertEqual(AKey(b), b, b)
+        self.assertEqual(bytes(b), AKey(b), b)
+        self.assertEqual(AKey(b), bytes(b), b)
+
+        self.assertEqual(b, AKey(bytes(b)), b)
+        self.assertEqual(AKey(bytes(b)), b, b)
+        self.assertEqual(bytes(b), AKey(bytes(b)), b)
+        self.assertEqual(AKey(bytes(b)), bytes(b), b)
+
+    @ddt.data(b'', b'\0', b'\x00123456')
+    def test_byte_hash_equality(self, b):
+        self.assertEqual(b, AKey(b), b)
+        self.assertEqual(hash(AKey(b)), hash(b), b)
+
+    @ddt.data(b'', b'\x00a', b'\x00abc')
+    def test_to_bytes(self, b):
+        self.assertEqual(type(bytes(AKey(b))), type(bytes(b)), b)
+        self.assertEqual(type(AKey(b).data), type(bytes(b)), b)
+
+    @ddt.data(b'', b'\x00a', b'\x00abc')
+    def test_byte_startwith(self, b):
+        bb = b'\x00abc'
+        self.assertTrue(AKey(bb).startswith(b), b)
+        self.assertTrue(AKey(bb).startswith(AKey(b)), b)
+        #self.assertTrue(bb.startswith(AKey(b)), b) # XXX: bytes's problem!
+
+
+class TPairedKeys(unittest.TestCase):
+
+    def test_indexing(self):
+        pk = keyconv.PairedKeys({b'\x00abc': b'\x00ABC', b'\x00ab': b'\x00AB', b'\x00df': b'\x00DF'})
+        self.assertEqual(pk.matchOne(b'\x00df'), b'\x00DF')
+        self.assertEqual(pk.matchOne(b'\x00df'), AKey(b'\x00DF'))
+        self.assertSetEqual(set(pk.matchAll(b'\x00a')), set([b'\x00AB', AKey(b'\x00ABC')]))

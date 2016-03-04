@@ -21,17 +21,22 @@ from __future__ import print_function, unicode_literals, division
 from base64 import b64decode as b64dec, b64encode
 from binascii import hexlify, unhexlify
 import codecs
+import collections
+import logging
 import math
 import re
 import struct
 
 from future.builtins import str, int, bytes  # @UnusedImport
+from future.types import newbytes
 
 import functools as ft
 import future.utils as futils
 
-from . import CrackException, log, repr_conv, utils
+from . import CrackException, repr_conv, utils
 
+
+log = logging.getLogger(__name__)
 
 ###########################
 ### key-transformations ###
@@ -142,7 +147,7 @@ def _autoconv_to_bytes(key):
     :returns: a tuple ``(<frmt-string>, <key-bytes>)``."""
     res = None
     if isinstance(key, AKey):
-        res = (key.dconv, key._key)
+        return (key.dconv, key.data)
     elif isinstance(key, int):
         nbytes = math.ceil(key.bit_length() / 8.0)
         min_nbytes = 16
@@ -190,9 +195,11 @@ def conv_bytes(b, conv):
     return apply_trans_list(trans, b)
 
 
-class AKey(object):
+
+
+class AKey(collections.UserString):
     """
-    AutoKeys stored internally in bytes.
+    Bytes using a best-effort autoconversion from various formats utilized by TeslaCrack.
 
     - Consumes any ``b"`` or ``u"`` prefixes and quotings.
     - Integers converted to big-endian, left-aligned, 64 or 128 bytes.
@@ -204,61 +211,46 @@ class AKey(object):
     """
     dconv = repr_conv
 
-    def __init__(self, key, conv=None, unparsed=False):
+    def __init__(self, key, conv=None, _unparsed=False):
         """
-            :param dconv:
-                    default
-            :type dconv: str or None
-            :param unparsed:
-                    enforces key-type - use it with caution, no check!
-            :type unparsed: bool or str
-
+        :param dconv:
+                default
+        :type dconv: str or None
+        :param unparsed:
+                enforces key-type - use it with caution, no check!
+        :type _unparsed: bool or str
         """
-        aconv, self._key = _autoconv_to_bytes(key)
-        log.debug("Assumed %s-data(%r) --> %r", aconv, key, self._key)
+        if _unparsed:
+            byts = key
+            aconv = None
+        else:
+            aconv, byts = _autoconv_to_bytes(key)
         self.dconv = conv or aconv
+        self.data = byts
 
-    def conv(self, conv_prefix):
-        return conv_bytes(self._key, conv_prefix)
-
-    def __bytes__(self):    return self._key
-
-    def __int__(self):
-        return self.conv('bin')
-
-    def __eq__(self, o):
-        if o is self:
-            return True
-        try:
-            return o._key == self._key
-        except Exception:
-            return self._key == _safe_autoconv(o)
-
-    def __hash__(self): return hash(self._key)
+    def conv(self, conv_prefix=None):
+        return conv_bytes(self.data, conv_prefix or self.dconv)
 
     def __repr__(self):
-        me = self.conv(self.dconv)
+        me = self.conv()
         if 'dconv' not in vars(self):
             return '%s(%r)' % (type(self).__name__, me)
         return '%s(%s, %r)' % (type(self).__name__, me, self.dconv)
 
+    def __bytes__(self): return self.data
+
     def __str__(self):
-        s = self.conv(self.dconv)
+        s = self.conv()
         if isinstance(s, bytes):
-            s = '%r' % s
+            s = '%r' % s # PY2 prints garbled-bytes.
         return s
 
-    def __len__(self):          return len(self._key)
-    def __getitem__(self, i):   return self._key[i]
-    def __iter__(self):         return iter(self._key)
-    def __reversed__(self):     return reversed(self._key)
-
     def __contains__(self, v):
-        return _safe_autoconv(v) in self._key
+        return _safe_autoconv(v) in self.data
     def startswith(self, prefix):
-        return self._key.startswith(_safe_autoconv(prefix))
+        return self.data.startswith(_safe_autoconv(prefix))  # @UndefinedVariable
     def enddswith(self, prefix):
-        return self._key.startswith(_safe_autoconv(prefix))
+        return self.data.startswith(_safe_autoconv(prefix))  # @UndefinedVariable
 
     @property
     def num(self): return self.conv('num')
@@ -270,35 +262,12 @@ class AKey(object):
     def asc(self): return self.conv('asc')
 
 
-class AKKDict(dict):
-    """Mixin for dicts with :class:`AKey` KEYS - clients must ensure `AKeys` on construction."""
-
-    __slots__ = ()
-
-    def __getitem__(self, key):
-        return super(AKKDict, self).__getitem__(_safe_autoconv(key))
-    def __setitem__(self, key, item):
-        super(AKKDict, self).__setitem__(_safe_autoconv(key), item)
-    def __delitem__(self, key):
-        super(AKKDict, self).__delitem__(_safe_autoconv(key))
-    def __contains__(self, key):
-        return super(AKKDict, self).__contains__(_safe_autoconv(key))
-
-
-class AKVDict(dict):
-    """Mixin for dicts with :class:`AKey` VALUES - clients must ensure `AKeys` on construction."""
-
-    __slots__ = ()
-
-    def __setitem__(self, key, item):
-        super(AKVDict, self).__setitem__(key, _safe_autoconv(item))
-
-
-class PairedKeys(AKVDict, AKKDict, utils.PrefixMatched, dict):
+class PairedKeys(utils.MatchingDict, utils.ConvertingVDict, utils.ConvertingKDict, dict):
     """Mutable registry of ``(kkey, vkey)`` pairs matching keys by various formats. """
 
-    __slots__ = ()
-
-    def __init__(self, pairs_or_dict=(), **kwds):
-        d = dict(pairs_or_dict, **kwds)
-        super(PairedKeys, self).__init__((AKey(k), AKey(v)) for k, v in d.items())
+    def __init__(self, *args, **kwds):
+        utils.MatchingDict.__init__(self, utils.words_with_prefix, _safe_autoconv)
+        utils.ConvertingKDict.__init__(self, _safe_autoconv)
+        utils.ConvertingVDict.__init__(self, _safe_autoconv)
+        d = dict(*args, **kwds)
+        self.update((AKey(k), AKey(v)) for k, v in d.items())

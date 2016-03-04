@@ -17,11 +17,13 @@
 # You should have received a copy of the GNU General Public License
 # along with TeslaCrack; if not, write to the Free Software Foundation,
 # Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
-"""Decrypt TeslaCrypt-ed files."""
+#
+## Decrypt TeslaCrypt-ed files.
 
 from __future__ import print_function, unicode_literals, division
 
 import argparse
+import logging
 import os
 import shutil
 import sys
@@ -29,10 +31,12 @@ import time
 
 from Crypto.Cipher import AES  # @UnresolvedImport
 
-from . import CrackException, log
+from . import CrackException
 from .keyconv import PairedKeys, AKey
 from .teslafile import Header
 
+
+log = logging.getLogger(__name__)
 
 ## Add your (encrypted-AES-key: reconstructed-AES-key) pair(s) here,
 #  like the examples below:
@@ -213,7 +217,7 @@ def log_unknown_keys():
         aes_keys = dict((fpath, key) for key, fpath in unknown_keys.items())
         btc_keys = dict((fpath, key) for key, fpath in unknown_btkeys.items())
         key_msgs = ["     AES: %r\n     BTC: %r\n    File: %r" %
-                (aes_key.asc, btc_keys.get(fpath, b'').asc, fpath)
+                (aes_key.asc, btc_keys.get(fpath) or b'', fpath)
                 for fpath, aes_key in aes_keys.items()]
         log.info("+++Unknown key(s) encountered: %i \n%s\n"
                 "  Use `msieve` on AES-key(s), or `msieve` + `TeslaDecoder` on Bitcoin-key(s) to crack them!",

@@ -32,6 +32,7 @@ from os import path as osp
 import os
 import sys
 import unittest
+import _tutils  # @UnusedImport
 
 from teslacrack import __main__ as tcm, decrypt
 
@@ -52,7 +53,6 @@ def chmod(mode, files):
 class TDecrypt(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.longMessage = True ## Print also original assertion msg.
         os.chdir(osp.join(osp.dirname(__file__), 'teslafiles'))
         ## Mark unreadable-files.
         chmod('115', glob.glob('unreadable*'))

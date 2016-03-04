@@ -19,6 +19,7 @@
 from __future__ import print_function, unicode_literals, division
 
 from boltons.setutils import IndexedSet
+from collections import UserDict
 
 def longest_prefix_in_word(word, prefixlist):
     """
@@ -50,17 +51,6 @@ def words_with_prefix(prefix, wordlist):
             if w == prefix or _safe_startswith(w, prefix)]
 
 
-def exact_or_words_with_prefix(prefix, wordlist):
-    """Word `'abc'` matches only the 3rd from  ``['ab', 'bc', 'abcd', '']``"""
-    l = []
-    for w in IndexedSet(wordlist):
-        if w == prefix:
-            return [prefix]
-        if _safe_startswith(w, prefix):
-            l.append(w)
-    return l
-
-
 def words_with_substr(substr, wordlist):
     """
     >>> words_with_substr('bc', ['ab','def', 'abc', 'abc'])
@@ -73,45 +63,99 @@ def words_with_substr(substr, wordlist):
 
 class Item2Attr(object):
     """Mixin that can dress a NamedTuple as a dictionary."""
+
     __slots__ = ()
 
     def __getitem__(self, key):
         return getattr(self, key)
 
-
-class PrefixMatched(object):
+class MatchingDict(object):
     """
-    Mixin for accessing dict-keys by their prefixes, and/or fail when none or more matched.
+    Extra methods accessing matched dict-keys, optionally failing of none or more matched.
 
     - Use the ``XXXall()`` or :method:`containany` methods to return/act-upon a list
-      of prefix-matched items; they may return/act-upon an empty list.
-    - Use the ``XXXone()`` methods to return/act-upon a prefix-matched single item
+      of matched items; they may return/act-upon an empty list.
+    - Use the ``XXXone()`` methods to return/act-upon a matched single item
       or fail otherwise.
     """
-    __slots__ = ()
 
-    def getone(self, prefix, default=None):
-        mkeys = exact_or_words_with_prefix(prefix, self)
-        if len(mkeys) != 1:
-            raise KeyError('Prefix %r matched %i items!' % (prefix, len(mkeys)))
-        return self[mkeys[0]]
+    def __init__(self, matchfunc, conv=None):
+        self._matchfunc = matchfunc
+        self._conv = conv
 
-    def delone(self, prefix):
-        mkeys = exact_or_words_with_prefix(prefix, self)
-        if len(mkeys) != 1:
-            raise KeyError('Prefix %r matched %i keys: \n  %s' %
-                    (prefix, len(mkeys), '\n  '.join(mkeys)))
-        del self[mkeys[0]]
+    def matchOne(self, prefix, default=None):
+        if self._conv:
+            prefix = self._conv(prefix)
+        if prefix in self:
+            key = prefix
+        else:
+            mkeys = self._matchfunc(prefix, self)
+            if len(mkeys) != 1:
+                raise KeyError('Prefix %r matched %i items: %r' %
+                        (prefix, len(mkeys), mkeys))
+            key = mkeys[0]
+        return self[key]
 
-    def containsany(self, prefix):
-        return any(words_with_prefix(prefix, self))
+    def delMatched(self, prefix):
+        if self._conv:
+            prefix = self._conv(prefix)
+        if prefix in self:
+            key = prefix
+        else:
+            mkeys = self._matchfunc(prefix, self)
+            if len(mkeys) != 1:
+                raise KeyError('Prefix %r matched %i keys: \n  %s' %
+                        (prefix, len(mkeys), '\n  '.join(mkeys)))
+            key = mkeys[0]
+        del self[key]
 
-    def getall(self, prefix):
+    def containsMatched(self, prefix):
+        if self._conv:
+            prefix = self._conv(prefix)
+        return any(self._matchfunc(prefix, self))
+
+    def matchAll(self, prefix):
+        if self._conv:
+            prefix = self._conv(prefix)
         return [self[mkey]
-                for mkey in words_with_prefix(prefix, self)]
+                for mkey in self._matchfunc(prefix, self)]
 
-    def delall(self, prefix):
-        mkeys = words_with_prefix(prefix, self)
+    def delAll(self, prefix):
+        if self._conv:
+            prefix = self._conv(prefix)
+        mkeys = self._matchfunc(prefix, self)
         for mkey in mkeys:
             del self[mkey]
         return len(mkeys)
+
+class ConvertingKDict(object):
+    """Mixin for converting dict-KEYS - clients must ensure conversions on construction."""
+
+    def __init__(self, conv):
+        self._kconv = conv
+
+    def __getitem__(self, key):
+        ckey = self._kconv(key)
+        return super(ConvertingKDict, self).__getitem__(ckey)
+    def __setitem__(self, key, item):
+        ckey = self._kconv(key)
+        super(ConvertingKDict, self).__setitem__(ckey, item)
+    def __delitem__(self, key):
+        ckey = self._kconv(key)
+        super(ConvertingKDict, self).__delitem__(ckey)
+    def __contains__(self, key):
+        ckey = self._kconv(key)
+        return super(ConvertingKDict, self).__contains__(ckey)
+
+
+class ConvertingVDict(object):
+    """Mixin for converting dict-VALUES - clients must ensure conversions on construction."""
+
+    def __init__(self, conv):
+        self._vconv = conv
+
+    def __setitem__(self, key, item):
+        citem = self._vconv(item)
+        super(ConvertingVDict, self).__setitem__(key, citem)
+
+

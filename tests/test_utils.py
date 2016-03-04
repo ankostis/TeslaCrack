@@ -8,7 +8,7 @@
 from __future__ import print_function, unicode_literals, division
 
 import logging
-from teslacrack import __main__ as tcm, utils
+from teslacrack import __main__ as tcm, utils, keyconv
 import unittest
 
 import ddt
@@ -21,31 +21,29 @@ tcm.init_logging(level=logging.DEBUG)
 
 
 
-class C(utils.PrefixMatched, dict):
-    pass
+class C(utils.MatchingDict, dict):
+    def __init__(self, *args, **kwds):
+        utils.MatchingDict.__init__(self, utils.words_with_prefix)
+        self.update(dict(*args, **kwds))
 
 @ddt.ddt
-class TPrefixMatched(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.longMessage = True ## Print also original assertion msg on PY2.
-
+class TMatchingDict(unittest.TestCase):
     @ddt.data('ab', 'abc', 'df')
     def test_contains_EXACT(self, k):
         c=C({'abc':1, 'ab':2, 'df':3})
-        self.assertTrue(c.containsany(k))
+        self.assertTrue(c.containsMatched(k))
         self.assertIn(k, c)
 
     @ddt.data('', 'a', 'd')
     def test_contains_PREFIX(self, k):
         c=C({'abc':1, 'ab':2, 'df':3})
-        self.assertTrue(c.containsany(k))
+        self.assertTrue(c.containsMatched(k))
         self.assertNotIn(k, c)
 
     @ddt.data('D', 'A', 1)
     def test_contains_NONE(self, k):
         c=C({'abc':1, 'ab':2, 'df':3})
-        self.assertFalse(c.containsany(k))
+        self.assertFalse(c.containsMatched(k))
         self.assertNotIn(k, c, k)
 
     @ddt.data(
@@ -57,7 +55,7 @@ class TPrefixMatched(unittest.TestCase):
         k, v = case
         c=C({'abc':1, 'ab':2, 'df':3})
         self.assertEqual(c[k], v)
-        self.assertEqual(c.getone(k), v)
+        self.assertEqual(c.matchOne(k), v)
 
     @ddt.data(
             ('d', 3),
@@ -67,7 +65,7 @@ class TPrefixMatched(unittest.TestCase):
         c=C({'abc':1, 'ab':2, 'df':3})
         with self.assertRaises(KeyError):
             c[k]
-        self.assertEqual(c.getone(k), v)
+        self.assertEqual(c.matchOne(k), v)
 
     @ddt.data('A', 'D', 1)
     def test_getone_NONE(self, k):
@@ -81,7 +79,7 @@ class TPrefixMatched(unittest.TestCase):
         with self.assertRaises(KeyError):
             c[k]
         with assertRaisesRegex(self, KeyError, 'Prefix .+ matched'):
-            c.getone(k)
+            c.matchOne(k)
 
     @ddt.data(
             ('ab',     {'abc':1,  'df':3}),
@@ -96,7 +94,7 @@ class TPrefixMatched(unittest.TestCase):
         self.assertDictEqual(c, d)
 
         c=C(dd)
-        c.delone(k)
+        c.delMatched(k)
         self.assertDictEqual(c, d)
 
     @ddt.data(
@@ -109,7 +107,7 @@ class TPrefixMatched(unittest.TestCase):
         with self.assertRaises(KeyError):
             del c[k]
         c=C(dd)
-        c.delone(k)
+        c.delMatched(k)
         self.assertDictEqual(c, d)
 
     @ddt.data('A', 'D', 1)
@@ -121,7 +119,7 @@ class TPrefixMatched(unittest.TestCase):
 
         c=C(dd)
         with assertRaisesRegex(self, KeyError, str(k)):
-            c.delone(k)
+            c.delMatched(k)
 
     @ddt.data('', 'a')
     def test_delone_MORE(self, k):
@@ -132,7 +130,7 @@ class TPrefixMatched(unittest.TestCase):
 
         c=C(dd)
         with assertRaisesRegex(self, KeyError, 'Prefix .+ matched'):
-            c.delone(k)
+            c.delMatched(k)
 
     @ddt.data(
             ('', (1,2,3)),
@@ -144,12 +142,12 @@ class TPrefixMatched(unittest.TestCase):
     def test_getall_OK(self, case):
         k, v = case
         c=C({'abc':1, 'ab':2, 'df':3})
-        self.assertSetEqual(set(c.getall(k)), set(v))
+        self.assertSetEqual(set(c.matchAll(k)), set(v))
 
     @ddt.data('A', 'D', 1)
     def test_getall_NONE(self, k):
         c=C({'abc':1, 'ab':2, 'df':3})
-        self.assertEqual(c.getall(k), [])
+        self.assertEqual(c.matchAll(k), [])
 
     @ddt.data(
             ('a',      {'df':3}),
@@ -162,13 +160,13 @@ class TPrefixMatched(unittest.TestCase):
         k, d = case
         dd = {'abc':1, 'ab':2, 'df':3}
         c=C(dd)
-        self.assertEqual(c.delall(k), len(dd) - len(d))
+        self.assertEqual(c.delAll(k), len(dd) - len(d))
         self.assertDictEqual(c, d)
 
     @ddt.data('A', 'D', 1)
     def test_delall_NONE(self, k):
         d = {'abc':1, 'ab':2, 'df':3}
         c=C(d)
-        self.assertEqual(c.delall(k), 0)
+        self.assertEqual(c.delAll(k), 0)
         self.assertDictEqual(c, d)
 

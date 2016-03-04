@@ -17,7 +17,8 @@
 # You should have received a copy of the GNU General Public License
 # along with TeslaCrack; if not, write to the Free Software Foundation,
 # Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
-"""Reconstruct TeslaCrypt keys from their prime-factors."""
+#
+## Reconstruct TeslaCrypt keys from their prime-factors."""
 from __future__ import print_function, unicode_literals, division
 
 import hashlib
@@ -31,9 +32,13 @@ from pycoin import key as btckey
 import functools as ft
 import operator as op
 
-from . import CrackException, log
+from . import CrackException
 from .keyconv import AKey
 from .teslafile import Header
+
+
+
+log = logging.getLogger(__name__)
 
 
 def validate_primes(str_factors, expected_product=None):

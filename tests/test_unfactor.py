@@ -35,7 +35,7 @@ import unittest
 import ddt
 import yaml
 
-
+import _tutils  # @UnusedImport
 
 
 tcm.init_logging(level=logging.DEBUG)
@@ -128,7 +128,6 @@ app_db = read_app_db()
 class TUnfactor(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.longMessage = True ## Print also original assertion msg.
         os.chdir(osp.join(osp.dirname(__file__), 'teslafiles'))
 
     @ddt.data(*[k for k in app_db['keys'] if k['type'] == 'AES'])
@@ -194,5 +193,5 @@ class TUnfactor(unittest.TestCase):
 
         exp_aes_priv = 55129851113444675798855803280729153325965425345465653744428349716537975545325
         gen_aes_priv = unfactor.aes_priv_from_btc_priv(aes_pub, btc_priv, aes_mul)
-        self.assertEqual(gen_aes_priv, exp_aes_priv)
+        self.assertEqual(gen_aes_priv.num, exp_aes_priv)
 

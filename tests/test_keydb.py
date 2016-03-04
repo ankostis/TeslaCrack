@@ -18,16 +18,14 @@ import unittest
 from future import utils as futils
 from future.builtins import str, int, bytes  # @UnusedImport
 
+import _tutils  # @UnusedImport
+
 
 tcm.init_logging(level=logging.DEBUG)
 
 
 
 class Tkeydb(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.longMessage = True ## Print also original assertion msg on PY2.
-
     def test_load_non_existent(self):
         db = keydb.load('BADPATH')
         self.assertIsInstance(db, OrderedDict)
