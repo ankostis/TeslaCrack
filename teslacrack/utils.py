@@ -58,7 +58,7 @@ def words_with_substr(substr, wordlist):
     >>> words_with_substr('', list('abbcccc')) == list('abc')
     True
     """
-    return [n for n in IndexedSet(wordlist) if substr and substr in n]
+    return [n for n in IndexedSet(wordlist) if substr in n]
 
 
 class Item2Attr(object):
@@ -117,7 +117,7 @@ class MatchingDict(object):
     def matchAll(self, prefix):
         if self._conv:
             prefix = self._conv(prefix)
-        return [self[mkey]
+        return [(mkey, self[mkey])
                 for mkey in self._matchfunc(prefix, self)]
 
     def delAll(self, prefix):

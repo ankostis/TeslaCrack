@@ -28,6 +28,7 @@ from future.builtins import str, int, bytes  # @UnusedImport
 import itertools as itt
 
 from . import CrackException, repr_conv, utils
+from .keyconv import AKey
 from .keyconv import (apply_trans_list, tesla_mul_to_bytes, b2x, b2n,
                   b2s, xs0x, upp, i2b, n2h)
 
@@ -59,56 +60,25 @@ assert _header_len == 414, _header_len
 _bin_fields = ('start', 'btc_pub_key', 'aes_pub_key', 'iv')
 _hex_fields = ('btc_mul_key', 'aes_mul_key')
 
+_Header = namedtuple('_Header',
+        'start  btc_pub_key  btc_mul_key  aes_pub_key  aes_mul_key  iv  size')
 
-class Header(namedtuple('Header',
-        'start  btc_pub_key  btc_mul_key  aes_pub_key  aes_mul_key  iv  size')):
+#class Header(utils.Item2Attr, utils.MatchingDict, _Header):
+class Header(_Header, utils.MatchingDict):
     """
-    Immutable Header-fields convertible to various formats.
+    Immutable teslafile header-fields converted to AKey instances.
 
-    Available conversions:
-
-      - raw: all bytes as-is - no conversion (i.e. hex mul-keys NOT strip & l-rotate).
-      - fix: like 'raw', but mul-keys fixed and size:int; fail if mul-keys invalid.
-      - bin: all bytes (even mul-keys), mul-keys: fixed.
-      - xhex: all string-HEX, size:bytes-hexed.
-      - hex: all string-hex prefixed with '0x', size: int-hexed.
-      - num: all natural numbers, size: int.
-      - 64: all base64, size(int) - most concise.
+    Use :method:`from_fd()` to construct it.
     """
-    __slots__ = ()
-
-    _trans_maps = _trans_per_field({
-        'raw': ((_hex_fields+_bin_fields,   (bytes, )),
-                (('size',),             (i2b, bytes))),
-        'fix': ((_hex_fields,           (tesla_mul_to_bytes, hexlify, bytes)),
-                (_bin_fields,           (bytes,))),
-        'bin': ((_hex_fields,           (tesla_mul_to_bytes, bytes)),
-                (_bin_fields,           (bytes,)),
-                (('size',),             (i2b, bytes))),
-        'xhex': ((_hex_fields,          (tesla_mul_to_bytes, b2x, upp)),
-                 (_bin_fields,          (b2x, upp)),
-                 (('size',),            (i2b, b2x, upp))),
-        'hex': ((_hex_fields,           (tesla_mul_to_bytes, b2x, xs0x)),
-                (_bin_fields,           (b2x, xs0x)),
-                (('size',),             (n2h,))),
-        'num': ((_hex_fields,           (tesla_mul_to_bytes, b2n)),
-                (_bin_fields,           (b2n,))),
-        '64':  ((_hex_fields,           (tesla_mul_to_bytes, b64encode, b2s)),
-                (_bin_fields,           (b64encode, b2s))),
-    })
-
-    # Controls only the ``repr()`` of this instance.
-    internal_conv = repr_conv
-
     @classmethod
-    def from_fd(cls, fd):
+    def from_fd(cls, fd, conv=None):
         """
         Reads a tesla-file's header, checks its validity and converts.
 
         :param fd:
                 a file-descriptor freshly opened in binary mode on a tesla-file.
-        :param str hconv:
-                what transform to apply (see :class:`Header`).
+        :param str conv:
+                the default feild-conversions (see :class:`AKey`).
         :return:
             a :data:`Header` named-tuple
         """
@@ -123,59 +93,24 @@ class Header(namedtuple('Header',
                             bytes(hbytes[:5]), magic_ok,
                             len(hbytes), _header_len, headerlen_ok))
         try:
-            h = cls._make(struct.unpack(_header_fmt, hbytes))
-            ## To detect problems in the keys
-            h.conv('btc_mul_key', 'fix')
-            h.conv('aes_mul_key', 'fix')
+            raw = cls._make(struct.unpack(_header_fmt, hbytes))
+            h = raw._replace(
+                    btc_pub_key=AKey.auto(raw.btc_pub_key, conv),
+                    btc_mul_key=AKey.auto(tesla_mul_to_bytes(raw.btc_mul_key), conv),
+                    aes_pub_key=AKey.auto(raw.aes_pub_key, conv),
+                    aes_mul_key=AKey.auto(tesla_mul_to_bytes(raw.aes_mul_key), conv)
+                    )
+            h.raw = raw
         except Exception as ex:
             raise CrackException("Tesla-file(%r)'s keys might be corrupted: %s" %
                     (fname(), ex))
         return h
 
-    def conv(self, fld, hconv):
-        """
-        Convert a header field into various formats.
-
-        :param str fld:
-            which field to convert
-        :param str hconv:
-            Any supported format, keys of :attribute:`_trans_maps`.
-            See class docstring for explanation.
-        """
-        trans_map = self._trans_maps[hconv]
-        return apply_trans_list(trans_map[fld], getattr(self, fld))
+    def __init__(self, *args, **kwds):
+        utils.MatchingDict.__init__(self, utils.words_with_substr)
+        print(self)
 
     def __repr__(self):
-        return '\n'.join('%15.15s: %r' % (k, self.conv(k, self.internal_conv))
-                for k in self._fields)
+        return '\n'.join('%15.15s: %r' % (k, v)
+                for k, v in self._asdict().items())
 
-
-def match_header_conv(conv):
-    """
-    :param str conv:
-        any non-ambiguous case-insensitive *prefix* from supported formats.
-    """
-    convs = Header._trans_maps.keys()
-    matched_convs = utils.words_with_prefix(conv.lower(), convs)
-    if len(matched_convs) != 1:
-        raise CrackException("Bad Header-conversion(%s)!"
-                "\n  Must be a case-insensitive prefix of: %s"% (
-                        conv, sorted(convs)))
-    return matched_convs[0]
-
-
-def match_header_fields(field_substr_list):
-    """An empty list matches all."""
-    all_fields = Header._fields
-    if not field_substr_list:
-        fields_list = all_fields
-    else:
-        not_matched = [not utils.words_with_substr(f, all_fields) for f in field_substr_list]
-        if any(not_matched):
-            raise CrackException(
-                    "Invalid header-field(s): %r! "
-                    "\n  Must be a case-insensitive subs-string of: %s" %
-                    ([f for f, m in zip(field_substr_list, not_matched) if m], all_fields))
-        fields_list = [utils.words_with_substr(f, all_fields) for f in field_substr_list]
-        fields_list = tuple(set(itt.chain(*fields_list)))
-    return fields_list

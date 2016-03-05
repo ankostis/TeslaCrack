@@ -7,17 +7,31 @@
 # You may obtain a copy of the Licence at: http://ec.europa.eu/idabc/eupl
 from __future__ import print_function, unicode_literals, division
 
+import doctest
 import logging
 from teslacrack import __main__ as tcm, utils, keyconv
 import unittest
 
 import ddt
+from future import utils as futils
 from future.builtins import str, int, bytes  # @UnusedImport
 
 from _tutils import assertRaisesRegex
 
 
 tcm.init_logging(level=logging.DEBUG)
+
+
+
+@unittest.skipIf(futils.PY2, "Doctests are made for py >= 3.3")
+class Doctest(unittest.TestCase):
+
+    def test_doctests(self):
+        failure_count, test_count = doctest.testmod(
+            utils,
+            optionflags=doctest.NORMALIZE_WHITESPACE)  # | doctest.ELLIPSIS)
+        self.assertGreater(test_count, 0, (failure_count, test_count))
+        self.assertEquals(failure_count, 0, (failure_count, test_count))
 
 
 
@@ -133,16 +147,16 @@ class TMatchingDict(unittest.TestCase):
             c.delMatched(k)
 
     @ddt.data(
-            ('', (1,2,3)),
-            ('a', (1,2)),
-            ('ab', (1,2)),
-            ('d', (3,)),
-            ('df', (3,)),
+            ('',    {'abc':1, 'ab':2, 'df':3}),
+            ('a',   {'abc':1, 'ab':2}),
+            ('ab',  {'abc':1, 'ab':2}),
+            ('d',   {'df':3}),
+            ('df',  {'df':3}),
             )
     def test_getall_OK(self, case):
         k, v = case
         c=C({'abc':1, 'ab':2, 'df':3})
-        self.assertSetEqual(set(c.matchAll(k)), set(v))
+        self.assertDictEqual(dict(c.matchAll(k)), v)
 
     @ddt.data('A', 'D', 1)
     def test_getall_NONE(self, k):

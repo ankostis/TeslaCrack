@@ -187,9 +187,9 @@ class TUnfactor(unittest.TestCase):
             self.assertIn(dec_key.upper(), '0x%064X' % btc_key.num, msg=key_rec)
 
     def test_aes_from_btc(self):
-        aes_pub = keyconv.AKey(b'\xae~\x9a\xf9)\x84\xa7\x955\x15$\xc3$>\xb6A\xcd\x03\x13F\xa7\xa9\xd4tK+\x1b"\xfdn\xf4\xe1S\xfa\x81\x17\x04\x8c\x11R+\xa4\xa0\xb9\t\xc3k=AF\xcbo\x13x\x82\xdf\xa2\xb2\xdeo&\xf0Y\x8d')
-        aes_mul = keyconv.AKey('025B96A3F9AB13753ED84694034422216C03FD0298E67D87E9B1ACE8027D6C50F02CFD14724768AEA2BE2D53707661B554A8D5EAFA0D5CF3C3F2F299E614870F')
-        btc_priv = keyconv.AKey(b'\x9f\x0el`\x8a\xffw\x7f\x121\xd1\xd6\x91\xfb\x0f\xfe\x8b\xf2\x0c\xec\x13\xec\xbb\xcb\xa4\x99.Q4\x84b\xf2')
+        aes_pub = keyconv.AKey.auto(b'\xae~\x9a\xf9)\x84\xa7\x955\x15$\xc3$>\xb6A\xcd\x03\x13F\xa7\xa9\xd4tK+\x1b"\xfdn\xf4\xe1S\xfa\x81\x17\x04\x8c\x11R+\xa4\xa0\xb9\t\xc3k=AF\xcbo\x13x\x82\xdf\xa2\xb2\xdeo&\xf0Y\x8d')
+        aes_mul = keyconv.AKey.auto('025B96A3F9AB13753ED84694034422216C03FD0298E67D87E9B1ACE8027D6C50F02CFD14724768AEA2BE2D53707661B554A8D5EAFA0D5CF3C3F2F299E614870F')
+        btc_priv = keyconv.AKey.auto(b'\x9f\x0el`\x8a\xffw\x7f\x121\xd1\xd6\x91\xfb\x0f\xfe\x8b\xf2\x0c\xec\x13\xec\xbb\xcb\xa4\x99.Q4\x84b\xf2')
 
         exp_aes_priv = 55129851113444675798855803280729153325965425345465653744428349716537975545325
         gen_aes_priv = unfactor.aes_priv_from_btc_priv(aes_pub, btc_priv, aes_mul)

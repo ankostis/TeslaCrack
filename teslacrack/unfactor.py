@@ -92,7 +92,7 @@ def _gen_product_combinations(factors):
 def _guess_key(primes, key_ok_predicate):
     """Returns the 1st key satisfying the predicate, or None."""
     for key, combid in _gen_product_combinations(primes):
-        key = AKey(key)
+        key = AKey.auto(key)
         if key_ok_predicate(key):
             if log.isEnabledFor(logging.DEBUG):
                 log.debug('Winning factors: %s',
@@ -104,7 +104,7 @@ def _guess_all_keys(primes, key_ok_predicate):
     """Returns the 1st or all candidate keys satisfying the predicate, or None."""
     keys = set()
     for key, combid in _gen_product_combinations(primes):
-        key = AKey(key)
+        key = AKey.auto(key)
         if key not in keys and key_ok_predicate(key):
             keys.add(key)
             if log.isEnabledFor(logging.DEBUG):
@@ -211,10 +211,10 @@ def _decide_which_key(primes, aes_mul, btc_mul, file):
 def crack_ecdh_key_from_file(file, primes):
     with open(file, "rb") as f:
         header = Header.from_fd(f)
-    aes_mul = AKey(header.conv('aes_mul_key', 'bin'))  ## TODO: FIX Header fix.
-    aes_ecdh = AKey(header.aes_pub_key)
-    btc_mul = AKey(header.conv('btc_mul_key', 'bin'))
-    btc_ecdh = AKey(header.btc_pub_key)
+    aes_mul = header.aes_mul_key
+    aes_ecdh = header.aes_pub_key
+    btc_mul = header.btc_mul_key
+    btc_ecdh = header.btc_pub_key
     primes, key_name = _decide_which_key(primes, aes_mul, btc_mul, file)
 
     def does_key_gen_my_ecdh(key):
@@ -232,12 +232,12 @@ def _ECDH(pub, prv):
     C = ecdsa.curves.SECP256k1
     pubP = ecdsa.VerifyingKey.from_string(pub.bin, curve=C).pubkey.point
     sharedP = pubP * prv.num
-    return AKey(sharedP.x())
+    return AKey.auto(sharedP.x())
 
 
 def aes_priv_from_btc_priv(aes_pub, btc_priv, aes_mul):
     """Derive AES-session-key from BTC-priv-key (all as :class:`AKey`). """
-    btc_priv_h256 = AKey(hashlib.sha256(btc_priv.bin).digest())
+    btc_priv_h256 = AKey.auto(hashlib.sha256(btc_priv.bin).digest())
     aes_shared = _ECDH(aes_pub, btc_priv_h256)
 
     rem = aes_mul.num % aes_shared.num
@@ -245,5 +245,5 @@ def aes_priv_from_btc_priv(aes_pub, btc_priv, aes_mul):
         raise CrackException("AES-shared-secret does not divide mul-key! "
             "\n     rem: %i \n  shared: %s \n     mul: %s" % (
                     rem, aes_mul.num, aes_shared.num))
-    return AKey(aes_mul.num // aes_shared.num)
+    return AKey.auto(aes_mul.num // aes_shared.num)
 

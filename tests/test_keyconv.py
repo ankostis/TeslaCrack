@@ -196,7 +196,9 @@ class TAKey(unittest.TestCase):
 class TPairedKeys(unittest.TestCase):
 
     def test_indexing(self):
-        pk = keyconv.PairedKeys({b'\x00abc': b'\x00ABC', b'\x00ab': b'\x00AB', b'\x00df': b'\x00DF'})
+        d = {b'\x00abc': b'\x00ABC', b'\x00ab': b'\x00AB', b'\x00df': b'\x00DF'}
+        pk = keyconv.PairedKeys(d)
         self.assertEqual(pk.matchOne(b'\x00df'), b'\x00DF')
         self.assertEqual(pk.matchOne(b'\x00df'), AKey.auto(b'\x00DF'))
-        self.assertSetEqual(set(pk.matchAll(b'\x00a')), set([b'\x00AB', AKey.auto(b'\x00ABC')]))
+        self.assertDictEqual(dict(pk.matchAll(b'\x00a')),
+                {b'\x00abc': b'\x00ABC', b'\x00ab': b'\x00AB'})

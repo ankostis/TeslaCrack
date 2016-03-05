@@ -18,6 +18,7 @@
 ## Convert and auto-parse keys to/from various formats (binary/hex/numeric, quoted, etc).
 from __future__ import print_function, unicode_literals, division
 
+from abc import ABCMeta
 from base64 import b64decode as b64dec, b64encode
 from binascii import hexlify, unhexlify
 import codecs
@@ -64,8 +65,8 @@ else:
 
 def _lalign_byte_key(byte_key):
     if any(byte_key):
-    while byte_key[0] == 0:
-        byte_key = byte_key[1:] + b'\0'
+        while byte_key[0] == 0:
+            byte_key = byte_key[1:] + b'\0'
     return byte_key
 
 
@@ -198,7 +199,15 @@ def conv_bytes(b, conv):
 
 
 
+# class ByteClass(ABCMeta):
+#     def __instancecheck__(self, o):
+#         if o == bytes:
+#             return True
+# class AKey(with_metaclass(ByteClass, collections.UserString)):
 
+# class AKeyMeta(ABCMeta, BaseNewBytes):
+#     pass
+# class AKey(with_metaclass(AKeyMeta, collections.UserString)):
 class AKey(collections.UserString):
     """
     Bytes using a best-effort autoconversion from various formats utilized by TeslaCrack.
@@ -213,7 +222,6 @@ class AKey(collections.UserString):
       if not overridden on construction.
     - Keys must not be `None`.
     """
-    dconv = repr_conv
 
     @classmethod
     def auto(cls, key, conv=None):
@@ -225,7 +233,7 @@ class AKey(collections.UserString):
                 enforces key-type - use it with caution, no check!
         :type _unparsed: bool or str
         """
-            aconv, byts = _autoconv_to_bytes(key)
+        aconv, byts = _autoconv_to_bytes(key)
         return cls(byts, conv or aconv, _raw=True)
 
     dconv = repr_conv
@@ -269,6 +277,7 @@ class AKey(collections.UserString):
     @property
     def asc(self): return self.conv('asc')
 
+#AKey.register(bytes)
 
 class PairedKeys(utils.MatchingDict, utils.ConvertingVDict, utils.ConvertingKDict, dict):
     """Mutable registry of ``(kkey, vkey)`` pairs matching keys by various formats. """

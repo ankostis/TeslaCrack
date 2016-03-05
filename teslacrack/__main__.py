@@ -206,17 +206,19 @@ def _crack_key(opts):
 
 def _show_file_headers(opts):
     file = opts['<file>']
-    hconv = tslc.teslafile.match_header_conv(opts['-F'])
-    fields = tslc.teslafile.match_header_fields(opts['<field>'])
-    log.info('Printing header-fields %r in %r for tesla-file: %s', fields, hconv, file)
+    substr = opts['<field>']
+    conv = opts['-F']
     with io.open(file, 'rb') as fd:
         h = tslc.teslafile.Header.from_fd(fd)
+    fields = h.matchAll(substr)
+    if not fields:
+        raise tslc.CrackException('Substring %r matched %i header field: %r' %
+                (substr, len(fields), list(fields)))
 
     if len(fields) == 1:
-        res = h.conv(fields[0], hconv)
+        res = next(iter(fields)).conv(conv)
     else:
-        res = '\n'.join('%15.15s: %s' % (k, tslc.keyconv.printable_key(h.conv(k, hconv)))
-                for k in h._fields if k in fields)
+        res = '\n'.join('%15.15s: %s' % (k, v.conv(conv)) for k, v in fields)
     return res
 
 

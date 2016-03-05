@@ -26,8 +26,7 @@ from __future__ import print_function, unicode_literals, division
 
 from os import path as osp
 import os
-from teslacrack import __main__ as tcm
-from teslacrack import teslafile, CrackException
+from teslacrack import CrackException, __main__ as tcm, teslafile, keyconv
 import unittest
 
 import ddt
@@ -84,74 +83,10 @@ _sample_size = _sample_header.size
 _key_fields = ('btc_pub_key', 'aes_pub_key') + teslafile._hex_fields
 
 
-def _all_prefixes(s):
-    return (s[:i] for i in range(1, len(s)))
-
-_all_hconv_names = teslafile.Header._trans_maps.keys()
 _all_fields = teslafile.Header._fields  # @UndefinedVariable
 
 @ddt.ddt
 class THeader(unittest.TestCase):
-
-    @ddt.data(*itt.product(['raw', 'fix', 'bin'], _all_fields))  # @UndefinedVariable
-    def test_hconv_bytes(self, case):
-        hconv, fld = case
-        h = teslafile.Header(*_sample_header)
-        if not (fld == 'size' and hconv == 'fix'):
-            assertRegex(self, repr(h.conv(fld, hconv)), '^b(\'.*\')|(b".*")$', fld)
-
-    @ddt.data(*itt.product(['xhex', 'hex', 'num', '64'], _all_fields))  # @UndefinedVariable
-    def test_hconv_non_bytes(self, case):
-        hconv, fld = case
-        h = teslafile.Header(*_sample_header)
-        v = h.conv(fld, hconv)
-        if not (fld == 'size' and hconv in 'num', '64'):
-            self.assertNotRegex(v, '^b(\'.*\')|(b".*")$', fld)
-
-    @ddt.data(*(f for f in _all_fields if f != 'size'))  # @UndefinedVariable
-    def test_hconv_hex_numbers_equal(self, fld):
-        h = teslafile.Header(*_sample_header)
-        ahex = int(str(h.conv(fld, 'hex')), 16)
-        xhex = int(str(h.conv(fld, 'xhex')), 16)
-        self.assertEqual(ahex, xhex)
-
-    @ddt.data(*_all_fields)
-    def test_hconv_xhex_digits(self, fld):
-        h = teslafile.Header(*_sample_header)
-        assertRegex(self, h.conv(fld, 'xhex'), '(?i)^[0-9a-f]*$', fld)
-
-    @ddt.data(*_all_fields)
-    def test_hconv_hex_digits(self, fld):
-        h = teslafile.Header(*_sample_header)
-        assertRegex(self, h.conv(fld, 'hex'), '(?i)^0x[0-9a-f]*$', fld)
-
-    @ddt.data(*_all_hconv_names)
-    def test_hconv_int_size(self, hconv):
-        h = teslafile.Header(*_sample_header)
-        sz = h.conv('size', hconv)
-        if hconv in ('fix', 'num', '64'):
-            self.assertEqual(sz, _sample_size, hconv)
-        else:
-            self.assertNotEqual(sz, _sample_size, hconv)
-
-    def test_hconv_hex_size(self):
-        h = teslafile.Header(*_sample_header)
-        self.assertEqual(int(h.conv('size', 'hex'), 16), _sample_size)
-
-    @ddt.data(*_key_fields)
-    def test_hconv_b64_length_threshold(self, fld):
-        h = teslafile.Header(*_sample_header)
-        v = h.conv(fld, '64')
-        self.assertGreater(len(v), 30)
-        self.assertIsInstance(v, str)
-
-    @ddt.data(*_key_fields)
-    def test_hconv_compare_lengths(self, fld):
-        h = teslafile.Header(*_sample_header)
-        self.assertEqual(len(h.conv(fld, 'xhex')) + 2,   len(h.conv(fld, 'hex')), fld)
-        self.assertEqual(len(h.conv(fld, 'xhex')),       len(h.conv(fld, 'bin')) * 2, fld)
-        self.assertGreaterEqual(len(h.conv(fld, 'raw')), len(h.conv(fld, 'fix')), fld)
-        self.assertGreater(len(h.conv(fld, 'xhex')),     len(h.conv(fld, '64')), fld)
 
     @unittest.skipIf(PY2, 'String-comparison fail in PY2')
     def test_str(self):
@@ -170,15 +105,10 @@ class THeader(unittest.TestCase):
 
 
 _bin_fields = (f for f in _all_fields if f != 'size')
+_all_hconv_names = ['bin', 'hex', 'asc', 'num']
 
 @ddt.ddt
 class TFileSubcmd(unittest.TestCase):
-
-    @ddt.data(*[(conv, pref) for conv in _all_hconv_names for pref in _all_prefixes(conv)])
-    def test_hconv_prefixmatch(self, case):
-        exp_conv, prefix = case
-        conv = teslafile.match_header_conv(prefix)
-        self.assertEqual(conv, exp_conv)
 
     @ddt.data(*_bin_fields)
     def test_singe_fields_raw(self, fld):
