@@ -15,7 +15,7 @@ import unittest
 import ddt
 from future.builtins import str, int, bytes  # @UnusedImport
 
-import _tutils  # @UnusedImport
+from _tutils  import assertRegex
 import itertools as itt
 
 
@@ -55,6 +55,20 @@ def _gen_byte_keys():
                     yield frmt % k
                 except (TypeError, UnicodeError):
                     pass
+@ddt.ddt
+class TConvs(unittest.TestCase):
+
+    @ddt.data(b'', b'\0', b'\0' * 10)
+    def test_l_align_all_zeros(self, k):
+        v = keyconv.tesla_mul_to_bytes(k)
+        self.assertEqual(v, b'')
+        v = bytes(keyconv.tesla_mul_to_bytes(k))
+        self.assertEqual(v, b'')
+        v = bytes(keyconv.tesla_mul_to_bytes(bytes(k)))
+        self.assertEqual(v, b'')
+        v = keyconv.tesla_mul_to_bytes(bytes(k))
+        self.assertEqual(v, b'')
+
 
 @ddt.ddt
 class TAutonvertKey(unittest.TestCase):
@@ -128,32 +142,55 @@ class TAKey(unittest.TestCase):
 
     @ddt.data(b'', b'\0', b'\x00123456')
     def test_byte_equality(self, b):
-        self.assertEqual(b, AKey(b), b)
-        self.assertEqual(AKey(b), b, b)
-        self.assertEqual(bytes(b), AKey(b), b)
-        self.assertEqual(AKey(b), bytes(b), b)
+        ak = AKey(b, _raw=1)
+        self.assertEqual(b, ak, b)
+        self.assertEqual(ak, b, b)
+        self.assertEqual(bytes(b), ak, b)
+        self.assertEqual(ak, bytes(b), b)
 
-        self.assertEqual(b, AKey(bytes(b)), b)
-        self.assertEqual(AKey(bytes(b)), b, b)
-        self.assertEqual(bytes(b), AKey(bytes(b)), b)
-        self.assertEqual(AKey(bytes(b)), bytes(b), b)
+        bb = AKey(bytes(b), _raw=1)
+        self.assertEqual(b, bb, b)
+        self.assertEqual(bb, b, b)
+        self.assertEqual(bytes(b), bb, b)
+        self.assertEqual(bb, bytes(b), b)
 
     @ddt.data(b'', b'\0', b'\x00123456')
     def test_byte_hash_equality(self, b):
-        self.assertEqual(b, AKey(b), b)
-        self.assertEqual(hash(AKey(b)), hash(b), b)
+        ak = AKey(b, _raw=1)
+        self.assertEqual(b, ak, b)
+        self.assertEqual(hash(ak), hash(b), b)
 
     @ddt.data(b'', b'\x00a', b'\x00abc')
     def test_to_bytes(self, b):
-        self.assertEqual(type(bytes(AKey(b))), type(bytes(b)), b)
-        self.assertEqual(type(AKey(b).data), type(bytes(b)), b)
+        ak = AKey(b, _raw=1)
+        self.assertEqual(type(bytes(ak)), type(bytes(b)), b)
+        self.assertEqual(type(ak.data), type(bytes(b)), b)
 
     @ddt.data(b'', b'\x00a', b'\x00abc')
     def test_byte_startwith(self, b):
         bb = b'\x00abc'
-        self.assertTrue(AKey(bb).startswith(b), b)
-        self.assertTrue(AKey(bb).startswith(AKey(b)), b)
+        ak = AKey(b, _raw=1)
+        ak2 = AKey(bb, _raw=1)
+        self.assertTrue(ak2.startswith(b), b)
+        self.assertTrue(ak2.startswith(ak), b)
         #self.assertTrue(bb.startswith(AKey(b)), b) # XXX: bytes's problem!
+
+    @ddt.data(b'', b'\x00a', b'\x00\fc\n\r\x00\x19')
+    def test_byte_repr(self, b):
+        v = repr(AKey(b, 'bin', _raw=1))
+        assertRegex(self, v, 'b(\'.*\')|(b".*")', b)
+
+    @ddt.data(*itt.product(['hex', 'asc', 'num'],
+            [b'\x00a', b'\x00\fc\n\r\x00\x19']))
+    def test_byte_repr_non_bytes(self, case):
+        conv, b = case
+        v = repr(AKey(b, conv, _raw=1))
+        self.assertNotRegex(v, 'b(\'.*\')|(b".*")', b)
+
+    @ddt.data(0, 10, 16, 1<<64, 1<<128)
+    def test_hex_conv_equals_hex_number(self, n):
+        ak = AKey.auto(n)
+        self.assertEqual(ak.num, int(ak.hex, 16))
 
 
 class TPairedKeys(unittest.TestCase):
@@ -161,5 +198,5 @@ class TPairedKeys(unittest.TestCase):
     def test_indexing(self):
         pk = keyconv.PairedKeys({b'\x00abc': b'\x00ABC', b'\x00ab': b'\x00AB', b'\x00df': b'\x00DF'})
         self.assertEqual(pk.matchOne(b'\x00df'), b'\x00DF')
-        self.assertEqual(pk.matchOne(b'\x00df'), AKey(b'\x00DF'))
-        self.assertSetEqual(set(pk.matchAll(b'\x00a')), set([b'\x00AB', AKey(b'\x00ABC')]))
+        self.assertEqual(pk.matchOne(b'\x00df'), AKey.auto(b'\x00DF'))
+        self.assertSetEqual(set(pk.matchAll(b'\x00a')), set([b'\x00AB', AKey.auto(b'\x00ABC')]))

@@ -28,7 +28,8 @@ import re
 import struct
 
 from future.builtins import str, int, bytes  # @UnusedImport
-from future.types import newbytes
+from future.types.newbytes import BaseNewBytes
+from future.utils import with_metaclass
 
 import functools as ft
 import future.utils as futils
@@ -62,6 +63,7 @@ else:
 
 
 def _lalign_byte_key(byte_key):
+    if any(byte_key):
     while byte_key[0] == 0:
         byte_key = byte_key[1:] + b'\0'
     return byte_key
@@ -84,8 +86,8 @@ def printable_key(v):
     return repr(bytes(v)) if isinstance(v, bytes) else v
 
 
-def str_or_byte(key):
-    return bytes(key) if isinstance(key, bytes) else key.encode('latin')
+def s_or_b_2_bytes(key):
+    return bytes(key) if isinstance(key, bytes) else bytes(key.encode('latin'))
 
 
 def apply_trans_list(trans_list, v):
@@ -126,9 +128,9 @@ _try_to_bytes_convs = (
     ('num',    (_unquote, int, int_to_32or64bytes, bytes)),
     ('hex',    (_unquote, i16, int_to_32or64bytes, bytes)),
     ('asc',    (_unquote, b64decode, bytes)),
-    ('bin',    (_unquote_bu, esc_bbytes_2b, _unquote_bu, str_or_byte)),
-    ('bin',    (_unquote_bu, esc_sbytes_2b, _unquote_bu, str_or_byte)),
-    ('bin',    (_unquote_bu, str_or_byte)),
+    ('bin',    (_unquote_bu, esc_bbytes_2b, _unquote_bu, s_or_b_2_bytes)),
+    ('bin',    (_unquote_bu, esc_sbytes_2b, _unquote_bu, s_or_b_2_bytes)),
+    ('bin',    (_unquote_bu, s_or_b_2_bytes)),
 )
 
 _from_bytes_convs = {
@@ -148,7 +150,7 @@ def _autoconv_to_bytes(key):
     res = None
     if isinstance(key, AKey):
         return (key.dconv, key.data)
-    elif isinstance(key, int):
+    if isinstance(key, int):
         nbytes = math.ceil(key.bit_length() / 8.0)
         min_nbytes = 16
         if nbytes <= 16:
@@ -201,6 +203,8 @@ class AKey(collections.UserString):
     """
     Bytes using a best-effort autoconversion from various formats utilized by TeslaCrack.
 
+    Use :method:`auto()` to construct.
+
     - Consumes any ``b"`` or ``u"`` prefixes and quotings.
     - Integers converted to big-endian, left-aligned, 64 or 128 bytes.
     - Use ``int(ak)`` or ``bytes(ak)`` for the most common formats,
@@ -211,7 +215,8 @@ class AKey(collections.UserString):
     """
     dconv = repr_conv
 
-    def __init__(self, key, conv=None, _unparsed=False):
+    @classmethod
+    def auto(cls, key, conv=None):
         """
         :param dconv:
                 default
@@ -220,13 +225,16 @@ class AKey(collections.UserString):
                 enforces key-type - use it with caution, no check!
         :type _unparsed: bool or str
         """
-        if _unparsed:
-            byts = key
-            aconv = None
-        else:
             aconv, byts = _autoconv_to_bytes(key)
-        self.dconv = conv or aconv
-        self.data = byts
+        return cls(byts, conv or aconv, _raw=True)
+
+    dconv = repr_conv
+
+    def __init__(self, key, conv=None, _raw=False):
+        """DO NOT USE, unless raw bytes."""
+        assert _raw
+        self.data = key
+        self.dconv = conv
 
     def conv(self, conv_prefix=None):
         return conv_bytes(self.data, conv_prefix or self.dconv)
@@ -270,4 +278,4 @@ class PairedKeys(utils.MatchingDict, utils.ConvertingVDict, utils.ConvertingKDic
         utils.ConvertingKDict.__init__(self, _safe_autoconv)
         utils.ConvertingVDict.__init__(self, _safe_autoconv)
         d = dict(*args, **kwds)
-        self.update((AKey(k), AKey(v)) for k, v in d.items())
+        self.update((AKey.auto(k), AKey.auto(v)) for k, v in d.items())
