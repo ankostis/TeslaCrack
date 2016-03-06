@@ -55,19 +55,6 @@ def _gen_byte_keys():
                     yield frmt % k
                 except (TypeError, UnicodeError):
                     pass
-@ddt.ddt
-class TConvs(unittest.TestCase):
-
-    @ddt.data(b'', b'\0', b'\0' * 10)
-    def test_l_align_all_zeros(self, k):
-        v = keyconv.tesla_mul_to_bytes(k)
-        self.assertEqual(v, b'')
-        v = bytes(keyconv.tesla_mul_to_bytes(k))
-        self.assertEqual(v, b'')
-        v = bytes(keyconv.tesla_mul_to_bytes(bytes(k)))
-        self.assertEqual(v, b'')
-        v = keyconv.tesla_mul_to_bytes(bytes(k))
-        self.assertEqual(v, b'')
 
 
 @ddt.ddt
@@ -157,7 +144,6 @@ class TAKey(unittest.TestCase):
     @ddt.data(b'', b'\0', b'\x00123456')
     def test_byte_hash_equality(self, b):
         ak = AKey(b, _raw=1)
-        self.assertEqual(b, ak, b)
         self.assertEqual(hash(ak), hash(b), b)
 
     @ddt.data(b'', b'\x00a', b'\x00abc')
@@ -192,13 +178,18 @@ class TAKey(unittest.TestCase):
         ak = AKey.auto(n)
         self.assertEqual(ak.num, int(ak.hex, 16))
 
-
-class TPairedKeys(unittest.TestCase):
-
     def test_indexing(self):
-        d = {b'\x00abc': b'\x00ABC', b'\x00ab': b'\x00AB', b'\x00df': b'\x00DF'}
-        pk = keyconv.PairedKeys(d)
-        self.assertEqual(pk.matchOne(b'\x00df'), b'\x00DF')
-        self.assertEqual(pk.matchOne(b'\x00df'), AKey.auto(b'\x00DF'))
-        self.assertDictEqual(dict(pk.matchAll(b'\x00a')),
-                {b'\x00abc': b'\x00ABC', b'\x00ab': b'\x00AB'})
+        d = {b'\x00abc': 1, b'\x00ab': 2, b'\x00df': 3}
+        pk = dict((AKey(k, _raw=1), v) for k,v in d.items())
+        self.assertEqual(pk[b'\x00df'], 3)
+        self.assertEqual(pk[bytes(b'\x00df')], 3)
+        self.assertEqual(pk[AKey(b'\x00df', _raw=1)], 3)
+
+    def test_key_suffix(self):
+        k= b'7097DDB2E5DD08950D18C263A41FF5700E7F2A01874B20F402680752268E43F4C5B7B26AF2642AE37BD64AB65B6426711A9DC44EA47FC220814E88009C90EA'
+        ak1 = AKey.auto(k)
+        self.assertTrue(ak1.bin[-1] != 0, ak1.bin[-3:])
+        k= '7097DDB2E5DD08950D18C263A41FF5700E7F2A01874B20F402680752268E43F4C5B7B26AF2642AE37BD64AB65B6426711A9DC44EA47FC220814E88009C90EA'
+        ak2 = AKey.auto(k)
+        self.assertTrue(ak2.bin[-1] != 0, ak2.bin[-3:])
+        self.assertEqual(ak1, ak2)

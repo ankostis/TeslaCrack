@@ -145,19 +145,19 @@ def crack_aes_key_from_file(fpath, primes):
     with open(fpath, "rb") as f:
         header = Header.from_fd(f)
         data = f.read(16)
-    primes = _validate_factors_product(primes, header.conv('aes_mul_key', 'num'), allow_cofactor=True) ## TODO: FIX Header fix.
+    primes = _validate_factors_product(primes,
+            header.aes_mul_key.num, allow_cofactor=True)
 
     def did_AES_produced_known_file(aes_test_key):
-        file_bytes = AES.new(aes_test_key.bin, AES.MODE_CBC, header.iv).decrypt(data)
+        file_bytes = AES.new(aes_test_key.bin, AES.MODE_CBC, header.iv.bin).decrypt(data)
         return _is_known_file(fpath, file_bytes)
 
     candidate_keys = _guess_all_keys(primes, key_ok_predicate=did_AES_produced_known_file)
     log.debug('Candidate AES-keys: %s', candidate_keys)
 
-    file_pub = header.conv('aes_pub_key', 'bin') ## TODO: FIX Header fix.
     for test_priv in candidate_keys:
         gen_pub = _make_ecdh_pub_bkey(test_priv.num)
-        if file_pub.startswith(gen_pub):
+        if header.aes_pub_key.startswith(gen_pub):
             return test_priv
 
 

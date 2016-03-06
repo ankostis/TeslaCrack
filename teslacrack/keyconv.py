@@ -54,6 +54,16 @@ def n2h(v): return '0x%x' % v
 def esc_bbytes_2b(v): return  codecs.escape_decode(v)[0]
 def esc_sbytes_2b(v): return  codecs.escape_encode(v)[0]
 
+_hex_str_regex    = re.compile('^(?:0x)?([a-f0-9]+)$', re.I)
+_hex_byt_regex    = re.compile(b'^(?:0x)?([a-f0-9]+)$', re.I)
+
+def is_hex(v):
+    return (_hex_byt_regex.match(v).group(1)
+            if isinstance(v, bytes) else
+            _hex_str_regex.match(v).group(1))
+
+
+
 if futils.PY2:
     _py2_base64_check_regex = re.compile('^[\w+/=]+$')
     def b64decode(v):
@@ -63,23 +73,18 @@ else:
     b64decode = ft.partial(b64dec, validate=True)
 
 
-def _lalign_byte_key(byte_key):
+def lalign_bytes(byte_key):
     if any(byte_key):
         while byte_key[0] == 0:
             byte_key = byte_key[1:] + b'\0'
     return byte_key
 
 
-def tesla_mul_to_bytes(hex_bkey):
-    """Purposefully fails on odd-length keys, to detect corrupt tesla-headers."""
-    return _lalign_byte_key(unhexlify(hex_bkey.rstrip(b'\0')))
-
-
 def int_to_32or64bytes(int_key):
     """Teslacrypt uses 32byte AES keys & 64byte *mul* secrets."""
     nbytes = math.ceil(int_key.bit_length() / 8.0)
     hex_frmt = '%%0%ix' % (64 if nbytes <= 32 else 128)
-    return _lalign_byte_key(unhexlify(hex_frmt % int_key))
+    return lalign_bytes(unhexlify(hex_frmt % int_key))
 
 
 def printable_key(v):
@@ -127,7 +132,7 @@ _unquote_bu = ft.partial(_unquote_str,
 #
 _try_to_bytes_convs = (
     ('num',    (_unquote, int, int_to_32or64bytes, bytes)),
-    ('hex',    (_unquote, i16, int_to_32or64bytes, bytes)),
+    ('hex',    (_unquote, is_hex, unhexlify, bytes)),
     ('asc',    (_unquote, b64decode, bytes)),
     ('bin',    (_unquote_bu, esc_bbytes_2b, _unquote_bu, s_or_b_2_bytes)),
     ('bin',    (_unquote_bu, esc_sbytes_2b, _unquote_bu, s_or_b_2_bytes)),
@@ -194,6 +199,8 @@ def _convid(conv_prefix):
 
 
 def conv_bytes(b, conv):
+    if not conv:
+        conv = repr_conv
     trans = _from_bytes_convs[_convid(conv)]
     return apply_trans_list(trans, b)
 
@@ -236,13 +243,14 @@ class AKey(collections.UserString):
         aconv, byts = _autoconv_to_bytes(key)
         return cls(byts, conv or aconv, _raw=True)
 
-    dconv = repr_conv
+    dconv = None
 
     def __init__(self, key, conv=None, _raw=False):
         """DO NOT USE, unless raw bytes."""
-        assert _raw
+        assert isinstance(key, bytes), (key, _raw)
         self.data = key
-        self.dconv = conv
+        if conv:
+            self.dconv = conv
 
     def conv(self, conv_prefix=None):
         return conv_bytes(self.data, conv_prefix or self.dconv)
@@ -264,8 +272,8 @@ class AKey(collections.UserString):
     def __contains__(self, v):
         return _safe_autoconv(v) in self.data
     def startswith(self, prefix):
-        return self.data.startswith(_safe_autoconv(prefix))  # @UndefinedVariable
-    def enddswith(self, prefix):
+        if isinstance(prefix, AKey):
+            prefix = prefix.data
         return self.data.startswith(_safe_autoconv(prefix))  # @UndefinedVariable
 
     @property
@@ -279,12 +287,3 @@ class AKey(collections.UserString):
 
 #AKey.register(bytes)
 
-class PairedKeys(utils.MatchingDict, utils.ConvertingVDict, utils.ConvertingKDict, dict):
-    """Mutable registry of ``(kkey, vkey)`` pairs matching keys by various formats. """
-
-    def __init__(self, *args, **kwds):
-        utils.MatchingDict.__init__(self, utils.words_with_prefix, _safe_autoconv)
-        utils.ConvertingKDict.__init__(self, _safe_autoconv)
-        utils.ConvertingVDict.__init__(self, _safe_autoconv)
-        d = dict(*args, **kwds)
-        self.update((AKey.auto(k), AKey.auto(v)) for k, v in d.items())

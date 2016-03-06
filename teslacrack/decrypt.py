@@ -32,7 +32,7 @@ import time
 from Crypto.Cipher import AES  # @UnresolvedImport
 
 from . import CrackException
-from .keyconv import PairedKeys, AKey
+from .keyconv import AKey
 from .teslafile import Header
 
 
@@ -132,7 +132,7 @@ def decrypt_file(opts, stats, crypted_fname):
                 if decrypted_exists and backup_ext:
                     backup_fname = decrypted_fname + backup_ext
                     opts.dry_run or shutil.move(decrypted_fname, backup_fname)
-                decryptor = AES.new(aes_key.bin, AES.MODE_CBC, header.iv)
+                decryptor = AES.new(aes_key.bin, AES.MODE_CBC, header.iv.bin)
                 data = decryptor.decrypt(fin.read())[:header.size]
                 if not opts.dry_run:
                     with open(decrypted_fname, 'wb') as fout:
@@ -276,7 +276,8 @@ def decrypt(opts):
             skip_nfiles=0, unknown_nfiles=0, failed_nfiles=0, deleted_nfiles=0,
             overwrite_nfiles=0, badexisting_nfiles=0)
 
-    opts.known_AES_key_pairs = PairedKeys(known_AES_key_pairs)
+    opts.known_AES_key_pairs = dict((AKey.auto(k), AKey.auto(v))
+            for k, v in known_AES_key_pairs.items())
     if opts.progress:
         stats.ndirs = count_subdirs(opts, stats)
     traverse_fpaths(opts, stats)

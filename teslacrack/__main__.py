@@ -128,6 +128,7 @@ from __future__ import print_function, division
 
 import io
 import logging
+from teslacrack import CrackException
 
 import docopt
 
@@ -176,7 +177,7 @@ def _crack_file_key(opts):
         advice_msg = "\n  Re-validate prime-factors and/or try another file-type."
 
     if not msg:
-        raise tslc.CrackException("Failed reconstructing %s-key! %s" % (key_name, advice_msg))
+        raise CrackException("Failed reconstructing %s-key! %s" % (key_name, advice_msg))
     return msg
 
 
@@ -199,26 +200,27 @@ def _crack_key(opts):
         raise AssertionError(msg % opts)
 
     if not msg:
-        raise tslc.CrackException("Failed reconstructing %s-key! %s"
+        raise CrackException("Failed reconstructing %s-key! %s"
                 "\n  Re-validate prime-factors."% key_name)
     return msg
 
 
 def _show_file_headers(opts):
     file = opts['<file>']
-    substr = opts['<field>']
+    substr_list = opts['<field>']
     conv = opts['-F']
     with io.open(file, 'rb') as fd:
         h = tslc.teslafile.Header.from_fd(fd)
-    fields = h.matchAll(substr)
+    fields = h.fields_by_substr_list(substr_list)
     if not fields:
-        raise tslc.CrackException('Substring %r matched %i header field: %r' %
-                (substr, len(fields), list(fields)))
+        raise CrackException('Field-substr %r matched no header-field: %r' %
+                (substr_list, list(fields)))
 
+    fields = tslc.teslafile.conv_header(h, conv)
     if len(fields) == 1:
-        res = next(iter(fields)).conv(conv)
+        res = str(next(iter(fields)))
     else:
-        res = '\n'.join('%15.15s: %s' % (k, v.conv(conv)) for k, v in fields)
+        res = '\n'.join('%15.15s: %s' % (k, v) for k, v in fields)
     return res
 
 
@@ -244,7 +246,7 @@ def main(*args):
         else:
             msg = "main() miss-matched *docopt* sub-commands! \n  %s"
             raise AssertionError(msg % opts)
-    except tslc.CrackException as ex:
+    except CrackException as ex:
         log.error("%s", ex)
         exit(-2)
 
