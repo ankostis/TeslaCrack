@@ -121,8 +121,8 @@ Quickstart
                                - xhex: all string-HEX, size:bytes-hexed.
                                - hex: all string-hex prefixed with '0x', size: int-hexed.
                                - num: all natural numbers, size: int.
-                               - 64: all base64, size(int) - most concise.
-                             [default: 64]
+                               - asc: all base64, size(int) - most concise.
+                             [default: hex]
       --delete               Delete crypted-files after decrypting them.
       --delete-old           Delete crypted even if decrypted-file created during a previous run
                              [default: False].

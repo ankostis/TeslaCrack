@@ -19,6 +19,7 @@
 from __future__ import print_function, unicode_literals, division
 
 from boltons.setutils import IndexedSet
+from collections import UserDict
 
 def longest_prefix_in_word(word, prefixlist):
     """
@@ -50,17 +51,6 @@ def words_with_prefix(prefix, wordlist):
             if w == prefix or _safe_startswith(w, prefix)]
 
 
-def exact_or_words_with_prefix(prefix, wordlist):
-    """Word `'abc'` matches only the 3rd from  ``['ab', 'bc', 'abcd', '']``"""
-    l = []
-    for w in IndexedSet(wordlist):
-        if w == prefix:
-            return [prefix]
-        if _safe_startswith(w, prefix):
-            l.append(w)
-    return l
-
-
 def words_with_substr(substr, wordlist):
     """
     >>> words_with_substr('bc', ['ab','def', 'abc', 'abc'])
@@ -68,50 +58,5 @@ def words_with_substr(substr, wordlist):
     >>> words_with_substr('', list('abbcccc')) == list('abc')
     True
     """
-    return [n for n in IndexedSet(wordlist) if substr and substr in n]
+    return [n for n in IndexedSet(wordlist) if substr in n]
 
-
-class Item2Attr(object):
-    """Mixin that can dress a NamedTuple as a dictionary."""
-    __slots__ = ()
-
-    def __getitem__(self, key):
-        return getattr(self, key)
-
-
-class PrefixMatched(object):
-    """
-    Mixin for accessing dict-keys by their prefixes, and/or fail when none or more matched.
-
-    - Use the ``XXXall()`` or :method:`containany` methods to return/act-upon a list
-      of prefix-matched items; they may return/act-upon an empty list.
-    - Use the ``XXXone()`` methods to return/act-upon a prefix-matched single item
-      or fail otherwise.
-    """
-    __slots__ = ()
-
-    def getone(self, prefix, default=None):
-        mkeys = exact_or_words_with_prefix(prefix, self)
-        if len(mkeys) != 1:
-            raise KeyError('Prefix %r matched %i items!' % (prefix, len(mkeys)))
-        return self[mkeys[0]]
-
-    def delone(self, prefix):
-        mkeys = exact_or_words_with_prefix(prefix, self)
-        if len(mkeys) != 1:
-            raise KeyError('Prefix %r matched %i keys: \n  %s' %
-                    (prefix, len(mkeys), '\n  '.join(mkeys)))
-        del self[mkeys[0]]
-
-    def containsany(self, prefix):
-        return any(words_with_prefix(prefix, self))
-
-    def getall(self, prefix):
-        return [self[mkey]
-                for mkey in words_with_prefix(prefix, self)]
-
-    def delall(self, prefix):
-        mkeys = words_with_prefix(prefix, self)
-        for mkey in mkeys:
-            del self[mkey]
-        return len(mkeys)

@@ -18,34 +18,50 @@
 ## Convert and auto-parse keys to/from various formats (binary/hex/numeric, quoted, etc).
 from __future__ import print_function, unicode_literals, division
 
+from abc import ABCMeta
 from base64 import b64decode as b64dec, b64encode
 from binascii import hexlify, unhexlify
 import codecs
+import collections
+import logging
 import math
 import re
 import struct
 
-from future.builtins import str, int, bytes  # @UnusedImport
+from future.builtins import str, int, bytes as newbytes  # @UnusedImport
 
 import functools as ft
 import future.utils as futils
 
-from . import CrackException, log, repr_conv, utils
+from . import CrackException, repr_conv, utils
 
+
+log = logging.getLogger(__name__)
 
 ###########################
 ### key-transformations ###
 ###########################
 def i16(v): return int(v, 16)
-def i2b(v): return bytes(struct.pack('<1I', v))
+def i2b(v): return newbytes(struct.pack('<1I', v))
 def b2n(v): return int(hexlify(v), 16)
 def b2s(v): return v.decode('latin')
 def b2x(v): return hexlify(v).decode('latin')
 def upp(v): return v.upper()
-def xs0x(v): return '0x%s' % v.lower()
+def xs0x(v): return '0x%s' % v.lower()  if v else ''
 def n2h(v): return '0x%x' % v
 def esc_bbytes_2b(v): return  codecs.escape_decode(v)[0]
 def esc_sbytes_2b(v): return  codecs.escape_encode(v)[0]
+def native(v): return v.__native__() if futils.PY2 else v
+
+_hex_str_regex    = re.compile('^(?:0x)?([a-f0-9]+)$', re.I)
+_hex_byt_regex    = re.compile(b'^(?:0x)?([a-f0-9]+)$', re.I)
+
+def is_hex(v):
+    return (_hex_byt_regex.match(v).group(1)
+            if isinstance(v, newbytes) else
+            _hex_str_regex.match(v).group(1))
+
+
 
 if futils.PY2:
     _py2_base64_check_regex = re.compile('^[\w+/=]+$')
@@ -56,31 +72,27 @@ else:
     b64decode = ft.partial(b64dec, validate=True)
 
 
-def _lalign_byte_key(byte_key):
-    while byte_key[0] == 0:
-        byte_key = byte_key[1:] + b'\0'
+def lalign_bytes(byte_key):
+    if any(byte_key):
+        while byte_key[0] == 0:
+            byte_key = byte_key[1:] + b'\0'
     return byte_key
-
-
-def tesla_mul_to_bytes(hex_bkey):
-    """Purposefully fails on odd-length keys, to detect corrupt tesla-headers."""
-    return _lalign_byte_key(unhexlify(hex_bkey.rstrip(b'\0')))
 
 
 def int_to_32or64bytes(int_key):
     """Teslacrypt uses 32byte AES keys & 64byte *mul* secrets."""
     nbytes = math.ceil(int_key.bit_length() / 8.0)
     hex_frmt = '%%0%ix' % (64 if nbytes <= 32 else 128)
-    return _lalign_byte_key(unhexlify(hex_frmt % int_key))
+    return lalign_bytes(unhexlify(hex_frmt % int_key))
 
 
 def printable_key(v):
     """In PY2 bytes printed natively and grables console."""
-    return repr(bytes(v)) if isinstance(v, bytes) else v
+    return repr(newbytes(v)) if isinstance(v, newbytes) else v
 
 
-def str_or_byte(key):
-    return bytes(key) if isinstance(key, bytes) else key.encode('latin')
+def s_or_b_2_bytes(key):
+    return newbytes(key) if isinstance(key, newbytes) else newbytes(key.encode('latin'))
 
 
 def apply_trans_list(trans_list, v):
@@ -101,7 +113,7 @@ _unquote_b_byt_regex = re.compile(b'^(?:[bu]?(?P<quote>[\'"]))(.*)(?P=quote)$')
 
 def _unquote_str(key, byt_regex, str_regex):
     try:
-        regex = byt_regex if isinstance(key, bytes) else str_regex
+        regex = byt_regex if isinstance(key, newbytes) else str_regex
         m = regex.match(key)
         key = m and m.group(2) or key
     except:
@@ -118,23 +130,23 @@ _unquote_bu = ft.partial(_unquote_str,
 ## The order is important:
 #
 _try_to_bytes_convs = (
-    ('num',    (_unquote, int, int_to_32or64bytes, bytes)),
-    ('hex',    (_unquote, i16, int_to_32or64bytes, bytes)),
-    ('asc',    (_unquote, b64decode, bytes)),
-    ('bin',    (_unquote_bu, esc_bbytes_2b, _unquote_bu, str_or_byte)),
-    ('bin',    (_unquote_bu, esc_sbytes_2b, _unquote_bu, str_or_byte)),
-    ('bin',    (_unquote_bu, str_or_byte)),
+    ('num',    (_unquote, int, int_to_32or64bytes, newbytes)),
+    ('hex',    (_unquote, is_hex, unhexlify, newbytes)),
+    ('asc',    (_unquote, b64decode, newbytes)),
+    ('bin',    (_unquote_bu, esc_bbytes_2b, _unquote_bu, s_or_b_2_bytes)),
+    ('bin',    (_unquote_bu, esc_sbytes_2b, _unquote_bu, s_or_b_2_bytes)),
+    ('bin',    (_unquote_bu, s_or_b_2_bytes)),
 )
 
 _from_bytes_convs = {
-    'bin':  (None, ),
-    'hex':  (b2x, xs0x),
+    'bin':  (native, newbytes),
+    'hex':  (b2x, xs0x, str),
     'num':  (b2n,),
-    'asc':  (b64encode, b2s),
+    'asc':  (b64encode, b2s, str),
 }
 
 def _autoconv_to_bytes(key):
-    """Auto-converts any data as bytes, retaining their original format as string.
+    """Auto-converts any data as newbytes, retaining their original format as string.
 
     Conversions described in :class:`AKey`.
 
@@ -142,15 +154,15 @@ def _autoconv_to_bytes(key):
     :returns: a tuple ``(<frmt-string>, <key-bytes>)``."""
     res = None
     if isinstance(key, AKey):
-        res = (key.dconv, key._key)
-    elif isinstance(key, int):
+        return (key._conv, newbytes(key))
+    if isinstance(key, int):
         nbytes = math.ceil(key.bit_length() / 8.0)
         min_nbytes = 16
         if nbytes <= 16:
             log.warning('Suspiciously small integer(%i-bytes <= %i) to autoconvert to binary: %s',
                     nbytes, min_nbytes, key)
-        res = ('num', bytes(int_to_32or64bytes(key)))
-    elif not isinstance(key, (bytes, str)):
+        res = ('num', newbytes(int_to_32or64bytes(key)))
+    elif not isinstance(key, (newbytes, str)):
             raise CrackException("Unknown key-type(%s) for key: %r", type(key), key)
     else:
         min_len = 8
@@ -186,79 +198,67 @@ def _convid(conv_prefix):
 
 
 def conv_bytes(b, conv):
+    if not conv:
+        conv = repr_conv
     trans = _from_bytes_convs[_convid(conv)]
     return apply_trans_list(trans, b)
 
 
-class AKey(object):
+
+#class AKey(type(b'')):
+class AKey(newbytes):
     """
-    AutoKeys stored internally in bytes.
+    Bytes using a best-effort autoconversion from various formats utilized by TeslaCrack.
+
+    Use :method:`auto()` to construct.
 
     - Consumes any ``b"`` or ``u"`` prefixes and quotings.
     - Integers converted to big-endian, left-aligned, 64 or 128 bytes.
-    - Use ``int(ak)`` or ``bytes(ak)`` for the most common formats,
-      or :method:`conv()` mthod.
-    - The default conversion :attribute:`dconv` is set by the autoconversion,
+    - Use :method:`conv()` or `bin, hex, num, asc` properties to switch formats.
+    - The default conversion :attribute:`_conv` is set by the autoconversion,
       if not overridden on construction.
     - Keys must not be `None`.
     """
-    dconv = repr_conv
 
-    def __init__(self, key, conv=None, unparsed=False):
+    @classmethod
+    def auto(cls, key, conv=None):
         """
-            :param dconv:
-                    default
-            :type dconv: str or None
-            :param unparsed:
-                    enforces key-type - use it with caution, no check!
-            :type unparsed: bool or str
-
+        :param _conv:
+                default
+        :type conv: str or None
+        :param unparsed:
+                enforces key-type - use it with caution, no check!
+        :type _unparsed: bool or str
         """
-        aconv, self._key = _autoconv_to_bytes(key)
-        log.debug("Assumed %s-data(%r) --> %r", aconv, key, self._key)
-        self.dconv = conv or aconv
+        aconv, byts = _autoconv_to_bytes(key)
+        return AKey.raw(byts, conv or aconv)
 
-    def conv(self, conv_prefix):
-        return conv_bytes(self._key, conv_prefix)
+    @classmethod
+    def raw(cls, key, conv=None):
+        if futils.PY2 and type(key) == newbytes:
+            ## WORKAROUND `newbytes` constructor PY3.3 "trik" which returns
+            #    any `newbytes` as-is, instead of invoking ``super.__new__()``.
+            key = key.__native__()
+        ak = AKey(key)
+        if conv:
+            ak._conv = conv
+        return ak
 
-    def __bytes__(self):    return self._key
+    _conv = None
 
-    def __int__(self):
-        return self.conv('bin')
-
-    def __eq__(self, o):
-        if o is self:
-            return True
-        try:
-            return o._key == self._key
-        except Exception:
-            return self._key == _safe_autoconv(o)
-
-    def __hash__(self): return hash(self._key)
+    def conv(self, conv_prefix=None):
+        return conv_bytes(self, conv_prefix or self._conv)
 
     def __repr__(self):
-        me = self.conv(self.dconv)
-        if 'dconv' not in vars(self):
-            return '%s(%r)' % (type(self).__name__, me)
-        return '%s(%s, %r)' % (type(self).__name__, me, self.dconv)
+        me = self.conv()
+        if me is self:
+            me = newbytes(self) if futils.PY2 else newbytes(self) ## Avoid infinite recursion.
+        if '_conv' not in vars(self):
+            return 'AKey(%r)' % me
+        return 'Akey(%r, %r)' % (me, self._conv)
 
     def __str__(self):
-        s = self.conv(self.dconv)
-        if isinstance(s, bytes):
-            s = '%r' % s
-        return s
-
-    def __len__(self):          return len(self._key)
-    def __getitem__(self, i):   return self._key[i]
-    def __iter__(self):         return iter(self._key)
-    def __reversed__(self):     return reversed(self._key)
-
-    def __contains__(self, v):
-        return _safe_autoconv(v) in self._key
-    def startswith(self, prefix):
-        return self._key.startswith(_safe_autoconv(prefix))
-    def enddswith(self, prefix):
-        return self._key.startswith(_safe_autoconv(prefix))
+        return self.conv()
 
     @property
     def num(self): return self.conv('num')
@@ -269,36 +269,3 @@ class AKey(object):
     @property
     def asc(self): return self.conv('asc')
 
-
-class AKKDict(dict):
-    """Mixin for dicts with :class:`AKey` KEYS - clients must ensure `AKeys` on construction."""
-
-    __slots__ = ()
-
-    def __getitem__(self, key):
-        return super(AKKDict, self).__getitem__(_safe_autoconv(key))
-    def __setitem__(self, key, item):
-        super(AKKDict, self).__setitem__(_safe_autoconv(key), item)
-    def __delitem__(self, key):
-        super(AKKDict, self).__delitem__(_safe_autoconv(key))
-    def __contains__(self, key):
-        return super(AKKDict, self).__contains__(_safe_autoconv(key))
-
-
-class AKVDict(dict):
-    """Mixin for dicts with :class:`AKey` VALUES - clients must ensure `AKeys` on construction."""
-
-    __slots__ = ()
-
-    def __setitem__(self, key, item):
-        super(AKVDict, self).__setitem__(key, _safe_autoconv(item))
-
-
-class PairedKeys(AKVDict, AKKDict, utils.PrefixMatched, dict):
-    """Mutable registry of ``(kkey, vkey)`` pairs matching keys by various formats. """
-
-    __slots__ = ()
-
-    def __init__(self, pairs_or_dict=(), **kwds):
-        d = dict(pairs_or_dict, **kwds)
-        super(PairedKeys, self).__init__((AKey(k), AKey(v)) for k, v in d.items())

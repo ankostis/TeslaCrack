@@ -183,9 +183,6 @@ def _static_fetch_factors(num, primes, composites):
 
 
 class TFactordb(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.longMessage = True ## Print also original assertion msg on PY2.
 
     @patch('teslacrack.factordb._fetch_num_by_id', _static_fetch_num_by_id)
     @patch('teslacrack.factordb.fetch_factors', _static_fetch_factors)

@@ -17,11 +17,13 @@
 # You should have received a copy of the GNU General Public License
 # along with TeslaCrack; if not, write to the Free Software Foundation,
 # Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
-"""Decrypt TeslaCrypt-ed files."""
+#
+## Decrypt TeslaCrypt-ed files.
 
 from __future__ import print_function, unicode_literals, division
 
 import argparse
+import logging
 import os
 import shutil
 import sys
@@ -29,10 +31,12 @@ import time
 
 from Crypto.Cipher import AES  # @UnresolvedImport
 
-from . import CrackException, log
-from .keyconv import PairedKeys, AKey
+from . import CrackException
+from .keyconv import AKey
 from .teslafile import Header
 
+
+log = logging.getLogger(__name__)
 
 ## Add your (encrypted-AES-key: reconstructed-AES-key) pair(s) here,
 #  like the examples below:
@@ -104,12 +108,12 @@ def decrypt_file(opts, stats, crypted_fname):
                 stats.badheader_nfiles += 1
                 return
 
-            aes_mul = AKey(header.conv('aes_mul_key', 'fix')) ## TODO: FIX Header fix.
+            aes_mul = header.aes_mul_key
             aes_key = opts.known_AES_key_pairs.get(aes_mul)
             if not aes_key:
                 if aes_mul not in unknown_keys:
                     unknown_keys[aes_mul] = crypted_fname
-                btc_mul = AKey(header.conv('btc_mul_key', 'fix')) ## TODO: FIX Header fix.
+                btc_mul = header.btc_mul_key
                 if btc_mul not in unknown_btkeys:
                     unknown_btkeys[btc_mul] = crypted_fname
                 log.warn("Unknown key: %s \n  in file: %s",
@@ -128,7 +132,7 @@ def decrypt_file(opts, stats, crypted_fname):
                 if decrypted_exists and backup_ext:
                     backup_fname = decrypted_fname + backup_ext
                     opts.dry_run or shutil.move(decrypted_fname, backup_fname)
-                decryptor = AES.new(aes_key.bin, AES.MODE_CBC, header.iv)
+                decryptor = AES.new(aes_key.bin, AES.MODE_CBC, header.iv.bin)
                 data = decryptor.decrypt(fin.read())[:header.size]
                 if not opts.dry_run:
                     with open(decrypted_fname, 'wb') as fout:
@@ -213,7 +217,7 @@ def log_unknown_keys():
         aes_keys = dict((fpath, key) for key, fpath in unknown_keys.items())
         btc_keys = dict((fpath, key) for key, fpath in unknown_btkeys.items())
         key_msgs = ["     AES: %r\n     BTC: %r\n    File: %r" %
-                (aes_key.asc, btc_keys.get(fpath, b'').asc, fpath)
+                (aes_key.asc, btc_keys.get(fpath) or b'', fpath)
                 for fpath, aes_key in aes_keys.items()]
         log.info("+++Unknown key(s) encountered: %i \n%s\n"
                 "  Use `msieve` on AES-key(s), or `msieve` + `TeslaDecoder` on Bitcoin-key(s) to crack them!",
@@ -272,7 +276,8 @@ def decrypt(opts):
             skip_nfiles=0, unknown_nfiles=0, failed_nfiles=0, deleted_nfiles=0,
             overwrite_nfiles=0, badexisting_nfiles=0)
 
-    opts.known_AES_key_pairs = PairedKeys(known_AES_key_pairs)
+    opts.known_AES_key_pairs = dict((AKey.auto(k), AKey.auto(v))
+            for k, v in known_AES_key_pairs.items())
     if opts.progress:
         stats.ndirs = count_subdirs(opts, stats)
     traverse_fpaths(opts, stats)

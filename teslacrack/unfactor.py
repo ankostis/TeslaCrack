@@ -17,7 +17,8 @@
 # You should have received a copy of the GNU General Public License
 # along with TeslaCrack; if not, write to the Free Software Foundation,
 # Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
-"""Reconstruct TeslaCrypt keys from their prime-factors."""
+#
+## Reconstruct TeslaCrypt keys from their prime-factors."""
 from __future__ import print_function, unicode_literals, division
 
 import hashlib
@@ -31,9 +32,13 @@ from pycoin import key as btckey
 import functools as ft
 import operator as op
 
-from . import CrackException, log
+from . import CrackException
 from .keyconv import AKey
 from .teslafile import Header
+
+
+
+log = logging.getLogger(__name__)
 
 
 def validate_primes(str_factors, expected_product=None):
@@ -87,7 +92,7 @@ def _gen_product_combinations(factors):
 def _guess_key(primes, key_ok_predicate):
     """Returns the 1st key satisfying the predicate, or None."""
     for key, combid in _gen_product_combinations(primes):
-        key = AKey(key)
+        key = AKey.auto(key)
         if key_ok_predicate(key):
             if log.isEnabledFor(logging.DEBUG):
                 log.debug('Winning factors: %s',
@@ -99,7 +104,7 @@ def _guess_all_keys(primes, key_ok_predicate):
     """Returns the 1st or all candidate keys satisfying the predicate, or None."""
     keys = set()
     for key, combid in _gen_product_combinations(primes):
-        key = AKey(key)
+        key = AKey.auto(key)
         if key not in keys and key_ok_predicate(key):
             keys.add(key)
             if log.isEnabledFor(logging.DEBUG):
@@ -140,19 +145,19 @@ def crack_aes_key_from_file(fpath, primes):
     with open(fpath, "rb") as f:
         header = Header.from_fd(f)
         data = f.read(16)
-    primes = _validate_factors_product(primes, header.conv('aes_mul_key', 'num'), allow_cofactor=True) ## TODO: FIX Header fix.
+    primes = _validate_factors_product(primes,
+            header.aes_mul_key.num, allow_cofactor=True)
 
     def did_AES_produced_known_file(aes_test_key):
-        file_bytes = AES.new(aes_test_key.bin, AES.MODE_CBC, header.iv).decrypt(data)
+        file_bytes = AES.new(aes_test_key.bin, AES.MODE_CBC, header.iv.bin).decrypt(data)
         return _is_known_file(fpath, file_bytes)
 
     candidate_keys = _guess_all_keys(primes, key_ok_predicate=did_AES_produced_known_file)
     log.debug('Candidate AES-keys: %s', candidate_keys)
 
-    file_pub = header.conv('aes_pub_key', 'bin') ## TODO: FIX Header fix.
     for test_priv in candidate_keys:
         gen_pub = _make_ecdh_pub_bkey(test_priv.num)
-        if file_pub.startswith(gen_pub):
+        if header.aes_pub_key.startswith(gen_pub):
             return test_priv
 
 
@@ -206,10 +211,10 @@ def _decide_which_key(primes, aes_mul, btc_mul, file):
 def crack_ecdh_key_from_file(file, primes):
     with open(file, "rb") as f:
         header = Header.from_fd(f)
-    aes_mul = AKey(header.conv('aes_mul_key', 'bin'))  ## TODO: FIX Header fix.
-    aes_ecdh = AKey(header.aes_pub_key)
-    btc_mul = AKey(header.conv('btc_mul_key', 'bin'))
-    btc_ecdh = AKey(header.btc_pub_key)
+    aes_mul = header.aes_mul_key
+    aes_ecdh = header.aes_pub_key
+    btc_mul = header.btc_mul_key
+    btc_ecdh = header.btc_pub_key
     primes, key_name = _decide_which_key(primes, aes_mul, btc_mul, file)
 
     def does_key_gen_my_ecdh(key):
@@ -227,12 +232,12 @@ def _ECDH(pub, prv):
     C = ecdsa.curves.SECP256k1
     pubP = ecdsa.VerifyingKey.from_string(pub.bin, curve=C).pubkey.point
     sharedP = pubP * prv.num
-    return AKey(sharedP.x())
+    return AKey.auto(sharedP.x())
 
 
 def aes_priv_from_btc_priv(aes_pub, btc_priv, aes_mul):
     """Derive AES-session-key from BTC-priv-key (all as :class:`AKey`). """
-    btc_priv_h256 = AKey(hashlib.sha256(btc_priv.bin).digest())
+    btc_priv_h256 = AKey.auto(hashlib.sha256(btc_priv.bin).digest())
     aes_shared = _ECDH(aes_pub, btc_priv_h256)
 
     rem = aes_mul.num % aes_shared.num
@@ -240,5 +245,5 @@ def aes_priv_from_btc_priv(aes_pub, btc_priv, aes_mul):
         raise CrackException("AES-shared-secret does not divide mul-key! "
             "\n     rem: %i \n  shared: %s \n     mul: %s" % (
                     rem, aes_mul.num, aes_shared.num))
-    return AKey(aes_mul.num // aes_shared.num)
+    return AKey.auto(aes_mul.num // aes_shared.num)
 

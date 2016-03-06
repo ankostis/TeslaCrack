@@ -78,8 +78,8 @@ Options:
                            - xhex: all string-HEX, size:bytes-hexed.
                            - hex: all string-hex prefixed with '0x', size: int-hexed.
                            - num: all natural numbers, size: int.
-                           - 64: all base64, size(int) - most concise.
-                         [default: 64]
+                           - asc: all base64, size(int) - most concise.
+                         [default: hex]
   --delete               Delete crypted-files after decrypting them.
   --delete-old           Delete crypted even if decrypted-file created during a previous run
                          [default: False].
@@ -128,14 +128,14 @@ from __future__ import print_function, division
 
 import io
 import logging
+from teslacrack import CrackException
 
 import docopt
 
-from teslacrack import keyconv, teslafile, unfactor, decrypt
-import teslacrack as tc
+from teslacrack import __version__ as tslc_version
 
 
-log = tc.log
+log = logging.getLogger('teslacrack.main')
 
 
 def init_logging(level=logging.INFO,
@@ -158,6 +158,8 @@ def _attribufy_opts(opts):
 
 
 def _crack_file_key(opts):
+    from teslacrack import unfactor
+
     advice_msg = "\n  Re-validate prime-factors."
     primes = unfactor.validate_primes(opts['<prime-factor>'])
     file = opts['<file>']
@@ -177,11 +179,13 @@ def _crack_file_key(opts):
         advice_msg = "\n  Re-validate prime-factors and/or try another file-type."
 
     if not msg:
-        raise tc.CrackException("Failed reconstructing %s-key! %s" % (key_name, advice_msg))
+        raise CrackException("Failed reconstructing %s-key! %s" % (key_name, advice_msg))
     return msg
 
 
 def _crack_key(opts):
+    from teslacrack import keyconv, unfactor
+
     primes = unfactor.validate_primes(opts['<prime-factor>'])
     mul_key = keyconv.autoconv_to_bytes(opts['<mul-key>'])
 
@@ -200,29 +204,34 @@ def _crack_key(opts):
         raise AssertionError(msg % opts)
 
     if not msg:
-        raise tc.CrackException("Failed reconstructing %s-key! %s"
+        raise CrackException("Failed reconstructing %s-key! %s"
                 "\n  Re-validate prime-factors."% key_name)
     return msg
 
 
 def _show_file_headers(opts):
+    from teslacrack import teslafile
+
     file = opts['<file>']
-    hconv = teslafile.match_header_conv(opts['-F'])
-    fields = teslafile.match_header_fields(opts['<field>'])
-    log.info('Printing header-fields %r in %r for tesla-file: %s', fields, hconv, file)
+    substr_list = opts['<field>']
+    conv = opts['-F']
     with io.open(file, 'rb') as fd:
         h = teslafile.Header.from_fd(fd)
+    fields = h.fields_by_substr_list(substr_list)
+    if not fields:
+        raise CrackException('Field-substr %r matched no header-field: %r' %
+                (substr_list, list(fields)))
 
+    fields = teslafile.conv_fields(fields, conv)
     if len(fields) == 1:
-        res = h.conv(fields[0], hconv)
+        res = str(next(iter(fields)))
     else:
-        res = '\n'.join('%15.15s: %s' % (k, keyconv.printable_key(h.conv(k, hconv)))
-                for k in h._fields if k in fields)
+        res = '\n'.join('%15.15s: %r' % (k, v) for k, v in fields)
     return res
 
 
 def main(*args):
-    v = 'teslacrack-%s' % tc.__version__
+    v = 'teslacrack-%s' % tslc_version
     opts = docopt.docopt(__doc__, argv=args or None, version=v)
 
     _attribufy_opts(opts)
@@ -232,6 +241,8 @@ def main(*args):
 
     try:
         if opts['decrypt']:
+            from teslacrack import decrypt
+
             opts.fpaths = opts['<path>']
             decrypt.decrypt(opts)
         elif opts['crack-fkey']:
@@ -243,7 +254,7 @@ def main(*args):
         else:
             msg = "main() miss-matched *docopt* sub-commands! \n  %s"
             raise AssertionError(msg % opts)
-    except tc.CrackException as ex:
+    except CrackException as ex:
         log.error("%s", ex)
         exit(-2)
 

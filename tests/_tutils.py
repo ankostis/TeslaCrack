@@ -34,3 +34,6 @@ except AttributeError:
     assertRaisesRegex = unittest.TestCase.assertRaisesRegexp
     import mock  # @UnresolvedImport @UnusedImport @Reimport
     from mock import patch  # @UnresolvedImport @UnusedImport @Reimport
+
+    ## Print also original assertion msg on PY2.
+    unittest.TestCase.longMessage = True
