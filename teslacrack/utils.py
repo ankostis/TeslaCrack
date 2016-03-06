@@ -19,7 +19,6 @@
 from __future__ import print_function, unicode_literals, division
 
 from boltons.setutils import IndexedSet
-from collections import UserDict
 
 def longest_prefix_in_word(word, prefixlist):
     """

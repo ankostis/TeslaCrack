@@ -18,11 +18,9 @@
 ## Convert and auto-parse keys to/from various formats (binary/hex/numeric, quoted, etc).
 from __future__ import print_function, unicode_literals, division
 
-from abc import ABCMeta
 from base64 import b64decode as b64dec, b64encode
 from binascii import hexlify, unhexlify
 import codecs
-import collections
 import logging
 import math
 import re

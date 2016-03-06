@@ -1,5 +1,6 @@
 *.pdf
 *.doc
+*.docx
 
 *.class
 *.pyc

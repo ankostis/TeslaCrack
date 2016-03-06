@@ -128,12 +128,12 @@ _all_conv_prefixes = list(itt.chain(*[_all_prefixes(c) for c in _all_hconv_names
 class TFileSubcmd(unittest.TestCase):
 
     @ddt.data(*itt.product(_bin_fields, _all_conv_prefixes))
-    def test_single_field_all_convs(self, case):
+    def test_single_field_all_convs_smketest(self, case):
+
         fld, conv = case
         file = _tf_fpath('tesla_key14.jpg.vvv')
         opts = {'<file>': file, '<field>': [fld], '-F': conv}
-        res = tcm._show_file_headers(opts)
-        self.assertIn(fld, res)
+        tcm._show_file_headers(opts)
 
     @ddt.data(*_all_conv_prefixes)
     def test_all_field_all_convs(self, conv):

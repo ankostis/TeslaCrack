@@ -93,8 +93,8 @@ class TDecrypt(unittest.TestCase):
         exp_stats = argparse.Namespace(
                 badexisting_nfiles=1,
                 badheader_nfiles=3,
-                crypted_nfiles=11,
-                decrypted_nfiles=6,
+                crypted_nfiles=12,
+                decrypted_nfiles=7,
                 deleted_nfiles=0,
                 failed_nfiles=2,
                 ndirs=-1,
@@ -102,7 +102,7 @@ class TDecrypt(unittest.TestCase):
                 overwrite_nfiles=0,
                 scanned_nfiles=-1,
                 skip_nfiles=2,
-                tesla_nfiles=15,
+                tesla_nfiles=16,
                 unknown_nfiles=2,
                 visited_ndirs=8)
 
@@ -122,7 +122,7 @@ class TDecrypt(unittest.TestCase):
         #print(stats)
         exp_stats = argparse.Namespace(badexisting_nfiles=1,
                 badheader_nfiles=3,
-                crypted_nfiles=11,
+                crypted_nfiles=12,
                 decrypted_nfiles=1,
                 deleted_nfiles=0,
                 failed_nfiles=2,
@@ -130,8 +130,8 @@ class TDecrypt(unittest.TestCase):
                 noaccess_ndirs=1,
                 overwrite_nfiles=1,
                 scanned_nfiles=-1,
-                skip_nfiles=7,
-                tesla_nfiles=15,
+                skip_nfiles=8,
+                tesla_nfiles=16,
                 unknown_nfiles=2,
                 visited_ndirs=8)
         self.assertEquals(stats, exp_stats)
@@ -150,16 +150,16 @@ class TDecrypt(unittest.TestCase):
         #print(stats)
         exp_stats = argparse.Namespace(badexisting_nfiles=0,
                     badheader_nfiles=3,
-                    crypted_nfiles=11,
-                    decrypted_nfiles=8,
+                    crypted_nfiles=12,
+                    decrypted_nfiles=9,
                     deleted_nfiles=0,
                     failed_nfiles=2,
                     ndirs=-1,
                     noaccess_ndirs=1,
-                    overwrite_nfiles=8,
+                    overwrite_nfiles=9,
                     scanned_nfiles=-1,
                     skip_nfiles=0,
-                    tesla_nfiles=15,
+                    tesla_nfiles=16,
                     unknown_nfiles=2,
                     visited_ndirs=8)
         self.assertEquals(stats, exp_stats)
@@ -179,7 +179,7 @@ class TDecrypt(unittest.TestCase):
         #print(stats)
         exp_stats = argparse.Namespace(badexisting_nfiles=1,
                 badheader_nfiles=3,
-                crypted_nfiles=11,
+                crypted_nfiles=12,
                 decrypted_nfiles=0,
                 deleted_nfiles=0,
                 failed_nfiles=2,
@@ -187,8 +187,8 @@ class TDecrypt(unittest.TestCase):
                 noaccess_ndirs=1,
                 overwrite_nfiles=0,
                 scanned_nfiles=-1,
-                skip_nfiles=8,
-                tesla_nfiles=15,
+                skip_nfiles=9,
+                tesla_nfiles=16,
                 unknown_nfiles=2,
                 visited_ndirs=8)
         self.assertEquals(stats, exp_stats)
@@ -207,16 +207,16 @@ class TDecrypt(unittest.TestCase):
         #print(stats)
         exp_stats = argparse.Namespace(badexisting_nfiles=1,
                     badheader_nfiles=3,
-                    crypted_nfiles=11,
+                    crypted_nfiles=12,
                     decrypted_nfiles=0,
-                    deleted_nfiles=8,
+                    deleted_nfiles=9,
                     failed_nfiles=2,
                     ndirs=-1,
                     noaccess_ndirs=1,
                     overwrite_nfiles=0,
                     scanned_nfiles=-1,
-                    skip_nfiles=8,
-                    tesla_nfiles=15,
+                    skip_nfiles=9,
+                    tesla_nfiles=16,
                     unknown_nfiles=2,
                     visited_ndirs=8)
         self.assertEquals(stats, exp_stats)

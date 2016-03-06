@@ -47,6 +47,7 @@ known_AES_key_pairs = {
     b'115DF08B0956AEDF0293EBA00CCD6793344D6590D234FE0DF2E679B7159E8DB05F960455F17CDDCE094420182484E73D4041C39531B5B8E753E562910561DE52': b'1adc91333e8f6b59bbcfb33451d8a3a94d14b38415fa33c0f7fb695920d3618f',
     b'7097DDB2E5DD08950D18C263A41FF5700E7F2A01874B20F402680752268E43F4C5B7B26AF2642AE37BD64AB65B6426711A9DC44EA47FC220814E88009C90EA': b'017b1647d4242bc67ce8a6aaec4d8b493f35519bd82775623d86182167148dd9',
     b'07E18921C536C112A14966D4EAAD01F10537F77984ADAAE398048F12685E2870CD1968FE3317319693DA16FFECF6A78EDBC325DDA2EE78A3F9DF8EEFD40299D9': b'1b5c52aafcffda2e71001cf1880fe45cb93dea4c71328df595cb5eb882a3979f',
+    'AluWo/mrE3U+2EaUA0QiIWwD/QKY5n2H6bGs6AJ9bFDwLP0UckdorqK+LVNwdmG1VKjV6voNXPPD8vKZ5hSHDw==': b'eeJj1F1dfStXYwcRazFoDezoTllWLaqgv5OloNNMne0=',
 }
 
 ## Add more known extensions, e.g. '.xyz'.
@@ -97,6 +98,24 @@ def _needs_decrypt(fname, exp_size, fix, overwrite, stats):
     return decrypted_exists, should_decrypt, _decide_backup_ext(should_decrypt)
 
 
+def _match_key(keyring, left_key, fname, keyname):
+    right_key = keyring.get(left_key)
+    if not right_key:
+        if left_key not in keyring:
+            keyring[left_key] = None # TODO: Update key-rec with file, etc.
+            log.warn("Unknown %s-key: %s \n  in file: %s", left_key, keyname, fname)
+    return right_key
+
+
+def find_aes_key(keyring, header, fname):
+    aes_prv = _match_key(keyring, header.aes_mul_key, fname, 'aes-mul')
+    if not aes_prv:
+        ## Just to log btc-key.
+        _match_key(keyring, header.btc_mul_key, fname, 'btc-mul')
+        return
+    return aes_prv
+
+
 def decrypt_file(opts, stats, crypted_fname):
     do_unlink = False
     try:
@@ -108,16 +127,8 @@ def decrypt_file(opts, stats, crypted_fname):
                 stats.badheader_nfiles += 1
                 return
 
-            aes_mul = header.aes_mul_key
-            aes_key = opts.known_AES_key_pairs.get(aes_mul)
+            aes_key = find_aes_key(opts.known_AES_key_pairs, header, crypted_fname)
             if not aes_key:
-                if aes_mul not in unknown_keys:
-                    unknown_keys[aes_mul] = crypted_fname
-                btc_mul = header.btc_mul_key
-                if btc_mul not in unknown_btkeys:
-                    unknown_btkeys[btc_mul] = crypted_fname
-                log.warn("Unknown key: %s \n  in file: %s",
-                        aes_mul, crypted_fname)
                 stats.unknown_nfiles += 1
                 return
 

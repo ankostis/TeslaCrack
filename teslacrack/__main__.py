@@ -187,7 +187,7 @@ def _crack_key(opts):
     from teslacrack import keyconv, unfactor
 
     primes = unfactor.validate_primes(opts['<prime-factor>'])
-    mul_key = keyconv.autoconv_to_bytes(opts['<mul-key>'])
+    mul_key = keyconv.AKey.auto(opts['<mul-key>'])
 
     if opts['--btc-addr']:
         key_name = 'BTC'
@@ -196,7 +196,7 @@ def _crack_key(opts):
         msg = key and "Found BTC-key: 0x%064X" % key
     elif opts['--ecdh']:
         key_name = '<AES_or_BTC>'
-        ecdh_pub = keyconv.autoconv_to_bytes(opts['--ecdh'])
+        ecdh_pub = keyconv.AKey.auto(opts['--ecdh'])
         key = unfactor.crack_ecdh_key(ecdh_pub, mul_key, primes)
         msg = key and "Found ECDH private-key: 0x%064X" % key
     else:
@@ -224,7 +224,7 @@ def _show_file_headers(opts):
 
     fields = teslafile.conv_fields(fields, conv)
     if len(fields) == 1:
-        res = str(next(iter(fields)))
+        res = str(next(iter(fields))[1])
     else:
         res = '\n'.join('%15.15s: %r' % (k, v) for k, v in fields)
     return res
