@@ -78,8 +78,8 @@ Options:
                            - xhex: all string-HEX, size:bytes-hexed.
                            - hex: all string-hex prefixed with '0x', size: int-hexed.
                            - num: all natural numbers, size: int.
-                           - 64: all base64, size(int) - most concise.
-                         [default: 64]
+                           - asc: all base64, size(int) - most concise.
+                         [default: hex]
   --delete               Delete crypted-files after decrypting them.
   --delete-old           Delete crypted even if decrypted-file created during a previous run
                          [default: False].
@@ -132,7 +132,7 @@ from teslacrack import CrackException
 
 import docopt
 
-import teslacrack as tslc
+from teslacrack import __version__ as tslc_version
 
 
 log = logging.getLogger('teslacrack.main')
@@ -158,21 +158,23 @@ def _attribufy_opts(opts):
 
 
 def _crack_file_key(opts):
+    from teslacrack import unfactor
+
     advice_msg = "\n  Re-validate prime-factors."
-    primes = tslc.unfactor.validate_primes(opts['<prime-factor>'])
+    primes = unfactor.validate_primes(opts['<prime-factor>'])
     file = opts['<file>']
     log.info('Guessing keys from tesla-file: %s', file)
 
     if opts['--btc-addr']:
         key_name = 'BTC'
-        key = tslc.unfactor.crack_btc_key_from_btc_address(opts['--btc-addr'], primes)
+        key = unfactor.crack_btc_key_from_btc_address(opts['--btc-addr'], primes)
         msg = key and "Found BTC-key: 0x%064X" % key
     elif opts['--ecdh']:
-        key_name, key = tslc.unfactor.crack_ecdh_key_from_file(file, primes)
+        key_name, key = unfactor.crack_ecdh_key_from_file(file, primes)
         msg = key and "Found %s-key: 0x%064X" % (key_name, key)
     else:
         key_name = 'AES'
-        key = tslc.unfactor.crack_aes_key_from_file(file, primes)
+        key = unfactor.crack_aes_key_from_file(file, primes)
         msg = key and "AES-key: %s" % key
         advice_msg = "\n  Re-validate prime-factors and/or try another file-type."
 
@@ -182,18 +184,20 @@ def _crack_file_key(opts):
 
 
 def _crack_key(opts):
-    primes = tslc.unfactor.validate_primes(opts['<prime-factor>'])
-    mul_key = tslc.keyconv.autoconv_to_bytes(opts['<mul-key>'])
+    from teslacrack import keyconv, unfactor
+
+    primes = unfactor.validate_primes(opts['<prime-factor>'])
+    mul_key = keyconv.autoconv_to_bytes(opts['<mul-key>'])
 
     if opts['--btc-addr']:
         key_name = 'BTC'
-        key = tslc.unfactor.crack_btc_key_from_btc_address(
+        key = unfactor.crack_btc_key_from_btc_address(
                 opts['--btc-addr'], primes, mul_key)
         msg = key and "Found BTC-key: 0x%064X" % key
     elif opts['--ecdh']:
         key_name = '<AES_or_BTC>'
-        ecdh_pub = tslc.keyconv.autoconv_to_bytes(opts['--ecdh'])
-        key = tslc.unfactor.crack_ecdh_key(ecdh_pub, mul_key, primes)
+        ecdh_pub = keyconv.autoconv_to_bytes(opts['--ecdh'])
+        key = unfactor.crack_ecdh_key(ecdh_pub, mul_key, primes)
         msg = key and "Found ECDH private-key: 0x%064X" % key
     else:
         msg = "main() miss-matched *docopt* mutual-exclusive opts (--ecdh|--btc-addr)! \n  %s"
@@ -206,26 +210,28 @@ def _crack_key(opts):
 
 
 def _show_file_headers(opts):
+    from teslacrack import teslafile
+
     file = opts['<file>']
     substr_list = opts['<field>']
     conv = opts['-F']
     with io.open(file, 'rb') as fd:
-        h = tslc.teslafile.Header.from_fd(fd)
+        h = teslafile.Header.from_fd(fd)
     fields = h.fields_by_substr_list(substr_list)
     if not fields:
         raise CrackException('Field-substr %r matched no header-field: %r' %
                 (substr_list, list(fields)))
 
-    fields = tslc.teslafile.conv_header(h, conv)
+    fields = teslafile.conv_fields(fields, conv)
     if len(fields) == 1:
         res = str(next(iter(fields)))
     else:
-        res = '\n'.join('%15.15s: %s' % (k, v) for k, v in fields)
+        res = '\n'.join('%15.15s: %r' % (k, v) for k, v in fields)
     return res
 
 
 def main(*args):
-    v = 'teslacrack-%s' % tslc.__version__
+    v = 'teslacrack-%s' % tslc_version
     opts = docopt.docopt(__doc__, argv=args or None, version=v)
 
     _attribufy_opts(opts)
@@ -235,8 +241,10 @@ def main(*args):
 
     try:
         if opts['decrypt']:
+            from teslacrack import decrypt
+
             opts.fpaths = opts['<path>']
-            tslc.decrypt.decrypt(opts)
+            decrypt.decrypt(opts)
         elif opts['crack-fkey']:
             return _crack_file_key(opts)
         elif opts['crack-key']:

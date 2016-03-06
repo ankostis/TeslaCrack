@@ -90,24 +90,25 @@ class Header(_Header):
                 for k, v in self._asdict().items())
 
     def __str__(self):
-        return '\n'.join('%15.15s: %s' % (k, v)
+        return '\n'.join('%15.15s: %s' %
+                (k, v.conv() if k != 'size' else v)
                 for k, v in self._asdict().items())
 
     def _fix_raw(self, conv=None):
         return self._replace(
-            start=AKey(self.start, conv, _raw=1),
-            btc_pub_key=AKey(self.btc_pub_key, conv, _raw=1),
-            btc_mul_key=AKey(tesla_mul_to_bytes(self.btc_mul_key), conv, _raw=1),
-            aes_pub_key=AKey(self.aes_pub_key, conv, _raw=1),
-            aes_mul_key=AKey(tesla_mul_to_bytes(self.aes_mul_key), conv, _raw=1),
-            iv=AKey(self.iv, conv, _raw=1),
+            start=AKey.raw(self.start, conv),
+            btc_pub_key=AKey.raw(self.btc_pub_key, conv),
+            btc_mul_key=AKey.raw(tesla_mul_to_bytes(self.btc_mul_key), conv),
+            aes_pub_key=AKey.raw(self.aes_pub_key, conv),
+            aes_mul_key=AKey.raw(tesla_mul_to_bytes(self.aes_mul_key), conv),
+            iv=AKey.raw(self.iv, conv),
         )
 
 
-    def set_conv(self, conv):
+    def conv(self, conv):
         for f in self:
             if isinstance(f, AKey):
-                AKey.dconv = conv
+                AKey._conv = conv
 
 
     def fields_by_substr_list(self, substr_list=()):
@@ -120,7 +121,7 @@ class Header(_Header):
                 self._asdict(), OrderedDict)
 
 
-def conv_header(h, conv):
+def conv_fields(h, conv):
     if isinstance(h, Header):
         h = h._asdict()
     return [(k, v.conv(conv) if k != 'size' else v)

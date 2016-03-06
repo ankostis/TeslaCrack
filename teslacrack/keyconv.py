@@ -28,9 +28,7 @@ import math
 import re
 import struct
 
-from future.builtins import str, int, bytes  # @UnusedImport
-from future.types.newbytes import BaseNewBytes
-from future.utils import with_metaclass
+from future.builtins import str, int, bytes as newbytes  # @UnusedImport
 
 import functools as ft
 import future.utils as futils
@@ -44,22 +42,23 @@ log = logging.getLogger(__name__)
 ### key-transformations ###
 ###########################
 def i16(v): return int(v, 16)
-def i2b(v): return bytes(struct.pack('<1I', v))
+def i2b(v): return newbytes(struct.pack('<1I', v))
 def b2n(v): return int(hexlify(v), 16)
 def b2s(v): return v.decode('latin')
 def b2x(v): return hexlify(v).decode('latin')
 def upp(v): return v.upper()
-def xs0x(v): return '0x%s' % v.lower()
+def xs0x(v): return '0x%s' % v.lower()  if v else ''
 def n2h(v): return '0x%x' % v
 def esc_bbytes_2b(v): return  codecs.escape_decode(v)[0]
 def esc_sbytes_2b(v): return  codecs.escape_encode(v)[0]
+def native(v): return v.__native__() if futils.PY2 else v
 
 _hex_str_regex    = re.compile('^(?:0x)?([a-f0-9]+)$', re.I)
 _hex_byt_regex    = re.compile(b'^(?:0x)?([a-f0-9]+)$', re.I)
 
 def is_hex(v):
     return (_hex_byt_regex.match(v).group(1)
-            if isinstance(v, bytes) else
+            if isinstance(v, newbytes) else
             _hex_str_regex.match(v).group(1))
 
 
@@ -89,11 +88,11 @@ def int_to_32or64bytes(int_key):
 
 def printable_key(v):
     """In PY2 bytes printed natively and grables console."""
-    return repr(bytes(v)) if isinstance(v, bytes) else v
+    return repr(newbytes(v)) if isinstance(v, newbytes) else v
 
 
 def s_or_b_2_bytes(key):
-    return bytes(key) if isinstance(key, bytes) else bytes(key.encode('latin'))
+    return newbytes(key) if isinstance(key, newbytes) else newbytes(key.encode('latin'))
 
 
 def apply_trans_list(trans_list, v):
@@ -114,7 +113,7 @@ _unquote_b_byt_regex = re.compile(b'^(?:[bu]?(?P<quote>[\'"]))(.*)(?P=quote)$')
 
 def _unquote_str(key, byt_regex, str_regex):
     try:
-        regex = byt_regex if isinstance(key, bytes) else str_regex
+        regex = byt_regex if isinstance(key, newbytes) else str_regex
         m = regex.match(key)
         key = m and m.group(2) or key
     except:
@@ -131,23 +130,23 @@ _unquote_bu = ft.partial(_unquote_str,
 ## The order is important:
 #
 _try_to_bytes_convs = (
-    ('num',    (_unquote, int, int_to_32or64bytes, bytes)),
-    ('hex',    (_unquote, is_hex, unhexlify, bytes)),
-    ('asc',    (_unquote, b64decode, bytes)),
+    ('num',    (_unquote, int, int_to_32or64bytes, newbytes)),
+    ('hex',    (_unquote, is_hex, unhexlify, newbytes)),
+    ('asc',    (_unquote, b64decode, newbytes)),
     ('bin',    (_unquote_bu, esc_bbytes_2b, _unquote_bu, s_or_b_2_bytes)),
     ('bin',    (_unquote_bu, esc_sbytes_2b, _unquote_bu, s_or_b_2_bytes)),
     ('bin',    (_unquote_bu, s_or_b_2_bytes)),
 )
 
 _from_bytes_convs = {
-    'bin':  (None, ),
-    'hex':  (b2x, xs0x),
+    'bin':  (native, newbytes),
+    'hex':  (b2x, xs0x, str),
     'num':  (b2n,),
-    'asc':  (b64encode, b2s),
+    'asc':  (b64encode, b2s, str),
 }
 
 def _autoconv_to_bytes(key):
-    """Auto-converts any data as bytes, retaining their original format as string.
+    """Auto-converts any data as newbytes, retaining their original format as string.
 
     Conversions described in :class:`AKey`.
 
@@ -155,15 +154,15 @@ def _autoconv_to_bytes(key):
     :returns: a tuple ``(<frmt-string>, <key-bytes>)``."""
     res = None
     if isinstance(key, AKey):
-        return (key.dconv, key.data)
+        return (key._conv, newbytes(key))
     if isinstance(key, int):
         nbytes = math.ceil(key.bit_length() / 8.0)
         min_nbytes = 16
         if nbytes <= 16:
             log.warning('Suspiciously small integer(%i-bytes <= %i) to autoconvert to binary: %s',
                     nbytes, min_nbytes, key)
-        res = ('num', bytes(int_to_32or64bytes(key)))
-    elif not isinstance(key, (bytes, str)):
+        res = ('num', newbytes(int_to_32or64bytes(key)))
+    elif not isinstance(key, (newbytes, str)):
             raise CrackException("Unknown key-type(%s) for key: %r", type(key), key)
     else:
         min_len = 8
@@ -206,16 +205,8 @@ def conv_bytes(b, conv):
 
 
 
-# class ByteClass(ABCMeta):
-#     def __instancecheck__(self, o):
-#         if o == bytes:
-#             return True
-# class AKey(with_metaclass(ByteClass, collections.UserString)):
-
-# class AKeyMeta(ABCMeta, BaseNewBytes):
-#     pass
-# class AKey(with_metaclass(AKeyMeta, collections.UserString)):
-class AKey(collections.UserString):
+#class AKey(type(b'')):
+class AKey(newbytes):
     """
     Bytes using a best-effort autoconversion from various formats utilized by TeslaCrack.
 
@@ -223,9 +214,8 @@ class AKey(collections.UserString):
 
     - Consumes any ``b"`` or ``u"`` prefixes and quotings.
     - Integers converted to big-endian, left-aligned, 64 or 128 bytes.
-    - Use ``int(ak)`` or ``bytes(ak)`` for the most common formats,
-      or :method:`conv()` mthod.
-    - The default conversion :attribute:`dconv` is set by the autoconversion,
+    - Use :method:`conv()` or `bin, hex, num, asc` properties to switch formats.
+    - The default conversion :attribute:`_conv` is set by the autoconversion,
       if not overridden on construction.
     - Keys must not be `None`.
     """
@@ -233,48 +223,42 @@ class AKey(collections.UserString):
     @classmethod
     def auto(cls, key, conv=None):
         """
-        :param dconv:
+        :param _conv:
                 default
-        :type dconv: str or None
+        :type conv: str or None
         :param unparsed:
                 enforces key-type - use it with caution, no check!
         :type _unparsed: bool or str
         """
         aconv, byts = _autoconv_to_bytes(key)
-        return cls(byts, conv or aconv, _raw=True)
+        return AKey.raw(byts, conv or aconv)
 
-    dconv = None
-
-    def __init__(self, key, conv=None, _raw=False):
-        """DO NOT USE, unless raw bytes."""
-        assert isinstance(key, bytes), (key, _raw)
-        self.data = key
+    @classmethod
+    def raw(cls, key, conv=None):
+        if futils.PY2 and type(key) == newbytes:
+            ## WORKAROUND `newbytes` constructor PY3.3 "trik" which returns
+            #    any `newbytes` as-is, instead of invoking ``super.__new__()``.
+            key = key.__native__()
+        ak = AKey(key)
         if conv:
-            self.dconv = conv
+            ak._conv = conv
+        return ak
+
+    _conv = None
 
     def conv(self, conv_prefix=None):
-        return conv_bytes(self.data, conv_prefix or self.dconv)
+        return conv_bytes(self, conv_prefix or self._conv)
 
     def __repr__(self):
         me = self.conv()
-        if 'dconv' not in vars(self):
-            return '%s(%r)' % (type(self).__name__, me)
-        return '%s(%s, %r)' % (type(self).__name__, me, self.dconv)
-
-    def __bytes__(self): return self.data
+        if me is self:
+            me = newbytes(self) if futils.PY2 else newbytes(self) ## Avoid infinite recursion.
+        if '_conv' not in vars(self):
+            return 'AKey(%r)' % me
+        return 'Akey(%r, %r)' % (me, self._conv)
 
     def __str__(self):
-        s = self.conv()
-        if isinstance(s, bytes):
-            s = '%r' % s # PY2 prints garbled-bytes.
-        return s
-
-    def __contains__(self, v):
-        return _safe_autoconv(v) in self.data
-    def startswith(self, prefix):
-        if isinstance(prefix, AKey):
-            prefix = prefix.data
-        return self.data.startswith(_safe_autoconv(prefix))  # @UndefinedVariable
+        return self.conv()
 
     @property
     def num(self): return self.conv('num')
@@ -284,6 +268,4 @@ class AKey(collections.UserString):
     def hex(self): return self.conv('hex')
     @property
     def asc(self): return self.conv('asc')
-
-#AKey.register(bytes)
 

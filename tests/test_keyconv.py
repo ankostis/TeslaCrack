@@ -15,7 +15,7 @@ import unittest
 import ddt
 from future.builtins import str, int, bytes  # @UnusedImport
 
-from _tutils  import assertRegex
+from _tutils  import assertRegex, assertNotRegex
 import itertools as itt
 
 
@@ -129,13 +129,12 @@ class TAKey(unittest.TestCase):
 
     @ddt.data(b'', b'\0', b'\x00123456')
     def test_byte_equality(self, b):
-        ak = AKey(b, _raw=1)
-        self.assertEqual(b, ak, b)
+        ak = AKey.raw(b)
         self.assertEqual(ak, b, b)
         self.assertEqual(bytes(b), ak, b)
         self.assertEqual(ak, bytes(b), b)
 
-        bb = AKey(bytes(b), _raw=1)
+        bb = AKey.raw(bytes(b))
         self.assertEqual(b, bb, b)
         self.assertEqual(bb, b, b)
         self.assertEqual(bytes(b), bb, b)
@@ -143,35 +142,36 @@ class TAKey(unittest.TestCase):
 
     @ddt.data(b'', b'\0', b'\x00123456')
     def test_byte_hash_equality(self, b):
-        ak = AKey(b, _raw=1)
+        ak = AKey.raw(b)
         self.assertEqual(hash(ak), hash(b), b)
 
     @ddt.data(b'', b'\x00a', b'\x00abc')
-    def test_to_bytes(self, b):
-        ak = AKey(b, _raw=1)
+    def test_types(self, b):
+        ak = AKey.raw(b)
         self.assertEqual(type(bytes(ak)), type(bytes(b)), b)
-        self.assertEqual(type(ak.data), type(bytes(b)), b)
+        self.assertIsInstance(ak, type(b''), b)
+        self.assertIsInstance(ak, bytes, b)
 
     @ddt.data(b'', b'\x00a', b'\x00abc')
     def test_byte_startwith(self, b):
         bb = b'\x00abc'
-        ak = AKey(b, _raw=1)
-        ak2 = AKey(bb, _raw=1)
+        ak = AKey.raw(b)
+        ak2 = AKey.raw(bb)
         self.assertTrue(ak2.startswith(b), b)
         self.assertTrue(ak2.startswith(ak), b)
-        #self.assertTrue(bb.startswith(AKey(b)), b) # XXX: bytes's problem!
+        #self.assertTrue(bb.startswith(AKey.raw(b)), b) # XXX: bytes's problem!
 
     @ddt.data(b'', b'\x00a', b'\x00\fc\n\r\x00\x19')
     def test_byte_repr(self, b):
-        v = repr(AKey(b, 'bin', _raw=1))
+        v = repr(AKey.raw(b, 'bin'))
         assertRegex(self, v, 'b(\'.*\')|(b".*")', b)
 
     @ddt.data(*itt.product(['hex', 'asc', 'num'],
             [b'\x00a', b'\x00\fc\n\r\x00\x19']))
     def test_byte_repr_non_bytes(self, case):
         conv, b = case
-        v = repr(AKey(b, conv, _raw=1))
-        self.assertNotRegex(v, 'b(\'.*\')|(b".*")', b)
+        v = repr(AKey.raw(b, conv))
+        assertNotRegex(self, v, 'b(\'.*\')|(b".*")', b)
 
     @ddt.data(0, 10, 16, 1<<64, 1<<128)
     def test_hex_conv_equals_hex_number(self, n):
@@ -180,10 +180,10 @@ class TAKey(unittest.TestCase):
 
     def test_indexing(self):
         d = {b'\x00abc': 1, b'\x00ab': 2, b'\x00df': 3}
-        pk = dict((AKey(k, _raw=1), v) for k,v in d.items())
+        pk = dict((AKey.raw(k), v) for k,v in d.items())
         self.assertEqual(pk[b'\x00df'], 3)
         self.assertEqual(pk[bytes(b'\x00df')], 3)
-        self.assertEqual(pk[AKey(b'\x00df', _raw=1)], 3)
+        self.assertEqual(pk[AKey.raw(b'\x00df')], 3)
 
     def test_key_suffix(self):
         k= b'7097DDB2E5DD08950D18C263A41FF5700E7F2A01874B20F402680752268E43F4C5B7B26AF2642AE37BD64AB65B6426711A9DC44EA47FC220814E88009C90EA'

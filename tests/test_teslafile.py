@@ -26,18 +26,15 @@ from __future__ import print_function, unicode_literals, division
 
 from os import path as osp
 import os
-from teslacrack import CrackException, __main__ as tcm, teslafile, teslafile
+from teslacrack import CrackException, __main__ as tcm, teslafile
 import unittest
 
 import ddt
 from future.builtins import str, int, bytes  # @UnusedImport
 from future.utils import PY2
 
+from _tutils import assertRaisesRegex
 import itertools as itt
-
-
-from _tutils import assertRaisesRegex, assertRegex  # @NoMove
-from teslacrack.keyconv import AKey
 
 
 tcm.init_logging()
@@ -146,6 +143,7 @@ class TFileSubcmd(unittest.TestCase):
         for fld in _all_fields:
             self.assertIn(fld, res)
 
+
     @ddt.data(*_all_conv_prefixes)
     def test_all_fields_is_multiline(self, conv):
         file = _tf_fpath('tesla_key14.jpg.vvv')
@@ -155,7 +153,15 @@ class TFileSubcmd(unittest.TestCase):
 
     def test_bad_fields_screams(self):
         file = _tf_fpath('tesla_key14.jpg.vvv')
-        opts = {'<file>': file, '<field>': ['BAD_GOO!'], '-F': 'r'}
+        opts = {'<file>': file, '<field>': ['BAD_GOO!'], '-F': 'asc'}
         with assertRaisesRegex(self, CrackException, 'matched no header-field:'):
             tcm._show_file_headers(opts)
+
+    @ddt.data(('aes', 2), ('pub', 2), ('btc', 2), ('key', 4), ('s_pub', 1) )
+    def test_fields_subst(self, case):
+        fld, nlines = case
+        file = _tf_fpath('tesla_key14.jpg.vvv')
+        opts = {'<file>': file, '<field>': [fld], '-F': 'a'}
+        txt = tcm._show_file_headers(opts)
+        self.assertEqual(len(txt.split('\n')), nlines, txt)
 
