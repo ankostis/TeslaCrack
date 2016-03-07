@@ -19,15 +19,19 @@ Maintain a db of key-records in a *yaml* textual format.
 
 The *key-record* is the fundamental storage unit::
 
-    type:        ( BTC | AES )
-    pub:         ECDH public
-    prv:         ECDH private, the AES-session or the private-BTC keys
-    mul:         this is factorized to reconstruct keys
-    primes:      list of primes (from factordb.com)
-    composites:  list of 2-tuples: (<non-prime>, <factordb-status>)
-    master:      master-children relationship
     name:
     desc:
+    type:        ( BTC | AES )
+    master:      master-children relationship
+    pub:         ECDH public
+    mul:         this is factorized to reconstruct keys
+    prv:         ECDH private, the AES-session or the private-BTC keys
+    btc_addr:
+    primes:      list of primes (from factordb.com)
+    composites:  list of 2-tuples: (<non-prime>, <factordb-status>)
+    files:
+    errors:
+    warns:
 
 The master-children relation is between btc <-- aes keys,
 implemented with yaml's *Anchor* (in parent) and *Aliases* (in children).
@@ -41,6 +45,7 @@ import io
 import logging
 from os import path as osp
 import os
+import re
 import shutil
 
 import yaml
@@ -48,6 +53,7 @@ import yaml
 import functools as ft
 
 from . import CrackException
+from .keyconv import AKey
 
 
 log = logging.getLogger(__name__)
@@ -55,10 +61,11 @@ log = logging.getLogger(__name__)
 
 _db_verfld = '_db_schema_ver'
 _db_version = '1'
-_id = 'id'
-_ref = 'ref'
 _type_fld = 'type'
 _master_fld = 'master'
+_keyrec_fields = ['name', _type_fld, _master_fld, 'pub', 'mul', 'prv', 'btc_addr',
+                        'primes', 'composites', 'files', 'errors', 'warns', 'desc']
+_AKey_fields = ['pub', 'mul', 'prv']
 
 def _safe_unlink(fpath):
     try:
@@ -84,78 +91,123 @@ def _fix_version(db):
     return db
 
 
-def _validate_master(db, key_rec, master, heal=False):
-    if master:
-        if not isinstance(master, OrderedDict):
-            if heal:
-                master = key_rec[_master_fld] = OrderedDict(master)
-            else:
-                raise ValueError("Master key-record (%s) was not another key!" % master)
-        if id(master) not in [id(key_rec) for key_rec in db.get('keys', ())]:
-            if heal:
-                db._ensure_keys().append(master)
-            else:
-                raise ValueError("Master key-record (%s) was not in the Key-records list!" % master)
-
-
-def _validate_key_rec(db, key_rec, heal=False):
-    all_key_flds = set('type master name desc pub mul prv primes composites'.split())
-    rec_flds = set(key_rec.keys())
-    extra_flds = (rec_flds - all_key_flds)
+def _check_keyrec_extra_fields(db, keyrec, heal_db=False):
+    assert isinstance(keyrec, OrderedDict), keyrec
+    rec_flds = set(keyrec.keys())
+    extra_flds = (rec_flds - set(_keyrec_fields))
     if extra_flds:
-        if heal:
+        if heal_db:
             for fld in extra_flds:
-                del key_rec[fld]
+                del keyrec[fld]
         else:
-            raise ValueError("Unknown key-fields %r!" % extra_flds)
-    ktype = key_rec.get(_type_fld)
+            raise CrackException("Unknown key-fields %r!" % list(extra_flds))
+
+
+def _check_keyrec_type_field(db, keyrec, heal_db=False):
+    ktype = keyrec.get(_type_fld)
     if ktype and ktype not in ('BTC', 'AES'):
-        if heal:
-            del key_rec[_type_fld]
+        if heal_db:
+            del keyrec[_type_fld]
         else:
-            raise ValueError("Invalid field-type(%r)! \n  Must be one of: BTC or AES" % ktype)
-    master = key_rec.get(_master_fld)
-    if master and not isinstance(master, OrderedDict):
-        if heal:
-            key_rec[_master_fld] = OrderedDict(master)
-        else:
-            raise ValueError("Master relation-field (%s) was not another key!" % master)
-    return db # Not really needed here.
+            raise CrackException("Invalid field-type(%r)! \n  Must be one of: BTC or AES" % ktype)
 
 
-def _yield_db_checks(db):
-    """A check is a 3-tuple: ``( 'name', check_func(db):bool, heal_func(db):db )``."""
-    global_db_checks = [
-        ('db-data-type', lambda db: isinstance(db, OrderedDict),
-                _KeyDb),
-        ('version', lambda db: next(iter(db.items()))== (_db_verfld, _db_version),
-                _fix_version),
-    ]
-    for c in global_db_checks:
-        yield c
-    for i, key_rec in enumerate(db.get('keys', ())):
-        yield ('key-no-%i' % i,
-                ft.partial(_validate_key_rec, key_rec=key_rec, heal=False),
-                ft.partial(_validate_key_rec, key_rec=key_rec, heal=True))
+def _check_keyrec_AKeys(db, keyrec, heal_db=False):
+    for fld in _AKey_fields:
+        if fld in keyrec:
+            key = keyrec[fld]
+            if not isinstance(key, AKey):
+                if heal_db:
+                    keyrec[fld] = AKey.auto(key)
+                else:
+                    raise CrackException("Key(%r) was not an AKey: %r" % (fld, key)
+)
+
+def _check_keyrec_master_key(db, keyrec, heal_db=False):
+    master = keyrec.get(_master_fld)
+    if master:
+        assert isinstance(master, OrderedDict), master
+        if not isinstance(master, OrderedDict):
+            if heal_db:
+                master = keyrec[_master_fld] = OrderedDict(master)
+            else:
+                raise CrackException("Master key-record (%s) was not another key!" % master)
 
 
-def _heal_db(db):
-    for name, check, heal in _yield_db_checks(db):
-        ok = False
-        try:
-            ok = check(db)
-        except Exception as ex:
-            log.debug('While db-checking %r: %r', name, ex)
-        if not ok:
-            log.warn('Db-healing %r...', name)
-            db = heal(db)
-    return db
+_keyrec_check_func_regex = re.compile('^_check_keyrec_(.+)$')
+
+def _make_keyrec_check(func, rec_no, keyrec):
+    fun_name = _keyrec_check_func_regex.match(func.__name__).group(1).replace('_', '-')
+    title = 'key-no-%i-%s' % (rec_no, fun_name)
+    return (title, ft.partial(func, keyrec=keyrec, heal_db=False),
+            ft.partial(func, keyrec=keyrec, heal_db=True))
 
 
-def _check_db(db):
-    for name, check, _ in _yield_db_checks(db):
-        if not check(db):
-            raise CrackException('Db-checking %r failed!' % name)
+
+class _DbChecker(object):
+    """A check_db is a 3-tuple: ``( 'name', check_func(db):bool, heal_func(db):db )``.
+
+    See :func:`heal_db()` and `:func:`check_db()` form usage example.
+    """
+
+    def __init__(self):
+        self._checks = []
+
+    def append_global_db_checks(self):
+        self._checks.extend([
+            ('db-data-type', lambda db: isinstance(db, OrderedDict),
+                    _KeyDb),
+            ('version', lambda db: next(iter(db.items())) == (_db_verfld, _db_version),
+                    _fix_version),
+        ])
+
+    def _check_keyrec_master_in_keys(self, db, keyrec, heal_db=False):
+        master = keyrec.get(_master_fld)
+        if master:
+            if id(master) not in [id(keyrec) for keyrec in db.keyrecs()]:
+                if heal_db:
+                    db.keyrecs().insert(0, master)
+                    self._append_keyrec_checks(0, master)
+                else:
+                    raise CrackException("Master key-record (%s) was not in the Key-records list!" % master)
+
+    def append_keyrec_checks(self, i, keyrec):
+        self._checks.extend([
+            _make_keyrec_check(_check_keyrec_extra_fields, i, keyrec),
+            _make_keyrec_check(_check_keyrec_type_field, i, keyrec),
+            _make_keyrec_check(_check_keyrec_AKeys, i, keyrec),
+            _make_keyrec_check(_check_keyrec_master_key, i, keyrec),
+            _make_keyrec_check(self._check_keyrec_master_in_keys, i, keyrec),
+        ])
+
+    def append_all_keyrecs_checks(self, db):
+        for i, keyrec in enumerate(db.get('keys', ())):
+            self.append_keyrec_checks(i, keyrec)
+
+    def _iter_checks(self):
+        while self._checks:
+            yield self._checks.pop()
+
+    def check_db(self, db):
+        """Applies any checks appended in ``self._checks``."""
+        for name, check, _ in self._iter_checks():
+            if check(db) is False:
+                raise CrackException('Db-checking %r failed!' % name)
+
+    def heal_db(self, db):
+        """Applies any heals appended in ``self._checks``."""
+        for name, check, heal in self._iter_checks():
+            ok = False
+            try:
+                ok = check(db)
+            except Exception as ex:
+                log.debug('While db-checking %r: %r', name, ex)
+            if ok == False:
+                log.warn('Db-healing %r...', name)
+                ndb = heal(db)
+                if ndb:
+                    db = ndb
+        return db
 
 
 def load(dbpath=None, no_sample=False):
@@ -163,10 +215,11 @@ def load(dbpath=None, no_sample=False):
         dbpath = default_db_path()
     if osp.isfile(dbpath):
         with io.open(dbpath, 'rt', encoding='utf-8') as fd:
-            db = yaml.load(fd)
+            db = _KeyDb(yaml.load(fd))
     else:
         db = _KeyDb() if no_sample else sample()
-    db = _heal_db(db)
+    assert isinstance(db, _KeyDb)
+    db = heal_db(db)
 
     return db
 
@@ -209,7 +262,7 @@ def sample():
             ]),
         ]),
     ])
-    return db
+    return heal_db(db)
 
 def empty():
     return _KeyDb({_db_verfld: _db_version})
@@ -219,7 +272,7 @@ class _KeyDb(OrderedDict):
 
 
     def store(self, dbpath=None, debug=False):
-        _check_db(self)
+        check_db(self)
         if not dbpath:
             dbpath = default_db_path()
         b, f = osp.split(dbpath)
@@ -246,22 +299,42 @@ class _KeyDb(OrderedDict):
             if not ok and not debug:
                 _safe_unlink(tmp_dbpath)
 
-    def _ensure_keys(self):
+    def keyrecs(self):
         keys = self.get('keys')
         if keys is None:
             keys = self['keys'] = []
         return keys
 
-    def add_key(self, type=None, master=None, name=None, desc=None,  # @ReservedAssignment
-            pub=None, mul=None, prv=None, primes=None, composites=None):
+    def add_keyrec(self, type=None, master=None, name=None, desc=None,  # @ReservedAssignment
+            pub=None, mul=None, prv=None, btc_addr=None, primes=None, composites=None,
+            files=None, errors=None, warns=None):
         """Use the return value as a "master" for a subsequent key."""
-        key_rec = OrderedDict((k, v) for k, v in zip(
-                [_type_fld, _master_fld, 'name', 'desc', 'pub', 'mul', 'prv', 'primes', 'composites'],
-                [type, master, name, desc, pub, mul, prv, primes, composites] )
-                if v)
-        _validate_key_rec(self, key_rec)
-        self._ensure_keys().append(key_rec)
-        return key_rec
+        args = locals()
+        keyrec = OrderedDict((k, args[k])
+                for k in _keyrec_fields
+                if args[k] is not None)
+
+        i = len(self.keyrecs())
+        self.keyrecs().append(keyrec)
+
+        dbchecker = _DbChecker()
+        dbchecker.append_keyrec_checks(i, keyrec)
+        dbchecker.check_db(self)
+
+        return keyrec
+
+def heal_db(db):
+    dbchecker = _DbChecker()
+    dbchecker.append_global_db_checks()
+    dbchecker.append_all_keyrecs_checks(db)
+    return dbchecker.heal_db(db)
+
+def check_db(db):
+    dbchecker = _DbChecker()
+    dbchecker.append_global_db_checks()
+    dbchecker.append_all_keyrecs_checks(db)
+    dbchecker.check_db(db)
+
 
 
 yaml.add_representer(OrderedDict, lambda dumper, data:

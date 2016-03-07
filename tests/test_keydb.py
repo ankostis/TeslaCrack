@@ -11,14 +11,15 @@ from collections import OrderedDict
 import logging
 from os import path as osp
 import tempfile
-from teslacrack import __main__ as tcm
+from teslacrack import __main__ as tcm, CrackException
 from teslacrack import keydb
 import unittest
 
 from future import utils as futils
 from future.builtins import str, int, bytes  # @UnusedImport
 
-import _tutils  # @UnusedImport
+from _tutils  import assertRaisesRegex
+from teslacrack.keyconv import AKey
 
 
 tcm.init_logging(level=logging.DEBUG)
@@ -35,7 +36,7 @@ class Tkeydb(unittest.TestCase):
         db = keydb.load('BADPATH', no_sample=True)
         self.assertIsInstance(db, OrderedDict)
         self.assertNotIn('keys', 'db', list(db))
-        self.assertEqual(len(db), 1, list(db))
+        self.assertLessEqual(len(db), 2, list(db))
 
     @unittest.skipIf(futils.PY2, "Missing `tempfile.TemporaryDirectory`!"
             "  Watch https://github.com/PythonCharmers/python-future/issues/199")
@@ -54,15 +55,29 @@ class Tkeydb(unittest.TestCase):
         tcdb2 = keydb.load()
         self.assertEqual(tcdb1, tcdb2)
 
+    def test_add_key_simple(self):
+        db = keydb.sample()
+        nkeyrecs = len(db.keyrecs())
+        db.add_keyrec(type='BTC')
+        self.assertEqual(len(db.keyrecs()), nkeyrecs+1, db)
+
+    def test_add_key_not_AKey(self):
+        db = keydb.empty()
+        with assertRaisesRegex(self, CrackException, 'not an AKey', msg=db):
+            db.add_keyrec(prv='bad AKEY')
+
     @unittest.skipIf(futils.PY2, "Missing `tempfile.TemporaryDirectory`!"
             "  Watch https://github.com/PythonCharmers/python-future/issues/199")
-    def test_add_key(self):
+    def test_add_key_master_child(self):
         with tempfile.TemporaryDirectory() as td:
             dbpath = osp.join(td, 'tcdb.yml')
-            tcdb1 = keydb.sample()
-            tcdb1.add_key(type='BTC')
-            tcdb1.store(dbpath)
-            tcdb2 = keydb.load(dbpath)
-            self.assertEqual(tcdb1['keys'][-1], tcdb2['keys'][-1])
+            db = keydb.empty()
+            mk = db.add_keyrec(type='BTC', name='master', prv=AKey.raw(b'asdfdsfdsasfd'))
+            self.assertEqual(mk['name'], 'master', mk)
+            self.assertEqual(len(db.keyrecs()), 1, db)
+            ck = db.add_keyrec(type='AES', master=mk, name='child')
+            self.assertEqual(len(db.keyrecs()), 2, db)
+            self.assertEqual(ck['type'], 'AES', ck)
+            db.store(dbpath)
 
 

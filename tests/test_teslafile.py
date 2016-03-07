@@ -78,7 +78,6 @@ _sample_header = teslafile.Header( # From file: tesla_key14.jpg.vvv
     size=7188492
 )
 _sample_size = _sample_header.size
-_key_fields = ('btc_pub_key', 'aes_pub_key') + teslafile._hex_fields
 
 
 @ddt.ddt
