@@ -15,7 +15,7 @@
 # along with this program; if not, write to the Free Software Foundation,
 # Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
 """
-Maintain a db of key-records in a *yaml* textual format.
+Maintain the *keyring* backed by a a db of key-records in a *yaml* textual format.
 
 The *key-record* is the fundamental storage unit::
 
@@ -37,6 +37,8 @@ The master-children relation is between btc <-- aes keys,
 implemented with yaml's *Anchor* (in parent) and *Aliases* (in children).
 
 See :func:`sample()` for example data.
+
+The *keyring* is an index allowing traversing matched keys.
 """
 from __future__ import print_function, unicode_literals, division
 
@@ -45,13 +47,16 @@ import io
 import logging
 from os import path as osp
 import os
-import re
 import shutil
 
+from boltons.setutils import IndexedSet as iset
+from future.builtins import str, int, bytes as newbytes  # @UnusedImport
+from schema import (
+    SchemaError, Schema, And, Or, Use, Optional as Opt)
 import yaml
 
 import functools as ft
-
+from past.builtins import basestring
 from . import CrackException
 from .keyconv import AKey
 
@@ -61,10 +66,9 @@ log = logging.getLogger(__name__)
 
 _db_verfld = '_db_schema_ver'
 _db_version = '1'
-_type_fld = 'type'
 _master_fld = 'master'
-_keyrec_fields = ['name', _type_fld, _master_fld, 'pub', 'mul', 'prv', 'btc_addr',
-                        'primes', 'composites', 'files', 'errors', 'warns', 'desc']
+_keyrec_fields = ['name', 'type', _master_fld, 'pub', 'mul', 'prv', 'btc_addr',
+                        'primes', 'composites', 'files', 'error', 'warn', 'desc']
 _AKey_fields = ['pub', 'mul', 'prv']
 
 def _safe_unlink(fpath):
@@ -76,7 +80,6 @@ def _safe_unlink(fpath):
 
 def default_db_path():
     return osp.expanduser('~/.teslacrack.yml')
-
 
 def _fix_version(db):
     file_version = db.get(_db_verfld, _db_version)
@@ -91,123 +94,97 @@ def _fix_version(db):
     return db
 
 
-def _check_keyrec_extra_fields(db, keyrec, heal_db=False):
-    assert isinstance(keyrec, OrderedDict), keyrec
-    rec_flds = set(keyrec.keys())
-    extra_flds = (rec_flds - set(_keyrec_fields))
-    if extra_flds:
-        if heal_db:
-            for fld in extra_flds:
-                del keyrec[fld]
-        else:
-            raise CrackException("Unknown key-fields %r!" % list(extra_flds))
+def _reorder_dict(dic, proto):
+    """Can heal order only if OrderedDict (not to break any  parent-containers)."""
+    assert isinstance(dic, OrderedDict)
+    seq = iset(dic)
+    proto = iset(proto)
+    ordseq = (proto & seq)
+    if seq != ordseq:
+        for k in ordseq:
+            dic[k] = dic.pop(k)
+    _check_ordered(dic, proto)
+    return dic
 
 
-def _check_keyrec_type_field(db, keyrec, heal_db=False):
-    ktype = keyrec.get(_type_fld)
-    if ktype and ktype not in ('BTC', 'AES'):
-        if heal_db:
-            del keyrec[_type_fld]
-        else:
-            raise CrackException("Invalid field-type(%r)! \n  Must be one of: BTC or AES" % ktype)
+def _check_ordered(seq, proto):
+    """Raises if oreder of `seq` not as `proto` (minus any missing elements."""
+    seq = iset(seq)
+    proto = iset(proto)
+    assert seq == (proto & seq), 'Unsorted %r != %r!' % (seq, proto)
+    return True
 
 
-def _check_keyrec_AKeys(db, keyrec, heal_db=False):
-    for fld in _AKey_fields:
-        if fld in keyrec:
-            key = keyrec[fld]
-            if not isinstance(key, AKey):
-                if heal_db:
-                    keyrec[fld] = AKey.auto(key)
-                else:
-                    raise CrackException("Key(%r) was not an AKey: %r" % (fld, key)
-)
+#########################
+## Schema lib.
+#########################
+class Tuple(object):
 
-def _check_keyrec_master_key(db, keyrec, heal_db=False):
-    master = keyrec.get(_master_fld)
-    if master:
-        assert isinstance(master, OrderedDict), master
-        if not isinstance(master, OrderedDict):
-            if heal_db:
-                master = keyrec[_master_fld] = OrderedDict(master)
-            else:
-                raise CrackException("Master key-record (%s) was not another key!" % master)
+    def __init__(self, *args, **kw):
+        self._args = args
+        assert list(kw) in (['error'], [])
+        self._error = kw.get('error')
 
+    def __repr__(self):
+        return '%s(%s)' % (self.__class__.__name__,
+                           ', '.join(repr(a) for a in self._args))
 
-_keyrec_check_func_regex = re.compile('^_check_keyrec_(.+)$')
-
-def _make_keyrec_check(func, rec_no, keyrec):
-    fun_name = _keyrec_check_func_regex.match(func.__name__).group(1).replace('_', '-')
-    title = 'key-no-%i-%s' % (rec_no, fun_name)
-    return (title, ft.partial(func, keyrec=keyrec, heal_db=False),
-            ft.partial(func, keyrec=keyrec, heal_db=True))
+    def validate(self, data):
+        schemas = [Schema(s, error=self._error) for s in self._args]
+        if len(data) != len(schemas):
+            raise SchemaError('Data-length(%i) != Tuple-length(%i), data:%r' %
+                    (len(data), len(schemas), data), self._error)
+        return type(data)(s.validate(d) for s, d in zip(schemas, data))
+#########################
 
 
+def _make_keyrec_schema(db, heal):
+    from . import factordb
 
-class _DbChecker(object):
-    """A check_db is a 3-tuple: ``( 'name', check_func(db):bool, heal_func(db):db )``.
+    Str = Use(str) if heal else basestring
+    Int = Use(int) if heal else int
+    AAKey = Use(AKey.auto) if heal else AKey
+    schema = Schema(And(
+        ft.partial(_reorder_dict if heal else _check_ordered, proto=_keyrec_fields),
+        {
+            Opt('name'):        Str,
+            Opt('desc'):        Str,
+            Opt('type'):        Or('BTC', 'AES'),
+            Opt('pub'):         AAKey,
+            Opt('mul'):         AAKey,
+            Opt('prv'):         AAKey,
+            Opt('btc_addr'):    Str,
+            Opt('primes'):      [Int],
+            Opt('composites'):  [Tuple(int, Or(*factordb._factor_statuses))],
+            Opt('files'):       [Str],
+            Opt('error'):       Str,
+            Opt('warn'):        Str,
+        },
+    ))
+    schema._schema._args[1][Opt('master')] = Schema(And(
+#             lambda v: id(v) in [id(kr) for kr in db.get('keys', ())], ## Check in keys before rewritting it.
+            schema,  ## Recursive
+    ))
+    return schema
 
-    See :func:`heal_db()` and `:func:`check_db()` form usage example.
-    """
 
-    def __init__(self):
-        self._checks = []
+def _make_db_schema(db, heal):
+    if heal:
+        _fix_version(db)
+    schema = Schema(And(_KeyDb, {
+        '_db_schema_ver': And(str, '1'),
+        Opt('keys'): [_make_keyrec_schema(db, heal)]
+    }))
+    return schema
 
-    def append_global_db_checks(self):
-        self._checks.extend([
-            ('db-data-type', lambda db: isinstance(db, OrderedDict),
-                    _KeyDb),
-            ('version', lambda db: next(iter(db.items())) == (_db_verfld, _db_version),
-                    _fix_version),
-        ])
 
-    def _check_keyrec_master_in_keys(self, db, keyrec, heal_db=False):
-        master = keyrec.get(_master_fld)
-        if master:
-            if id(master) not in [id(keyrec) for keyrec in db.keyrecs()]:
-                if heal_db:
-                    db.keyrecs().insert(0, master)
-                    self._append_keyrec_checks(0, master)
-                else:
-                    raise CrackException("Master key-record (%s) was not in the Key-records list!" % master)
+def heal_db(db):
+    schema = _make_db_schema(db, heal=True)
+    return schema.validate(db)
 
-    def append_keyrec_checks(self, i, keyrec):
-        self._checks.extend([
-            _make_keyrec_check(_check_keyrec_extra_fields, i, keyrec),
-            _make_keyrec_check(_check_keyrec_type_field, i, keyrec),
-            _make_keyrec_check(_check_keyrec_AKeys, i, keyrec),
-            _make_keyrec_check(_check_keyrec_master_key, i, keyrec),
-            _make_keyrec_check(self._check_keyrec_master_in_keys, i, keyrec),
-        ])
-
-    def append_all_keyrecs_checks(self, db):
-        for i, keyrec in enumerate(db.get('keys', ())):
-            self.append_keyrec_checks(i, keyrec)
-
-    def _iter_checks(self):
-        while self._checks:
-            yield self._checks.pop()
-
-    def check_db(self, db):
-        """Applies any checks appended in ``self._checks``."""
-        for name, check, _ in self._iter_checks():
-            if check(db) is False:
-                raise CrackException('Db-checking %r failed!' % name)
-
-    def heal_db(self, db):
-        """Applies any heals appended in ``self._checks``."""
-        for name, check, heal in self._iter_checks():
-            ok = False
-            try:
-                ok = check(db)
-            except Exception as ex:
-                log.debug('While db-checking %r: %r', name, ex)
-            if ok == False:
-                log.warn('Db-healing %r...', name)
-                ndb = heal(db)
-                if ndb:
-                    db = ndb
-        return db
+def check_db(db):
+    schema = _make_db_schema(db, heal=False)
+    schema.validate(db)
 
 
 def load(dbpath=None, no_sample=False):
@@ -215,7 +192,7 @@ def load(dbpath=None, no_sample=False):
         dbpath = default_db_path()
     if osp.isfile(dbpath):
         with io.open(dbpath, 'rt', encoding='utf-8') as fd:
-            db = _KeyDb(yaml.load(fd))
+            db = _KeyDb(yaml.load(fd)) ##TODO Remove
     else:
         db = _KeyDb() if no_sample else sample()
     assert isinstance(db, _KeyDb)
@@ -227,7 +204,7 @@ def load(dbpath=None, no_sample=False):
 def sample():
     master_rec = OrderedDict([
         ('name', 'key33'),
-        (_type_fld, 'BTC'),
+        ('type', 'BTC'),
         ('desc', 'Fully factored (both BTC "master" and AES session" keys).'),
         ('pub', 9538446796470938829684731739639878188192719462398500944849302506305979954739310262871148436514908439724826407676788293770514720299757719404545760627844148),
         ('mul', 'Jvh8Yz8fK8eiQR8t8OHaDyrA/Zc81WyyhzB1FBLVgGqkL8iRBzZ0uniTd0ESb7d4yk5XgGN0MRgHOXr3rf9bTg=='),
@@ -238,7 +215,7 @@ def sample():
     ])
     child_rec = OrderedDict([
         ('name', 'key33'),
-        (_type_fld, 'AES'),
+        ('type', 'AES'),
         (_master_fld, master_rec),
         ('pub', '0xae7e9af92984a795351524c3243eb641cd031346a7a9d4744b2b1b22fd6ef4e153fa8117048c11522ba4a0b909c36b3d4146cb6f137882dfa2b2de6f26f0598d'),
         ('mul', r'\x02[\x96\xa3\xf9\xab\x13u>\xd8F\x94\x03D"!l\x03\xfd\x02\x98\xe6}\x87\xe9\xb1\xac\xe8\x02}lP\xf0,\xfd\x14rGh\xae\xa2\xbe-Spva\xb5T\xa8\xd5\xea\xfa\r\\\xf3\xc3\xf2\xf2\x99\xe6\x14\x87\x0f'),
@@ -252,13 +229,14 @@ def sample():
         ('keys', [
             master_rec, child_rec,
             OrderedDict([
-                (_type_fld, 'BTC'),
+                ('type', 'BTC'),
                 ('pub', 'E52+Luq5WeTW6lTmI4MjPXEHqgV3XkwIfIxIwb0Sy/ydMOtxy+HhUiwUd5/RZruhW4umSAc09jCl97JUa77o+w=='),
                 ('mul', 'KHQR0t3D7M+C2EeTGjXSYBodzFJO0Z3urwAHf5ypK8QKbDUw4H7V/IVPfbUhRkj9DJYz326hCU0JyL/CXj3a0A=='),
                 ('primes', [2, 2, 2, 2, 5, 7, 13, 23, 103]),
-                ('composites', OrderedDict([
-                        (122850342280668807673432007899874804879290282016547868470070085463593989252647008218227958129782893091689947159691338031444544438519788235585328939, 'CF'),
-                ])),
+                ('composites', [
+                        (122850342280668807673432007899874804879290282016547868470070085463593989252647008218227958129782893091689947159691338031444544438519788235585328939,
+                        'CF'),
+                ]),
             ]),
         ]),
     ])
@@ -307,34 +285,17 @@ class _KeyDb(OrderedDict):
 
     def add_keyrec(self, type=None, master=None, name=None, desc=None,  # @ReservedAssignment
             pub=None, mul=None, prv=None, btc_addr=None, primes=None, composites=None,
-            files=None, errors=None, warns=None):
+            files=None, error=None, warn=None):
         """Use the return value as a "master" for a subsequent key."""
-        args = locals()
-        keyrec = OrderedDict((k, args[k])
-                for k in _keyrec_fields
-                if args[k] is not None)
-
-        i = len(self.keyrecs())
+        fields = {k:v for k,v in locals().items() if v is not None and k}
+        del fields['self'];
+        keyrec = _reorder_dict(OrderedDict(fields), _keyrec_fields)
         self.keyrecs().append(keyrec)
 
-        dbchecker = _DbChecker()
-        dbchecker.append_keyrec_checks(i, keyrec)
-        dbchecker.check_db(self)
+        schema = _make_keyrec_schema(self, heal=False)
+        keyrec = schema.validate(keyrec)
 
         return keyrec
-
-def heal_db(db):
-    dbchecker = _DbChecker()
-    dbchecker.append_global_db_checks()
-    dbchecker.append_all_keyrecs_checks(db)
-    return dbchecker.heal_db(db)
-
-def check_db(db):
-    dbchecker = _DbChecker()
-    dbchecker.append_global_db_checks()
-    dbchecker.append_all_keyrecs_checks(db)
-    dbchecker.check_db(db)
-
 
 
 yaml.add_representer(OrderedDict, lambda dumper, data:

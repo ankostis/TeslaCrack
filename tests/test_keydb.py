@@ -13,6 +13,7 @@ from os import path as osp
 import tempfile
 from teslacrack import __main__ as tcm, CrackException
 from teslacrack import keydb
+from schema import SchemaError
 import unittest
 
 from future import utils as futils
@@ -63,7 +64,7 @@ class Tkeydb(unittest.TestCase):
 
     def test_add_key_not_AKey(self):
         db = keydb.empty()
-        with assertRaisesRegex(self, CrackException, 'not an AKey', msg=db):
+        with assertRaisesRegex(self, SchemaError, "should be instance of 'AKey'", msg=db):
             db.add_keyrec(prv='bad AKEY')
 
     @unittest.skipIf(futils.PY2, "Missing `tempfile.TemporaryDirectory`!"
