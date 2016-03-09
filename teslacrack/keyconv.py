@@ -229,20 +229,21 @@ class AKey(newbytes):
         :type _unparsed: bool or str
         """
         aconv, byts = _autoconv_to_bytes(key)
-        return AKey.raw(byts, conv or aconv)
-
-    @classmethod
-    def raw(cls, key, conv=None):
-        if futils.PY2 and type(key) == newbytes:
-            ## WORKAROUND `newbytes` constructor PY3.3 "trik" which returns
-            #    any `newbytes` as-is, instead of invoking ``super.__new__()``.
-            key = key.__native__()
-        ak = AKey(key)
-        if conv:
-            ak._conv = conv
-        return ak
+        return AKey(byts, conv or aconv)
 
     _conv = None
+
+
+    def __new__(cls, key, conv=None):
+        if futils.PY2 and type(key) in (newbytes, AKey):
+            ## CANCEL "trik" in `newbytes` constructor for PY3.3, which
+            #    returns any `newbytes` as-is, instead of
+            #    passing it through ``super.__new__()``.
+            key = key.__native__()
+        ak = bytes.__new__(cls, key)
+        if conv:
+            ak._conv =_convid( conv)
+        return ak
 
     def conv(self, conv_prefix=None):
         return conv_bytes(self, conv_prefix or self._conv)
@@ -256,7 +257,7 @@ class AKey(newbytes):
         return 'Akey(%r, %r)' % (me, self._conv)
 
     def __str__(self):
-        return self.conv()
+        return self.__native__() if futils.PY2 else super(AKey, self).__str__(self)
 
     @property
     def num(self): return self.conv('num')

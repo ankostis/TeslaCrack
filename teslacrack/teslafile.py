@@ -96,12 +96,12 @@ class Header(_Header):
 
     def _fix_raw(self, conv=None):
         return self._replace(
-            start=AKey.raw(self.start, conv),
-            btc_pub_key=AKey.raw(self.btc_pub_key, conv),
-            btc_mul_key=AKey.raw(tesla_mul_to_bytes(self.btc_mul_key), conv),
-            aes_pub_key=AKey.raw(self.aes_pub_key, conv),
-            aes_mul_key=AKey.raw(tesla_mul_to_bytes(self.aes_mul_key), conv),
-            iv=AKey.raw(self.iv, conv),
+            start=AKey(self.start, conv),
+            btc_pub_key=AKey(self.btc_pub_key, conv),
+            btc_mul_key=AKey(tesla_mul_to_bytes(self.btc_mul_key), conv),
+            aes_pub_key=AKey(self.aes_pub_key, conv),
+            aes_mul_key=AKey(tesla_mul_to_bytes(self.aes_mul_key), conv),
+            iv=AKey(self.iv, conv),
         )
 
 

@@ -73,7 +73,7 @@ class Tkeydb(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             dbpath = osp.join(td, 'tcdb.yml')
             db = keydb.empty()
-            mk = db.add_keyrec(type='BTC', name='master', prv=AKey.raw(b'asdfdsfdsasfd'))
+            mk = db.add_keyrec(type='BTC', name='master', prv=AKey(b'asdfdsfdsasfd'))
             self.assertEqual(mk['name'], 'master', mk)
             self.assertEqual(len(db.keyrecs()), 1, db)
             ck = db.add_keyrec(type='AES', master=mk, name='child')

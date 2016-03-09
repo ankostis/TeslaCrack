@@ -129,25 +129,31 @@ class TAKey(unittest.TestCase):
 
     @ddt.data(b'', b'\0', b'\x00123456')
     def test_byte_equality(self, b):
-        ak = AKey.raw(b)
+        ak = AKey(b)
         self.assertEqual(ak, b, b)
         self.assertEqual(bytes(b), ak, b)
         self.assertEqual(ak, bytes(b), b)
 
-        bb = AKey.raw(bytes(b))
+        bb = AKey(bytes(b))
         self.assertEqual(b, bb, b)
+        self.assertEqual(bb, b, b)
+        self.assertEqual(bytes(b), bb, b)
+        self.assertEqual(bb, bytes(b), b)
+
+        bbb = bytes(ak)
+        self.assertEqual(     bbb, ak, b)
         self.assertEqual(bb, b, b)
         self.assertEqual(bytes(b), bb, b)
         self.assertEqual(bb, bytes(b), b)
 
     @ddt.data(b'', b'\0', b'\x00123456')
     def test_byte_hash_equality(self, b):
-        ak = AKey.raw(b)
+        ak = AKey(b)
         self.assertEqual(hash(ak), hash(b), b)
 
     @ddt.data(b'', b'\x00a', b'\x00abc')
     def test_types(self, b):
-        ak = AKey.raw(b)
+        ak = AKey(b)
         self.assertEqual(type(bytes(ak)), type(bytes(b)), b)
         self.assertIsInstance(ak, type(b''), b)
         self.assertIsInstance(ak, bytes, b)
@@ -155,22 +161,22 @@ class TAKey(unittest.TestCase):
     @ddt.data(b'', b'\x00a', b'\x00abc')
     def test_byte_startwith(self, b):
         bb = b'\x00abc'
-        ak = AKey.raw(b)
-        ak2 = AKey.raw(bb)
+        ak = AKey(b)
+        ak2 = AKey(bb)
         self.assertTrue(ak2.startswith(b), b)
         self.assertTrue(ak2.startswith(ak), b)
-        #self.assertTrue(bb.startswith(AKey.raw(b)), b) # XXX: bytes's problem!
+        #self.assertTrue(bb.startswith(AKey(b)), b) # XXX: bytes's problem!
 
     @ddt.data(b'', b'\x00a', b'\x00\fc\n\r\x00\x19')
     def test_byte_repr(self, b):
-        v = repr(AKey.raw(b, 'bin'))
+        v = repr(AKey(b, 'bin'))
         assertRegex(self, v, 'b(\'.*\')|(b".*")', b)
 
     @ddt.data(*itt.product(['hex', 'asc', 'num'],
             [b'\x00a', b'\x00\fc\n\r\x00\x19']))
     def test_byte_repr_non_bytes(self, case):
         conv, b = case
-        v = repr(AKey.raw(b, conv))
+        v = repr(AKey(b, conv))
         assertNotRegex(self, v, 'b(\'.*\')|(b".*")', b)
 
     @ddt.data(0, 10, 16, 1<<64, 1<<128)
@@ -180,10 +186,10 @@ class TAKey(unittest.TestCase):
 
     def test_indexing(self):
         d = {b'\x00abc': 1, b'\x00ab': 2, b'\x00df': 3}
-        pk = dict((AKey.raw(k), v) for k,v in d.items())
+        pk = dict((AKey(k), v) for k,v in d.items())
         self.assertEqual(pk[b'\x00df'], 3)
         self.assertEqual(pk[bytes(b'\x00df')], 3)
-        self.assertEqual(pk[AKey.raw(b'\x00df')], 3)
+        self.assertEqual(pk[AKey(b'\x00df')], 3)
 
     def test_key_suffix(self):
         k= b'7097DDB2E5DD08950D18C263A41FF5700E7F2A01874B20F402680752268E43F4C5B7B26AF2642AE37BD64AB65B6426711A9DC44EA47FC220814E88009C90EA'
