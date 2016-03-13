@@ -20,119 +20,130 @@
 r"""
 TeslaCrack - decryptor for the TeslaCrypt ransomware.
 
-Usage:
-  teslacrack decrypt  [-v] [--dry-run] [--delete | --delete-old]  [--progress]
-                            [(--fix | --overwrite) [--backup=<.ext>]]
-                            [<path>]...
-  teslacrack crack-fkey     [-v] [--progress] [--ecdh | --btc-addr <btc-addr>]
-                            <file>  <prime-factor>...
-  teslacrack crack-key      [-v] [--progress] (--ecdh <pub-key> | --btc-addr <btc-addr>)
-                            <mul-key>  <prime-factor>...
-  teslacrack file           [-v] [ -F <hconv>] <file>  [<field>]...
-  teslacrack -h | --help
-  teslacrack -V | --version
+USAGE:
+    teslacrack ls        [options] [--fld=<field>...] [<path>...]
+    teslacrack decrypt   [options] [--fld=<field>...]
+                              [--dry-run] [--delete | --delete-old]
+                              [(--fix | --overwrite) [--backup=<.ext>]] [<path>...]
+    teslacrack unfactor  [options] [--ecdh | --btc-addr=<addr>] <file> <prime-factor>...
+    teslacrack unfactor  [options] (--pub=<db-key> | --btc-addr=<addr>) <mul-db-key> [<prime-factor>...]
+    teslacrack key       [options] [-f | --force] [--btc | --aes | --master=<db-key>]
+                              [--fld=<field-n-value>]... [<db-key>...]
+    teslacrack -h | --help
+    teslacrack -V | --version
 
-Sub-commands:
-  decrypt:
-      Decrypt tesla-file(s) in <path> file(s)/folder(s) if their AES key
-      already guessed, while reporting any unknown AES & BTC mul-key(s) encountered.
-      The (rough) pattern of usage is this:
+SUB-COMMANDS:
+    ls:
+        Lists header-fields (keys and their status) from tesla-files in <path> file(s)/folder(s).
+        If any unknown keys encountered, searches them in http://factordb.com (unless --no-factordb given).
+        Use -C <conv> option to control the formatting of the fields. Use --fld <field> to limit
+        what is listed.  If no <path> given, it lists recursively current folder.
+    decrypt:
+        Decrypts tesla-file(s) in <path> file(s)/folder(s) if their private AES or BTC keys
+        already known; behaves like `ls` if any unknown keys encountered; additionally,
+        if key fully factored, attempts to unfactor it.
+        If no <path> given, it decrypts recursively current folder.
+    unfactor (1st form):
+       Try to reconstruct any key with known factors
+use the <prime-factor> given or from internal key-db.
+       Attempts to reconstruct prv-keys from file on a best effort basis:
+       if <prime-factor>s given, they choose which key to attack; otherwise, it reconstructs
+       anyone of *BTC* or *AES* prv-key (in that order) with all primes known either
+       in the http://factordb.com or in the internal key-db (i.e. set by `ls` or `key` sub-cmds).
+       When none of --ecdh or --btc-addr specified, the default method is used,
+       so the <file> must belong to `known_file_magic`.
+    unfactor (2nd form):
+        Like the `unfactor`, above, but the <mul-db-key> is explicitly given and
+        the method must be one of *ECDH* or *BTC*.  Use the `ls` or `decrypt` sub-cmds
+        to print unknown "mul" keys; factorize this to get all <prime-factor>.
+    key:
+        List or update the internal key-db at `~/.teslacrack.yaml`.
+        Without any --fld, --btc, --aes, --master options, it lists matching  <db-key> record(s)
+        or all if non given; Otherwise, it creates new or updates matching key-records
+        based on whether <db-key> given.
+
+OPTIONS:
+    --pub [<pub-key>]      Reconstruct key based on Elliptic-Curve-Cryptography which:
+                             - can recover both AES or BTC[1] keys;
+                             - can recover keys from any file-type (no need for *magic-bytes*);
+                             - yields always a single correct key.
+                           For the 1st form of `unfactor` sub-cmd, the <prime-factors> select which key
+                           to crack (AES or BTC). For the 2nd form of `unfactor` sub-cmd, specify
+                           which <mul-key> and paired <pub-key> to break.
+    --btc-addr <btc-addr>  Guess BTC key based on the bitcoin-address and BTC[1] pub-key.
+                           The <btc-addr> is typically found in the ransom-note or recovery file
+    --fld=<field>          Any case-insenstive subs-string of tesla-file header-fields.
+    -C=<conv>             Specify the print-out format for keys.
+                           where <conv> is any non-ambiguous case-insensitive *prefix* from:
+                             - raw: all bytes as-is - no conversion (i.e. hex mul-keys NOT strip & l-rotate).
+                             - fix: like 'raw', but mul-keys fixed and size:int; fail if mul-keys invalid.
+                             - bin: all bytes (even mul-keys), mul-keys: fixed.
+                             - xhex: all string-HEX, size:bytes-hexed.
+                             - hex: all string-hex prefixed with '0x', size: int-hexed.
+                             - num: all natural numbers, size: int.
+                             - asc: all base64, size(int) - most concise.
+                           [default: hex]
+    --no-factordb          Do not search for prime-factors in http://factordb.com.
+    --keydb-no-write       Do not update internal key-db at `~/.teslacrack.yaml`.
+    --keydb-no-rw          Do not update nor read internal key-db `~/.teslacrack.yaml`.
+    --delete               Delete crypted-files after decrypting them.
+    --delete-old           Delete crypted even if decrypted-file created during a previous run
+                           [default: False].
+    -n, --dry-run          Decrypt but don't Write/Delete files, just report actions performed
+                           [default: False].
+    --progress             Before start decrypting files, pre-scan all dirs, to
+                           provide progress-indicator [default: False].
+    --fix                  Re-decrypt tesla-files and overwrite crypted-counterparts if they have
+                           unexpected size. If you enable it, by default it backs-up existing files
+                           with '.BAK' extension (see `--backup`). Specify empty extension ''
+                           for no backups (e.g. `--backup=`)
+                           WARNING: You may LOOSE FILES that have changed due to
+                           regular use, such as, configuration-files and mailboxes!
+                           [default: False].
+    --overwrite            Re-decrypt ALL tesla-files, overwritting all crypted-counterparts.
+                           Optionally creates backups with the given extension (see `--backup`).
+                           WARNING: You may LOOSE FILES that have changed due to
+                           regular use, such as, configuration-files and mailboxes!
+                           [default: False].
+    --backup=<.ext>        Sets file-extension (with dot(`.`) included for backup-files
+                           created by `--fix` and `--overwrite` options.
+    -v, --verbose          Verbosely log(DEBUG) all actions performed.
+
+NOTES:
+    - The <db-key> must match the prefix or name of some key registered in the internal key-db.
+      Use the `key` or the `ls <file>` sub-cmds to register keys.
+    - The (rough) pattern of usage is this:
         1. Run this cmd on some tesla-files to gather your mul-AES keys;
         2. factorize the mul-key(s) reported, first by searching http://factordb.com/
            and then use *msieve* or *YAFU* external programs to factorize
            any remaining non-prime ones;
-        3. use `crack-XXX` sub-cmds to reconstruct your cleartext keys;
+        3. use `unfactor` sub-cmd to reconstruct your cleartext keys;
         4. add keys from above into `known_AES_key_pairs`, and then
         5. re-run `decrypt` on all infected file/directories.
-      If no <path> given, current-directory assumed.
-  crack-fkey:
-      Read mul-key(s) from <file> and use the <prime-factor> integers produced by
-      external factorization program (i.e. *msieve*) or found in http://factordb.com/
-      to reconstruct their key(s), optionally according to *ECDH* or *BTC* methods
-      (explained in respective options).
-      When no method specified (the default), the <file> must belong to `known_file_magic`.
-  crack-key:
-      Like the `crack-fkey`, above, but the <mul-key> is explicitly given and
-      the method must be one of *ECDH* or *BTC*.  Use the `file` or `decrypt` sub-cmds
-      to print the <mul-key>; factorize this to get all <prime-factor>.
-  file:
-      Print tesla-file's header fields (keys, addresses, etc), or those explicitly
-      specified, converted by -F <hconv> option.  Each <field> may be a case-insenstive
-      subs-string of fields available.
-
-Options:
-  --ecdh [<pub-key>]     A slower key-reconstructor based on Elliptic-Curve-Cryptography which:
-                           - can recover both AES or BTC[1] keys;
-                           - can recover keys from any file-type (no need for *magic-bytes*);
-                           - yields always a single correct key.
-                         For the `crack-fkey` sub-cmd, the <prime-factors> select which key
-                         to crack (AES or BTC). For the `crack-key` sub-cmd, specify
-                         which <mul-key> and paired <pub-key> to break.
-  --btc-addr <btc-addr>  Guess BTC key based on the bitcoin-address and BTC[1] pub-key.
-                         The <btc-addr> is typically found in the ransom-note or recovery file
-  -F <hconv>             Specify print-out format for tesla-header fields (keys, addresses, etc),
-                         where <hconv> is any non-ambiguous case-insensitive *prefix* from:
-                           - raw: all bytes as-is - no conversion (i.e. hex mul-keys NOT strip & l-rotate).
-                           - fix: like 'raw', but mul-keys fixed and size:int; fail if mul-keys invalid.
-                           - bin: all bytes (even mul-keys), mul-keys: fixed.
-                           - xhex: all string-HEX, size:bytes-hexed.
-                           - hex: all string-hex prefixed with '0x', size: int-hexed.
-                           - num: all natural numbers, size: int.
-                           - asc: all base64, size(int) - most concise.
-                         [default: hex]
-  --delete               Delete crypted-files after decrypting them.
-  --delete-old           Delete crypted even if decrypted-file created during a previous run
-                         [default: False].
-  -n, --dry-run          Decrypt but don't Write/Delete files, just report actions performed
-                         [default: False].
-  --progress             Before start decrypting files, pre-scan all dirs, to
-                         provide progress-indicator [default: False].
-  --fix                  Re-decrypt tesla-files and overwrite crypted-counterparts if they have
-                         unexpected size. If you enable it, by default it backs-up existing files
-                         with '.BAK' extension (see `--backup`). Specify empty extension ''
-                         for no backups (e.g. `--backup=`)
-                         WARNING: You may LOOSE FILES that have changed due to
-                         regular use, such as, configuration-files and mailboxes!
-                         [default: False].
-  --overwrite            Re-decrypt ALL tesla-files, overwritting all crypted-counterparts.
-                         Optionally creates backups with the given extension (see `--backup`).
-                         WARNING: You may LOOSE FILES that have changed due to
-                         regular use, such as, configuration-files and mailboxes!
-                         [default: False].
-  --backup=<.ext>        Sets file-extension (with dot(`.`) included for backup-files
-                         created by `--fix` and `--overwrite` options.
-Other options:
-  -h, --help             Show this help message and exit.
-  -V, --version          Print program's version number and exit.
-  -v, --verbose          Verbosely log(DEBUG) all actions performed.
-
-Notes:
-  [1] Private BTC-key may be used with *TeslaDecoder* external program,
-      which should decrypt also ancient versions of TeslaCrypt.
-      Check the following for gathering required keys and addresses:
+    - For ancient versions of TeslaCrypt, use the private BTC-key  with *TeslaDecoder* external program.
+    - Check the following for gathering required keys and addresses:
       - http://www.bleepingcomputer.com/virus-removal/teslacrypt-alphacrypt-ransomware-information
       - https://securelist.com/blog/research/71371/teslacrypt-2-0-disguised-as-cryptowall
 
-Examples:
+EXAMPLES:
 
-   teslacrack decrypt -v tesla-file.vvv        ## Decrypt file, and if unknwon key, printed.
-   teslacrack crack-fkey tesla-file.vvv 1 3 5  ## Unfacrtor the AES-key of the file from primes 1,3,5.
-   teslacrack decrypt .  bar\cob.xlsx          ## Decrypt current-folder & a file
-   teslacrack decrypt --delete-old C:\\        ## WILL DELETE ALL `.vvv` files on disk!!!
-   teslacrack decrypt                          ## Decrypt current-folder, logging verbosely.
-   teslacrack decrypt --progress -n -v  C:\\   ## Just to check what actions will perform.
+    teslacrack ls -v tesla-file.vvv             ## Decrypt file, and if unknwon key, printed.
+    teslacrack unfactor tesla-file.vvv 1 3 5    ## Unfacrtor the AES-key of the file from primes 1,3,5.
+    teslacrack decrypt .  bar\cob.xlsx          ## Decrypt current-folder & a file
+    teslacrack decrypt --delete-old C:\\        ## WILL DELETE ALL `.vvv` files on disk!!!
+    teslacrack decrypt                          ## Decrypt current-folder, logging verbosely.
+    teslacrack decrypt --progress -n -v  C:\\   ## Just to check what actions will perform.
 
 Enjoy! ;)
 """
 from __future__ import print_function, division
 
-import io
 import logging
+from pprint import pformat
 from teslacrack import CrackException
+from teslacrack import __version__ as tslc_version
 
 import docopt
-
-from teslacrack import __version__ as tslc_version
 
 
 log = logging.getLogger('teslacrack.main')
@@ -212,22 +223,26 @@ def _crack_key(opts):
 def _show_file_headers(opts):
     from teslacrack import teslafile
 
-    file = opts['<file>']
-    substr_list = opts['<field>']
-    conv = opts['-F']
-    with io.open(file, 'rb') as fd:
-        h = teslafile.Header.from_fd(fd)
-    fields = h.fields_by_substr_list(substr_list)
-    if not fields:
-        raise CrackException('Field-substr %r matched no header-field: %r' %
-                (substr_list, list(fields)))
+    fpaths = opts['<path>']
+    fld_substrs = opts['--fld']
+    conv = opts['-C']
 
-    fields = teslafile.conv_fields(fields, conv)
-    if len(fields) == 1:
-        res = str(next(iter(fields))[1])
-    else:
-        res = '\n'.join('%15.15s: %r' % (k, v) for k, v in fields)
+    fields = fld_substrs and teslafile.match_substr_to_fields(fld_substrs)
+    res = teslafile.fetch_file_headers(fpaths, fields, conv)
+    if len(res) == 1:
+        res = res[0]
     return res
+
+
+def _get_or_set_keys(opts):
+    from teslacrack import keydb
+
+    dbkeys = opts['<db-key>']
+    fields = opts['--fld']
+    db = keydb.load()
+    krng = keydb.KeyRing(db)
+    keyrecs = krng.get_keyrec_fields(dbkeys, fields=fields)
+    return keyrecs
 
 
 def main(*args):
@@ -240,19 +255,21 @@ def main(*args):
     log.debug('Options: %s', opts)
 
     try:
-        if opts['decrypt']:
+        if opts['ls']:
+            return pformat(_show_file_headers(opts), indent=2)
+        elif opts['key']:
+            return pformat(_get_or_set_keys(opts), indent=2)
+        elif opts['decrypt']:
             from teslacrack import decrypt
 
             opts.fpaths = opts['<path>']
             decrypt.decrypt(opts)
-        elif opts['crack-fkey']:
+        elif opts['unfactor']:
             return _crack_file_key(opts)
-        elif opts['crack-key']:
+        elif opts['unfactor']:
             return _crack_key(opts)
-        elif opts['file']:
-            return _show_file_headers(opts)
         else:
-            msg = "main() miss-matched *docopt* sub-commands! \n  %s"
+            msg = "main() miss-matched *docopt* sub-commands! \n  %r"
             raise AssertionError(msg % opts)
     except CrackException as ex:
         log.error("%s", ex)

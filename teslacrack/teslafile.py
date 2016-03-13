@@ -20,13 +20,27 @@ from __future__ import print_function, unicode_literals, division
 
 from binascii import unhexlify
 from collections import namedtuple, OrderedDict
+import io
+import logging
+import os
 import struct
+import time
 
 from future.builtins import str, int, bytes  # @UnusedImport
 from toolz import dicttoolz
 
-from . import CrackException, utils
+import os.path as osp
+
+from . import CrackException
 from .keyconv import AKey, lalign_bytes
+
+
+log = logging.getLogger(__name__)
+
+## Add more known extensions, e.g. '.xyz'.
+#  Note that '.xxx', '.micro' and '.ttt' are crypted by a new variant
+#  of teslacrypt (3.0).
+tesla_extensions = ['.vvv', '.ccc',  '.zzz', '.aaa', '.abc']
 
 
 def tesla_mul_to_bytes(hex_bkey):
@@ -108,7 +122,7 @@ class Header(_Header):
     def conv(self, conv):
         for f in self:
             if isinstance(f, AKey):
-                AKey._conv = conv
+                f._conv = conv
 
 
     def fields_by_substr_list(self, substr_list=()):
@@ -124,6 +138,100 @@ class Header(_Header):
 def conv_fields(h, conv):
     if isinstance(h, Header):
         h = h._asdict()
-    return [(k, v.conv(conv) if k != 'size' else v)
-            for k, v in h.items()]
+    return OrderedDict((k, v.conv(conv) if k not in ('size', 'file') else v)
+            for k, v in h.items())
+
+
+def match_substr_to_fields(substr_list):
+    fields = ([fld for fld in Header._fields for s in substr_list if s.lower() in fld.lower()]
+            if substr_list else Header._fields)
+    if not fields:
+        raise CrackException("Field-substr %r matched no header-field: %r"
+                "\n  Must be any case-insensitive substring of: %r" %
+                (substr_list, list(fields), Header._fields))
+    return fields
+
+
+def fetch_file_headers(fpaths, fields=None, conv=None):
+    if not fields:
+        fields = Header._fields
+    elif set(fields) > set(Header._fields):
+        raise CrackException('Invalid Header-fields: %r \n  Must be one of: %r' %
+                (set(fields) - set(Header._fields), list(Header._fields)))
+
+    res = []
+    def process_header(file):
+        try:
+            if osp.splitext(file)[1] in tesla_extensions:
+                with io.open(file, 'rb') as fd:
+                    h = Header.from_fd(fd)
+
+                h = dicttoolz.keyfilter(lambda k: k in fields, h._asdict(),
+                        lambda: OrderedDict(file=file))
+                if conv:
+                    h = conv_fields(h, conv)
+                res.append(h)
+        except Exception as ex:
+            log.warning("File %r: %s", file, ex)
+
+    traverse_fpaths(fpaths, process_header)
+    return res
+
+
+PROGRESS_INTERVAL_SEC = 3 # Log stats every that many files processed.
+_last_progress_time = 0#time.time()
+
+def is_progess_time():
+    global _last_progress_time
+    if time.time() - _last_progress_time > PROGRESS_INTERVAL_SEC:
+        _last_progress_time = time.time()
+        return True
+
+
+def traverse_fpaths(fpaths, file_processor, log_progress=None, stats=None):
+    """Scan disk and decrypt tesla-files.
+
+    :param: list fpaths:
+            Start points to scan.
+            Must be unicode, and on *Windows* '\\?\' prefixed.
+    :param: callable proc_file_func:
+            A function: ``file_processor(fpath)``
+    """
+    def handle_bad_subdir(err):
+        stats.noaccess_ndirs += 1
+        log.error('%r: %s' % (err, err.filename))
+
+    try:
+        from unittest import mock  # @UnusedImport
+    except ImportError:
+        import mock # @UnresolvedImport @Reimport
+    if not stats:
+        stats = mock.MagicMock()
+    if not log_progress:
+        log_progress = mock.MagicMock()
+
+    for fpath in fpaths:
+        if osp.isfile(fpath):
+            file_processor(fpath)
+        else:
+            for dirpath, _, files in os.walk(fpath, onerror=handle_bad_subdir):
+                stats.visited_ndirs += 1
+                stats.scanned_nfiles += len(files)
+                if is_progess_time():
+                    log_progress(dirpath)
+                for f in files:
+                    file_processor(osp.join(dirpath, f))
+
+
+def count_subdirs(fpaths):
+    n = 0
+    log.info("+++Counting dirs...")
+    for f in fpaths:
+        #f = upath(f) # Don't bother...
+        for _ in os.walk(f):
+            if is_progess_time():
+                log.info("+++Counting dirs: %i...", n)
+            n += 1
+    return n
+
 

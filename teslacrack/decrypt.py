@@ -24,16 +24,16 @@ from __future__ import print_function, unicode_literals, division
 
 import argparse
 import logging
+from os import path as osp
 import os
 import shutil
 import sys
-import time
 
 from Crypto.Cipher import AES  # @UnresolvedImport
 
 from . import CrackException
 from .keyconv import AKey
-from .teslafile import Header
+from .teslafile import Header, traverse_fpaths, count_subdirs, tesla_extensions
 
 
 log = logging.getLogger(__name__)
@@ -50,11 +50,6 @@ known_AES_key_pairs = {
     'AluWo/mrE3U+2EaUA0QiIWwD/QKY5n2H6bGs6AJ9bFDwLP0UckdorqK+LVNwdmG1VKjV6voNXPPD8vKZ5hSHDw==': b'eeJj1F1dfStXYwcRazFoDezoTllWLaqgv5OloNNMne0=',
 }
 
-## Add more known extensions, e.g. '.xyz'.
-#  Note that '.xxx', '.micro' and '.ttt' are crypted by a new variant
-#  of teslacrypt (3.0).
-tesla_extensions = ['.vvv', '.ccc',  '.zzz', '.aaa', '.abc']
-
 ## If i18n-filenames are destroyed, experiment with this.
 #  e.g. 'UTF-8', 'iso-8859-9', 'CP437', 'CP1252'
 filenames_encoding = sys.getfilesystemencoding()
@@ -62,10 +57,6 @@ filenames_encoding = sys.getfilesystemencoding()
 
 unknown_keys = {}
 unknown_btkeys = {}
-
-
-PROGRESS_INTERVAL_SEC = 3 # Log stats every that many files processed.
-_last_progress_time = 0#time.time()
 
 
 _PY2 = sys.version_info[0] == 2
@@ -80,7 +71,7 @@ def _decide_backup_ext(ext):
 
 def _needs_decrypt(fname, exp_size, fix, overwrite, stats):
     """Returns (file_exist?  should_decrypt?  what_backup_ext?)."""
-    decrypted_exists = os.path.isfile(fname)
+    decrypted_exists = osp.isfile(fname)
     if overwrite:
         should_decrypt = overwrite
     elif decrypted_exists:
@@ -132,7 +123,7 @@ def decrypt_file(opts, stats, crypted_fname):
                 stats.unknown_nfiles += 1
                 return
 
-            decrypted_fname = os.path.splitext(crypted_fname)[0]
+            decrypted_fname = osp.splitext(crypted_fname)[0]
             decrypted_exists, should_decrypt, backup_ext = _needs_decrypt(
                     decrypted_fname, header.size, opts.fix, opts.overwrite, stats)
             if should_decrypt:
@@ -174,55 +165,6 @@ def decrypt_file(opts, stats, crypted_fname):
                     crypted_fname, e, exc_info=opts.verbose)
 
 
-def is_progess_time():
-    global _last_progress_time
-    if time.time() - _last_progress_time > PROGRESS_INTERVAL_SEC:
-        _last_progress_time = time.time()
-        return True
-
-
-def traverse_fpaths(opts, stats):
-    """Scan disk and decrypt tesla-files.
-
-    :param: list fpaths:
-            Start points to scan.
-            Must be unicode, and on *Windows* '\\?\' prefixed.
-    """
-    def handle_bad_subdir(err):
-        stats.noaccess_ndirs += 1
-        log.error('%r: %s' % (err, err.filename))
-
-    def scan_file(fname):
-        if os.path.splitext(fname)[1] in tesla_extensions:
-            stats.tesla_nfiles += 1
-            decrypt_file(opts, stats, fname)
-
-    for fpath in opts.fpaths:
-        if os.path.isfile(fpath):
-            scan_file(fpath)
-        else:
-            for dirpath, _, files in os.walk(fpath, onerror=handle_bad_subdir):
-                stats.visited_ndirs += 1
-                stats.scanned_nfiles += len(files)
-                if is_progess_time():
-                    log_stats(stats, dirpath)
-                    log_unknown_keys()
-                for f in files:
-                    scan_file(os.path.join(dirpath, f))
-
-
-def count_subdirs(opts, stats):
-    n = 0
-    log.info("+++Counting dirs...")
-    for f in opts.fpaths:
-        #f = upath(f) # Don't bother...
-        for _ in os.walk(f):
-            if is_progess_time():
-                log.info("+++Counting dirs: %i...", n)
-            n += 1
-    return n
-
-
 def log_unknown_keys():
     if unknown_keys: ## TODO: FIX keys reporting.
         aes_keys = dict((fpath, key) for key, fpath in unknown_keys.items())
@@ -237,7 +179,7 @@ def log_unknown_keys():
 
 def log_stats(stats, fpath=''):
     if fpath:
-        fpath = ': %r' % os.path.dirname(fpath)
+        fpath = ': %r' % osp.dirname(fpath)
     dir_progress = ''
     if stats.ndirs > 0:
         prcnt = 100 * stats.visited_ndirs / stats.ndirs
@@ -274,7 +216,7 @@ def _path_to_ulong(path):
         if path.endswith(':'): ## Avoid Windows's per-drive "remembered" cwd.
             path += '\\'
         if not path.startswith(win_prefix):
-            path = win_prefix + os.path.abspath(path)
+            path = win_prefix + osp.abspath(path)
     return path
 
 
@@ -290,8 +232,18 @@ def decrypt(opts):
     opts.known_AES_key_pairs = dict((AKey.auto(k), AKey.auto(v))
             for k, v in known_AES_key_pairs.items())
     if opts.progress:
-        stats.ndirs = count_subdirs(opts, stats)
-    traverse_fpaths(opts, stats)
+        stats.ndirs = count_subdirs(opts.fpaths)
+
+    def scan_file(fpath):
+        if osp.splitext(fpath)[1] in tesla_extensions:
+            stats.tesla_nfiles += 1
+            decrypt_file(opts, stats, fpath)
+
+    def log_progress(dirpath):
+        log_stats(stats, dirpath)
+        log_unknown_keys()
+
+    traverse_fpaths(opts.fpaths, scan_file, log_progress, stats)
 
     log_unknown_keys()
     log_stats(stats)

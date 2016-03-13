@@ -131,13 +131,13 @@ class TFileSubcmd(unittest.TestCase):
 
         fld, conv = case
         file = _tf_fpath('tesla_key14.jpg.vvv')
-        opts = {'<file>': file, '<field>': [fld], '-F': conv}
+        opts = {'<path>': [file], '--fld': [fld], '-C': conv}
         tcm._show_file_headers(opts)
 
     @ddt.data(*_all_conv_prefixes)
     def test_all_field_all_convs(self, conv):
         file = _tf_fpath('tesla_key14.jpg.vvv')
-        opts = {'<file>': file, '<field>': [], '-F': conv}
+        opts = {'<path>': [file], '--fld': [], '-C': conv}
         res = tcm._show_file_headers(opts)
         for fld in _all_fields:
             self.assertIn(fld, res)
@@ -146,13 +146,14 @@ class TFileSubcmd(unittest.TestCase):
     @ddt.data(*_all_conv_prefixes)
     def test_all_fields_is_multiline(self, conv):
         file = _tf_fpath('tesla_key14.jpg.vvv')
-        opts = {'<file>': file, '<field>': [], '-F': conv}
-        res = tcm._show_file_headers(opts)
-        self.assertEqual(len(res.split('\n')), len(_all_fields))
+        opts = {'<path>': [file], '--fld': [], '-C': conv}
+        h = tcm._show_file_headers(opts)
+        h = tcm._show_file_headers(opts)
+        self.assertEqual(len(h), len(_all_fields)+1, h)
 
     def test_bad_fields_screams(self):
         file = _tf_fpath('tesla_key14.jpg.vvv')
-        opts = {'<file>': file, '<field>': ['BAD_GOO!'], '-F': 'asc'}
+        opts = {'<path>': [file], '--fld': ['BAD_GOO!'], '-C': 'asc'}
         with assertRaisesRegex(self, CrackException, 'matched no header-field:'):
             tcm._show_file_headers(opts)
 
@@ -160,7 +161,7 @@ class TFileSubcmd(unittest.TestCase):
     def test_fields_subst(self, case):
         fld, nlines = case
         file = _tf_fpath('tesla_key14.jpg.vvv')
-        opts = {'<file>': file, '<field>': [fld], '-F': 'a'}
-        txt = tcm._show_file_headers(opts)
-        self.assertEqual(len(txt.split('\n')), nlines, txt)
+        opts = {'<path>': [file], '--fld': [fld], '-C': 'a'}
+        h = tcm._show_file_headers(opts)
+        self.assertEqual(len(h), nlines+1, h)
 
