@@ -178,6 +178,8 @@ def fetch_file_headers(fpaths, fields=None, conv=None):
     return res
 
 
+## TODO: Move to own file.
+#
 PROGRESS_INTERVAL_SEC = 3 # Log stats every that many files processed.
 _last_progress_time = 0#time.time()
 
@@ -233,5 +235,4 @@ def count_subdirs(fpaths):
                 log.info("+++Counting dirs: %i...", n)
             n += 1
     return n
-
 

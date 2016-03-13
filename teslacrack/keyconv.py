@@ -24,6 +24,7 @@ import codecs
 import logging
 import math
 import re
+import pprint
 import struct
 
 from future.builtins import str, int, bytes as newbytes  # @UnusedImport
@@ -32,6 +33,7 @@ import functools as ft
 import future.utils as futils
 
 from . import CrackException, repr_conv, utils
+from collections import Mapping
 
 
 log = logging.getLogger(__name__)
@@ -45,7 +47,7 @@ def b2n(v): return int(hexlify(v), 16)
 def b2s(v): return v.decode('latin')
 def b2x(v): return hexlify(v).decode('latin')
 def upp(v): return v.upper()
-def xs0x(v): return '0x%s' % v.lower()  if v else ''
+def xs0x(v): return '0x%s' % v.lower() if v else ''
 def n2h(v): return '0x%x' % v
 def esc_bbytes_2b(v): return  codecs.escape_decode(v)[0]
 def esc_sbytes_2b(v): return  codecs.escape_encode(v)[0]
@@ -54,7 +56,7 @@ def native(v): return v.__native__() if futils.PY2 else v
 _hex_str_regex    = re.compile('^(?:0x)?([a-f0-9]+)$', re.I)
 _hex_byt_regex    = re.compile(b'^(?:0x)?([a-f0-9]+)$', re.I)
 
-def is_hex(v):
+def pure_hex(v):
     return (_hex_byt_regex.match(v).group(1)
             if isinstance(v, newbytes) else
             _hex_str_regex.match(v).group(1))
@@ -68,6 +70,11 @@ if futils.PY2:
         return b64dec(v)
 else:
     b64decode = ft.partial(b64dec, validate=True)
+
+
+def check_b64(v):
+    b64decode(v)
+    return v
 
 
 def lalign_bytes(byte_key):
@@ -129,7 +136,7 @@ _unquote_bu = ft.partial(_unquote_str,
 #
 _try_to_bytes_convs = (
     ('num',    (_unquote, int, int_to_32or64bytes, newbytes)),
-    ('hex',    (_unquote, is_hex, unhexlify, newbytes)),
+    ('hex',    (_unquote, pure_hex, unhexlify, newbytes)),
     ('asc',    (_unquote, b64decode, newbytes)),
     ('bin',    (_unquote_bu, esc_bbytes_2b, _unquote_bu, s_or_b_2_bytes)),
     ('bin',    (_unquote_bu, esc_sbytes_2b, _unquote_bu, s_or_b_2_bytes)),
@@ -143,7 +150,7 @@ _from_bytes_convs = {
     'asc':  (b64encode, b2s, str),
 }
 
-def _autoconv_to_bytes(key):
+def _autoconv_key_to_bytes(key):
     """Auto-converts any data as newbytes, retaining their original format as string.
 
     Conversions described in :class:`AKey`.
@@ -179,12 +186,36 @@ def _autoconv_to_bytes(key):
     raise CrackException('Cannot autoconvert to binary: %s' % key)
 
 
-def _safe_autoconv(v):
-    try:
-        v = _autoconv_to_bytes(v)[1]
-    except Exception:
-        pass
-    return v
+_try_prefix_convs = (
+    ('num',    (_unquote, int, str)),
+    ('hex',    (_unquote, pure_hex, str)),
+    ('hex',    (_unquote, pure_hex, xs0x)),
+    ('asc',    (_unquote, check_b64, str)),
+    ('bin',    (s_or_b_2_bytes, )),
+    ('bin',    (esc_sbytes_2b, s_or_b_2_bytes, )),
+    ('bin',    (esc_bbytes_2b, s_or_b_2_bytes, )),
+    ('bin',    (_unquote_bu, esc_bbytes_2b, _unquote_bu, s_or_b_2_bytes)),
+    ('bin',    (_unquote_bu, esc_sbytes_2b, _unquote_bu, s_or_b_2_bytes)),
+    ('bin',    (_unquote_bu, s_or_b_2_bytes)),
+)
+
+def _autoconv_prefix(data):
+    """Returns all possible conversions of a prefix (int, hex, bytes, etc).
+
+    :param data: non-null
+    :returns: a tuple ``(<frmt-string>, <iterable>)``."""
+    if isinstance(data, AKey):
+        return [(data._conv or repr_conv, data.conv())]
+    if isinstance(data, int):
+        return [('num', str(data))]
+    res = []
+    if isinstance(data, (newbytes, str)):
+        for conv, trans_list  in _try_prefix_convs:
+            try:
+                res.append((conv, apply_trans_list(trans_list, data)))
+            except:
+                pass
+    return res
 
 
 def _convid(conv_prefix):
@@ -228,7 +259,7 @@ class AKey(newbytes):
                 enforces key-type - use it with caution, no check!
         :type _unparsed: bool or str
         """
-        aconv, byts = _autoconv_to_bytes(key)
+        aconv, byts = _autoconv_key_to_bytes(key)
         return AKey(byts, conv or aconv)
 
     _conv = None
@@ -258,6 +289,19 @@ class AKey(newbytes):
 
     def __str__(self):
         return self.__native__() if futils.PY2 else super(AKey, self).__str__(self)
+
+    def startswith(self, prefix):
+        """Convert `self` to `prefix`'s format and then perform :func:``startswith()`."""
+        for pconv, pref in _autoconv_prefix(prefix):
+            try:
+                s = self.conv(pconv)
+                if isinstance(s, int):
+                    s = str(s)
+                if s.startswith(pref):
+                    return True
+            except Exception:
+                pass
+        return False
 
     @property
     def num(self): return self.conv('num')

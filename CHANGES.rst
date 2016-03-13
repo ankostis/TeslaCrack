@@ -2,37 +2,46 @@
 TeslaCrack CHANGES
 ##################
 
-v0.1.0: XX Feb 2016: Package distribution as cmd-line tool
-==========================================================
+v0.1.0: XX March 2016: `pip`` distributed cmd-line tool with unified functionality
+==================================================================================
 To be released in *PyPi*, recfactored as a cmd-line tool.
 
 + Package tool:
-  + Use pypi to distribute tool.
-  + Single entry-point (console-command ``teslacrack``) with 4 sub-commands:
+  + Use pypi to distribute tool, installs with: ``pip install teslacrack``
+  + Deveopers free to use any library now.
+  + Single entry-point console-command ``teslacrack`` with 4 sub-commands:
+    ``ls, decrypt, ufactor, key``.
 
-+ ``unfactor.py``:
-  + Produce a SINGLE candidate AES key, by validating candidates.
-  + Recover AES-session-key if BTC-private-key known.
++ Automatically search for primes on "mul" keys in http://factordb.com.
++ Store all discovered key-infos into internal **key-db**; no need to manually
+  specify keys, but still possible if needed with ``key`` cmd
++ Search and match keys in **any format** or prefix, quoted or not:
+  - *hex*,
+  - *num*,
+  - *asc* (base64), and
+  - *bin* (bytes)
+
++ ``unfactor.py`` produces a SINGLE candidate AES key, by validating candidates.
++ ``decrypt`` recovers AES-session-key from BTC-private-key.
 
 + Refactor core functionality:
   + Unify all unfactor-XXX sources into ``unfactor.py``.
   + Add 2 more source-files for key conversion: tesla-file parsing, generation
     of candidate keys &other utilities.
   + Pythonify loops, PY2/P3 meticulously.
+  + Proper use of `future` lib (division, builtins, etc).
+  + Use `pycoin` lib that is available both in PY2 & PY3.
+  + Improve TestCases, also added some for documentation.
   + KeyConversions:
     + Accept keys in ANY format: bytes, hex, integers, b64, as string or bytes, with or without quotes.
-    + PairedKeys class: Maintain keys internally in configurable format.
     + Header class: Abstract parsing of tesla-files and offsets with a class.
 
-+ FINALLY explain CORRECTLY how TeslaCrypt/Crack works:
++ docs: FINALLY explain CORRECTLY how TeslaCrypt/Crack works:
   + Officially use the "mul" term for distinguishing it from the public/private ECDH keys
 
-+ Proper use of `future` lib (division, builtins, etc).
-+ Use `pycoin` lib that is available both in PY2 & PY3.
-+ List known TeslaCrypt versions and their infos in the README (adapted from TeslaDecoder).
-+ Improve TestCases, also added some for documentation.
-+ Added CHANGES and Versioning.
-+ Added GPL-headers to all files.
+  + List known TeslaCrypt versions and their infos in the README (adapted from TeslaDecoder).
+  + Added CHANGES and Versioning.
+  + Added GPL-headers to all files.
 
 
 v0.0.3, 24 Feb 2016, #29: Add TestCases

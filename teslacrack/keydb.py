@@ -42,21 +42,25 @@ The *keyring* is an index allowing traversing matched keys.
 """
 from __future__ import print_function, unicode_literals, division
 
-from collections import OrderedDict
+from collections import OrderedDict, namedtuple
 import io
 import logging
+from teslacrack import utils
 from os import path as osp
 import os
 import shutil
 
 from boltons.setutils import IndexedSet as iset
 from future.builtins import str, int, bytes as newbytes  # @UnusedImport
+from past.builtins import basestring
 from schema import (
     SchemaError, Schema, And, Or, Use, Optional as Opt)
+from toolz import dicttoolz, itertoolz
+from _collections import defaultdict
 import yaml
 
 import functools as ft
-from past.builtins import basestring
+
 from . import CrackException
 from .keyconv import AKey
 
@@ -67,9 +71,9 @@ log = logging.getLogger(__name__)
 _db_verfld = '_db_schema_ver'
 _db_version = '1'
 _master_fld = 'master'
-_keyrec_fields = ['name', 'type', _master_fld, 'pub', 'mul', 'prv', 'btc_addr',
-                        'primes', 'composites', 'files', 'error', 'warn', 'desc']
-_AKey_fields = ['pub', 'mul', 'prv']
+_keyrec_fields = ('name', 'type', _master_fld, 'pub', 'mul', 'prv', 'btc_addr',
+                        'primes', 'composites', 'files', 'error', 'warn', 'desc')
+_AKey_fields = ('pub', 'mul', 'prv')
 
 def _safe_unlink(fpath):
     try:
@@ -79,7 +83,7 @@ def _safe_unlink(fpath):
 
 
 def default_db_path():
-    return osp.expanduser('~/.teslacrack.yml')
+    return osp.expanduser('~/.teslacrack.yaml')
 
 def _fix_version(db):
     file_version = db.get(_db_verfld, _db_version)
@@ -188,15 +192,21 @@ def check_db(db):
 
 
 def load(dbpath=None, no_sample=False):
-    if not dbpath:
+    if dbpath:
+        dbpath = osp.expanduser(dbpath)
+    else:
         dbpath = default_db_path()
+    existed = False
     if osp.isfile(dbpath):
         with io.open(dbpath, 'rt', encoding='utf-8') as fd:
             db = _KeyDb(yaml.load(fd)) ##TODO Remove
+        existed = True
     else:
         db = _KeyDb() if no_sample else sample()
     assert isinstance(db, _KeyDb)
     db = heal_db(db)
+    if not existed:
+        db.store(dbpath)
 
     return db
 
@@ -248,6 +258,8 @@ def empty():
 
 class _KeyDb(OrderedDict):
 
+#     def __init__(self, *args, **kwds):
+#         super(_KeyDb, self).__init__(self, *args, **kwds)
 
     def store(self, dbpath=None, debug=False):
         check_db(self)
@@ -286,7 +298,15 @@ class _KeyDb(OrderedDict):
     def add_keyrec(self, type=None, master=None, name=None, desc=None,  # @ReservedAssignment
             pub=None, mul=None, prv=None, btc_addr=None, primes=None, composites=None,
             files=None, error=None, warn=None):
-        """Use the return value as a "master" for a subsequent key."""
+        """
+        :param dict master:
+                another keyrec
+        :return:
+                the new keyrec that has been added.
+
+        - The `pub`, `mul`, `prv` must be :class:`AKey`.
+        - Use the return value as a "master" for a subsequent key.
+        """
         fields = {k:v for k,v in locals().items() if v is not None and k}
         del fields['self'];
         keyrec = _reorder_dict(OrderedDict(fields), _keyrec_fields)
@@ -305,3 +325,113 @@ yaml.add_representer(_KeyDb, lambda dumper, data:
 yaml.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
         lambda loader, node: OrderedDict(loader.construct_pairs(node)))
 
+
+_KeyDesc = namedtuple('_KeyDesc', 'fld key keyrec')
+
+class KeyRing(object):
+    """
+    Maintains 2 Inverse-Indexes on back-end :class:`_KeyDb`: ``AKeys`` and ``<key-names> --> _KeyDesc``.
+
+    Keys match only `pub`, `mul`, `prv`  keys - no `btc-addr`.
+    """
+
+    def __init__(self, keydb):
+        self._keydb = keydb
+        self._akeys_ii, self._names_ii = self._make_iindexes()
+
+    def _make_iindexes(self):
+        keydescs = [_KeyDesc(fld, keyrec[fld], keyrec)
+                for keyrec in self._keydb.keyrecs()
+                for fld in keyrec
+                if fld in _AKey_fields]
+        akeys_ii = {kd.key:kd for kd in keydescs}
+
+        fld = 'name'
+        names_ii = defaultdict(list)
+        for keyrec in self._keydb.keyrecs():
+            name = keyrec.get(fld)
+            names_ii[name].append(_KeyDesc(fld, name, keyrec))
+
+        return akeys_ii, names_ii
+
+    def _match_any_keys(self, key_prefix):
+        """
+        :param AKey key_prefix:
+        :return: a potential empty dict of matched `_KeyDesc`
+        """
+        return dicttoolz.keyfilter(lambda k: k.startswith(key_prefix),
+                self._akeys_ii)
+
+    def _match_one_key(self, key_prefix, fld_name='', allow_misses=False):
+        """
+        :param str fld_name:
+                just for reporting
+        :return:
+                a single matching `_KeyDesc`, or screams!
+        """
+        matched_keys = self._match_any_keys(key_prefix)
+        nkeys = len(matched_keys)
+        if nkeys > 1 or not allow_misses and nkeys < 1:
+            if fld_name:
+                fld_name = ' for %s-key' % fld_name
+            raise KeyError('Key-prefix%s %r matched %i keys: %r' %
+                    (fld_name, key_prefix, len(matched_keys), list(matched_keys)))
+        if matched_keys:
+            return next(iter(matched_keys.values()))
+
+    def _match_by_dbkeys(self, dbkeys):
+        keydescs = []
+        for k in dbkeys:
+            named_kds = self._names_ii.get(k)
+            if named_kds:
+                keydescs.extend(named_kds)
+            else:
+                keydescs.extend(self._match_any_keys(k).values())
+        return list(itertoolz.unique(keydescs, key=id))
+
+    def get_keyrec_fields(self, dbkeys=(), fields=()):
+        """
+        :param list dbkeys:
+                A list of names or key-prefixes to be converted into :class:`AKey`.
+                All items must match exactly one prefix or name.
+        :param str fields:
+                Fields to read their values.
+        """
+        keyrecs = ([kd.keyrec for kd in self._match_by_dbkeys(dbkeys)]
+                if dbkeys else self._keydb.keyrecs())
+        if fields:
+            fields, all_fields = iset(fields), iset(_keyrec_fields)
+            if fields > all_fields:
+                raise CrackException("Unknown key-fields(%r)! "
+                        "\n  Must be one of: %r" % (all_fields - fields, _keyrec_fields))
+            keyrecs = [dicttoolz.keyfilter(lambda fld: fld in fields, krec, OrderedDict)
+                    for krec in keyrecs]
+        return [kr for kr in keyrecs if kr]
+
+    def set_keyrec_field(self, dbkeys, field, value=None, force=False):
+        """
+        :param list dbkeys:
+                A list of names or key-prefixes to be converted into :class:`AKey`.
+                All items must match exactly one prefix or name.
+        :param str field:
+                A field to set its value.
+        :param value:
+                If missing, deletes field.
+                For key-fields, it may be the raw data (not AKey).
+        """
+        if field not in _keyrec_fields:
+            raise CrackException("Unknown key-field(%r)! "
+                    "\n  Must be one of: %r" % (field, _keyrec_fields))
+        keyrecs = ([kd.keyrec for kd in self._match_by_dbkeys(dbkeys)]
+                if dbkeys else self._keydb.keyrecs())
+        schema = _make_keyrec_schema(self, heal=False)
+        for kr in keyrecs:
+            if not value:
+                del kr[field]
+            else:
+                if field == 'master':
+                    raise NotImplemented()
+                if field in _AKey_fields:
+                    value = AKey.auto(value)
+                kr[field] = value
+            schema.validate(kr)

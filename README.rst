@@ -583,9 +583,9 @@ Example:
 - To reconstruct the same BTC priv-key in isolation in 2 steps::
 
     > teslacrack ls <tesla-file>  --fld=btc_pub --fld=btc_mul -Casc
-    { 'file': 'tests/teslafiles/tesla_key14.jpg.vvv',
-      'btc_pub_key': 'BEPD/gJGBX0GNtDKu32O6YQ35ubA/jJKI+4aT9jFHbwG2S5t5TFAsFfFGFDhDXLFos4JgYB11BLx2rdynuTWJv4=',
-      'btc_mul_key': 'F3peCXPqNP+uuourpviPTtFNOUNVnXsWPdrI1N/p5aiS2ShtvbVvXY7RZoXVVk9i+v1EH360DsYq9z4Hc9dusQ=='}
+    { 'file': 'tests/teslafiles/tesla_key33.docx.vvv',
+      'btc_pub_key': 'th707a7P3jehYkYuW0IIb3KZto5gBHRb96R8VM5xQLa4mIHOkZXUAj0fp0unm5wVNPIXhbPi+gdW6IF4UZjkNA==',
+      'btc_mul_key': 'Jvh8Yz8fK8eiQR8t8OHaDyrA/Zc81WyyhzB1FBLVgGqkL8iRBzZ0uniTd0ESb7d4yk5XgGN0MRgHOXr3rf9bTg=='}
 
   Notice that keys are printed in *base64* due to the ``-Casc`` option.
   You may now use 2 methods:
