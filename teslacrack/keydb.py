@@ -258,8 +258,9 @@ def empty():
 
 class _KeyDb(OrderedDict):
 
-#     def __init__(self, *args, **kwds):
-#         super(_KeyDb, self).__init__(self, *args, **kwds)
+    def validate_keyrec(self, kr):
+        keyrec_schema = _make_keyrec_schema(self, heal=False)
+        return keyrec_schema.validate(kr)
 
     def store(self, dbpath=None, debug=False):
         check_db(self)
@@ -312,8 +313,7 @@ class _KeyDb(OrderedDict):
         keyrec = _reorder_dict(OrderedDict(fields), _keyrec_fields)
         self.keyrecs().append(keyrec)
 
-        schema = _make_keyrec_schema(self, heal=False)
-        keyrec = schema.validate(keyrec)
+        keyrec = self.validate_keyrec(keyrec)
 
         return keyrec
 
@@ -362,32 +362,30 @@ class KeyRing(object):
         return dicttoolz.keyfilter(lambda k: k.startswith(key_prefix),
                 self._akeys_ii)
 
-    def _match_one_key(self, key_prefix, fld_name='', allow_misses=False):
-        """
-        :param str fld_name:
-                just for reporting
-        :return:
-                a single matching `_KeyDesc`, or screams!
-        """
-        matched_keys = self._match_any_keys(key_prefix)
-        nkeys = len(matched_keys)
-        if nkeys > 1 or not allow_misses and nkeys < 1:
-            if fld_name:
-                fld_name = ' for %s-key' % fld_name
-            raise KeyError('Key-prefix%s %r matched %i keys: %r' %
-                    (fld_name, key_prefix, len(matched_keys), list(matched_keys)))
-        if matched_keys:
-            return next(iter(matched_keys.values()))
+    def _raise_if_not_batch(self, batch, dbkey, key_descs_or_recs):
+        if not batch and len(key_descs_or_recs) > 1:
+            try:
+                keyrecs = [kd.key for kd in key_descs_or_recs]
+            except AttributeError:
+                keyrecs = key_descs_or_recs
+            raise CrackException("No --batch, but db-Key %r matched %i key-recs!" %
+                    (dbkey, len(keyrecs)))
 
-    def _match_by_dbkeys(self, dbkeys):
-        keydescs = []
-        for k in dbkeys:
-            named_kds = self._names_ii.get(k)
-            if named_kds:
-                keydescs.extend(named_kds)
-            else:
-                keydescs.extend(self._match_any_keys(k).values())
-        return list(itertoolz.unique(keydescs, key=id))
+    def _match_by_dbkeys(self, dbkeys, batch):
+        if not dbkeys:
+            keyrecs= self._keydb.keyrecs()
+            self._raise_if_not_batch(batch, None, keyrecs)
+        else:
+            keydescs = []
+            for k in dbkeys:
+                mkds = []
+                mkds.extend(self._names_ii.get(k, ()))
+                if not mkds:
+                    mkds.extend(self._match_any_keys(k).values())
+                self._raise_if_not_batch(batch, k, mkds)
+                keydescs.extend(mkds)
+            keyrecs = [kd.keyrec for kd in itertoolz.unique(keydescs, key=id)]
+        return keyrecs
 
     def get_keyrec_fields(self, dbkeys=(), fields=()):
         """
@@ -397,8 +395,7 @@ class KeyRing(object):
         :param str fields:
                 Fields to read their values.
         """
-        keyrecs = ([kd.keyrec for kd in self._match_by_dbkeys(dbkeys)]
-                if dbkeys else self._keydb.keyrecs())
+        keyrecs = self._match_by_dbkeys(dbkeys, batch=True)
         if fields:
             fields, all_fields = iset(fields), iset(_keyrec_fields)
             if fields > all_fields:
@@ -408,7 +405,7 @@ class KeyRing(object):
                     for krec in keyrecs]
         return [kr for kr in keyrecs if kr]
 
-    def set_keyrec_field(self, dbkeys, field, value=None, force=False):
+    def set_keyrec_field(self, dbkeys, field, value=None, batch=False, force=False):
         """
         :param list dbkeys:
                 A list of names or key-prefixes to be converted into :class:`AKey`.
@@ -422,9 +419,7 @@ class KeyRing(object):
         if field not in _keyrec_fields:
             raise CrackException("Unknown key-field(%r)! "
                     "\n  Must be one of: %r" % (field, _keyrec_fields))
-        keyrecs = ([kd.keyrec for kd in self._match_by_dbkeys(dbkeys)]
-                if dbkeys else self._keydb.keyrecs())
-        schema = _make_keyrec_schema(self, heal=False)
+        keyrecs = self._match_by_dbkeys(dbkeys, batch)
         for kr in keyrecs:
             if not value:
                 del kr[field]
@@ -434,4 +429,24 @@ class KeyRing(object):
                 if field in _AKey_fields:
                     value = AKey.auto(value)
                 kr[field] = value
-            schema.validate(kr)
+            self._keydb.validate_keyrec(kr) # TODO: Rollback?!
+
+    def del_keyrec_field(self, dbkeys, fields=(), batch=False, force=False):
+        keyrecs = self._match_by_dbkeys(dbkeys, batch)
+        if fields:
+            for kr in keyrecs:
+                for fld in fields:
+                    del keyrecs[fld]
+            res = "Deleted %i fields from %i key-recs." % (len(fields), len(keyrecs))
+        else:
+            if not force:
+                raise CrackException("To delete the whole key-record, either"
+                        " use `--delete` AND `--force` without any --fld,"
+                        " or delete all its key-fields!")
+            ids_to_del = [id(kr) for kr in keyrecs]
+            all_keyrecs = self._keydb.keyrecs()
+            all_keyrecs[:] = [kr for kr in all_keyrecs if id(kr) not in ids_to_del]
+            # TODO: Referential integrity!!
+            res = "Deleted %i key-recs." % len(keyrecs)
+        check_db(self._keydb) # TODO: Rollback?!
+        return res

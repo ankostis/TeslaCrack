@@ -72,12 +72,13 @@ Quickstart
     USAGE:
         teslacrack ls        [options] [--fld=<field>...] [<path>...]
         teslacrack decrypt   [options] [--fld=<field>...]
-                                  [--dry-run] [--delete | --delete-old]
-                                  [(--fix | --overwrite) [--backup=<.ext>]] [<path>...]
+                                    [--dry-run] [--delete | --delete-old]
+                                    [(--fix | --overwrite) [--backup=<.ext>]] [<path>...]
         teslacrack unfactor  [options] [--ecdh | --btc-addr=<addr>] <file> <prime-factor>...
         teslacrack unfactor  [options] (--pub=<db-key> | --btc-addr=<addr>) <mul-db-key> [<prime-factor>...]
-        teslacrack key       [options] [-f | --force] [--btc | --aes | --master=<db-key>]
-                                  [--fld=<field-n-value>]... [<db-key>...]
+        teslacrack key       [options] [--force] [--delete] [--batch]
+                                    [--btc | --aes | --master=<db-key>]
+                                    [--fld=<field-n-value>]... [<db-key>...]
         teslacrack -h | --help
         teslacrack -V | --version
 
@@ -93,8 +94,6 @@ Quickstart
             if key fully factored, attempts to unfactor it.
             If no <path> given, it decrypts recursively current folder.
         unfactor (1st form):
-           Try to reconstruct any key with known factors
-    use the <prime-factor> given or from internal key-db.
            Attempts to reconstruct prv-keys from file on a best effort basis:
            if <prime-factor>s given, they choose which key to attack; otherwise, it reconstructs
            anyone of *BTC* or *AES* prv-key (in that order) with all primes known either
@@ -104,7 +103,7 @@ Quickstart
         unfactor (2nd form):
             Like the `unfactor`, above, but the <mul-db-key> is explicitly given and
             the method must be one of *ECDH* or *BTC*.  Use the `ls` or `decrypt` sub-cmds
-            to print unknown "mul" keys; factorize this to get all <prime-factor>.
+            to print unknown "mul" keys; factorize them to get all <prime-factor>.
         key:
             List or update the internal key-db at `~/.teslacrack.yaml`.
             Without any --fld, --btc, --aes, --master options, it lists matching  <db-key> record(s)
@@ -135,7 +134,9 @@ Quickstart
         --no-factordb          Do not search for prime-factors in http://factordb.com.
         --keydb-no-write       Do not update internal key-db at `~/.teslacrack.yaml`.
         --keydb-no-rw          Do not update nor read internal key-db `~/.teslacrack.yaml`.
-        --delete               Delete crypted-files after decrypting them.
+        -b, --batch            Allow performing `key` subcmd operations on multiple matching keys.
+        -f, --force            Force key-db operation, ie overwrite/move keys, delete keyrecs.
+        -d, --delete           Delete key-records, or crypted-files after decrypting them.
         --delete-old           Delete crypted even if decrypted-file created during a previous run
                                [default: False].
         -n, --dry-run          Decrypt but don't Write/Delete files, just report actions performed

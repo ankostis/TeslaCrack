@@ -28,7 +28,18 @@ from _tutils import assertRaisesRegex
 tcm.init_logging(level=logging.DEBUG)
 
 _test_dbpath = '~/.teslacrack-test.yaml'
-
+_all_dbkeys = [
+            9538446796470938829684731739639878188192719462398500944849302506305979954739310262871148436514908439724826407676788293770514720299757719404545760627844148,
+        '9538446796470938829684731739639878188192719462398500944849302506305979954739310262871148436514908439724826407676788293770514720299757719404545760627844148',
+        'Jvh8Yz8fK8eiQR8t8OHaDyrA/Zc81WyyhzB1FBLVgGqkL8iRBzZ0uniTd0ESb7d4yk5XgGN0MRgHOXr3rf9bTg==',
+        '9F0E6C608AFF777F1231D1D691FB0FFE8BF20CEC13ECBBCBA4992E51348462F2',
+        '0xae7e9af92984a795351524c3243eb641cd031346a7a9d4744b2b1b22fd6ef4e153fa8117048c11522ba4a0b909c36b3d4146cb6f137882dfa2b2de6f26f0598d',
+        '79E263D45D5D7D2B576307116B31680DECE84E59562DAAA0BF93A5A0D34C9DED',
+        'E52+Luq5WeTW6lTmI4MjPXEHqgV3XkwIfIxIwb0Sy/ydMOtxy+HhUiwUd5/RZruhW4umSAc09jCl97JUa77o+w==',
+        'KHQR0t3D7M+C2EeTGjXSYBodzFJO0Z3urwAHf5ypK8QKbDUw4H7V/IVPfbUhRkj9DJYz326hCU0JyL/CXj3a0A==',
+        '\x02[\x96\xa3\xf9\xab\x13u>\xd8F\x94\x03D"!l\x03\xfd\x02\x98\xe6}\x87\xe9\xb1\xac\xe8\x02}lP\xf0,\xfd\x14rGh\xae\xa2\xbe-Spva\xb5T\xa8\xd5\xea\xfa\r\\\xf3\xc3\xf2\xf2\x99\xe6\x14\x87\x0f',
+        b'\x02[\x96\xa3\xf9\xab\x13u>\xd8F\x94\x03D"!l\x03\xfd\x02\x98\xe6}\x87\xe9\xb1\xac\xe8\x02}lP\xf0,\xfd\x14rGh\xae\xa2\xbe-Spva\xb5T\xa8\xd5\xea\xfa\r\\\xf3\xc3\xf2\xf2\x99\xe6\x14\x87\x0f',
+]
 @ddt.ddt
 class Tkeydb(unittest.TestCase):
     @unittest.skipIf(futils.PY2, "Missing `tempfile.TemporaryDirectory`!"
@@ -99,29 +110,20 @@ class Tkeydb(unittest.TestCase):
         self.assertGreater(len(krng._akeys_ii), 2, krng._akeys_ii)
         self.assertGreaterEqual(len(krng._names_ii), 2, krng._names_ii)
 
-    @ddt.data(
-        9538446796470938829684731739639878188192719462398500944849302506305979954739310262871148436514908439724826407676788293770514720299757719404545760627844148,
-        '9538446796470938829684731739639878188192719462398500944849302506305979954739310262871148436514908439724826407676788293770514720299757719404545760627844148',
-        'Jvh8Yz8fK8eiQR8t8OHaDyrA/Zc81WyyhzB1FBLVgGqkL8iRBzZ0uniTd0ESb7d4yk5XgGN0MRgHOXr3rf9bTg==',
-        '9F0E6C608AFF777F1231D1D691FB0FFE8BF20CEC13ECBBCBA4992E51348462F2',
-        '0xae7e9af92984a795351524c3243eb641cd031346a7a9d4744b2b1b22fd6ef4e153fa8117048c11522ba4a0b909c36b3d4146cb6f137882dfa2b2de6f26f0598d',
-        '79E263D45D5D7D2B576307116B31680DECE84E59562DAAA0BF93A5A0D34C9DED',
-        'E52+Luq5WeTW6lTmI4MjPXEHqgV3XkwIfIxIwb0Sy/ydMOtxy+HhUiwUd5/RZruhW4umSAc09jCl97JUa77o+w==',
-        'KHQR0t3D7M+C2EeTGjXSYBodzFJO0Z3urwAHf5ypK8QKbDUw4H7V/IVPfbUhRkj9DJYz326hCU0JyL/CXj3a0A==',
-        '\x02[\x96\xa3\xf9\xab\x13u>\xd8F\x94\x03D"!l\x03\xfd\x02\x98\xe6}\x87\xe9\xb1\xac\xe8\x02}lP\xf0,\xfd\x14rGh\xae\xa2\xbe-Spva\xb5T\xa8\xd5\xea\xfa\r\\\xf3\xc3\xf2\xf2\x99\xe6\x14\x87\x0f',
-        b'\x02[\x96\xa3\xf9\xab\x13u>\xd8F\x94\x03D"!l\x03\xfd\x02\x98\xe6}\x87\xe9\xb1\xac\xe8\x02}lP\xf0,\xfd\x14rGh\xae\xa2\xbe-Spva\xb5T\xa8\xd5\xea\xfa\r\\\xf3\xc3\xf2\xf2\x99\xe6\x14\x87\x0f',
+    @ddt.data(*_all_dbkeys
         #FAIL br'\x02[\x96\xa3\xf9\xab\x13u>\xd8F\x94\x03D"!l\x03\xfd\x02\x98\xe6}\x87\xe9\xb1\xac\xe8\x02}lP\xf0,\xfd\x14rGh\xae\xa2\xbe-Spva\xb5T\xa8\xd5\xea\xfa\r\\\xf3\xc3\xf2\xf2\x99\xe6\x14\x87\x0f',
         #FAIL r'\x02[\x96\xa3\xf9\xab\x13u>\xd8F\x94\x03D"!l\x03\xfd\x02\x98\xe6}\x87\xe9\xb1\xac\xe8\x02}lP\xf0,\xfd\x14rGh\xae\xa2\xbe-Spva\xb5T\xa8\xd5\xea\xfa\r\\\xf3\xc3\xf2\xf2\x99\xe6\x14\x87\x0f',
     )
     def test_match_keydb_by_keyprefix(self, dbkey):
         npref = 16
         prefix = int(str(dbkey)[:npref]) if isinstance(dbkey, int) else dbkey[:npref]
-        db = keydb.load(_test_dbpath)
+        db = keydb.sample()
         krng = keydb.KeyRing(db)
-        kdescs= krng._match_by_dbkeys([prefix])
-        pprint(kdescs)
-        self.assertEqual(len(kdescs), 1, (kdescs, dbkey))
-        self.assertTrue(kdescs[0].key.startswith(dbkey), (kdescs, dbkey))
+        keyrecs= krng._match_by_dbkeys([prefix], batch=0)
+        #pprint(keyrecs)
+        self.assertEqual(len(keyrecs), 1, (keyrecs, dbkey))
+        kr = keyrecs[0]
+        #self.assertIn(dbkey, (kr['pub'], kr['prv'], kr['mul']), (keyrecs, dbkey))
 
     @ddt.data(('name',2), ('type', 3), ('master', 1),
             ('pub', 3), ('mul', 3) ,('prv', 2),
@@ -130,11 +132,21 @@ class Tkeydb(unittest.TestCase):
             )
     def test_keyring_read(self, case):
         fld, nkrecs = case
-        db = keydb.load(_test_dbpath)
+        db = keydb.sample()
         krng = keydb.KeyRing(db)
         keyrecs = krng.get_keyrec_fields(fields=[fld])
         #pprint(keyrecs)
         self.assertEqual(len(keyrecs), nkrecs, keyrecs)
         for kr in keyrecs:
             self.assertEqual(len(kr), 1, kr)
+
+    @ddt.data(*_all_dbkeys)
+    def test_keyring_del_keyrec(self, dbkey):
+        npref = 16
+        prefix = int(str(dbkey)[:npref]) if isinstance(dbkey, int) else dbkey[:npref]
+        db = keydb.sample()
+        krng = keydb.KeyRing(db)
+        nkrs = len(db.keyrecs())
+        krng.del_keyrec_field([prefix], fields=(), batch=0, force=1)
+        self.assertEqual(len(db.keyrecs()), nkrs-1, len(db.keyrecs()))
 

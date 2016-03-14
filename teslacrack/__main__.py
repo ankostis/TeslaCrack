@@ -27,7 +27,7 @@ USAGE:
                                 [(--fix | --overwrite) [--backup=<.ext>]] [<path>...]
     teslacrack unfactor  [options] [--ecdh | --btc-addr=<addr>] <file> <prime-factor>...
     teslacrack unfactor  [options] (--pub=<db-key> | --btc-addr=<addr>) <mul-db-key> [<prime-factor>...]
-    teslacrack key       [options] [-f | --force] [-D | --delete]
+    teslacrack key       [options] [--force] [--delete] [--batch]
                                 [--btc | --aes | --master=<db-key>]
                                 [--fld=<field-n-value>]... [<db-key>...]
     teslacrack -h | --help
@@ -85,7 +85,9 @@ OPTIONS:
     --no-factordb          Do not search for prime-factors in http://factordb.com.
     --keydb-no-write       Do not update internal key-db at `~/.teslacrack.yaml`.
     --keydb-no-rw          Do not update nor read internal key-db `~/.teslacrack.yaml`.
-    --delete               Delete crypted-files after decrypting them.
+    -b, --batch            Allow performing `key` subcmd operations on multiple matching keys.
+    -f, --force            Force key-db operation, ie overwrite/move keys, delete keyrecs.
+    -d, --delete           Delete key-records, or crypted-files after decrypting them.
     --delete-old           Delete crypted even if decrypted-file created during a previous run
                            [default: False].
     -n, --dry-run          Decrypt but don't Write/Delete files, just report actions performed
@@ -240,8 +242,12 @@ def _get_or_set_keys(opts):
     fields = opts['--fld']
     db = keydb.load()
     krng = keydb.KeyRing(db)
-    keyrecs = krng.get_keyrec_fields(dbkeys, fields=fields)
-    return keyrecs
+    if opts['--delete']:
+        res = krng.del_keyrec_field(dbkeys, fields, opts['--batch'], opts['--force'])
+    else:
+        keyrecs = krng.get_keyrec_fields(dbkeys, fields=fields)
+        res = keyrecs
+    return res
 
 
 def main(*args):
